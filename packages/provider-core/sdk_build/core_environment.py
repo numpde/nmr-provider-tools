@@ -14,6 +14,7 @@ import gzip
 import json
 import os
 import re
+import reprlib
 import shutil
 import stat
 import subprocess
@@ -31,6 +32,7 @@ from tools.adapters.pip_install import (
 )
 
 from tools.artifacts import fsync_directory, regular_file
+from tools.artifact_metadata import metadata_mismatch
 from tools.installer import create_environment
 from tools.wheelhouse import digest, pool_read_lock, read_json, required_wheel_constraints, requirements, select_wheels, wheel_inputs_from_report
 from type_requirements import require_type
@@ -42,6 +44,13 @@ TYPE_REQUIREMENTS_SOURCE = pathlib.Path("/workspace/packages/type-requirements/s
 
 # repo-check: allow-module-constant
 SDK_TYPE_REQUIREMENTS = pathlib.Path("src/provider_core/_type_requirements.py")
+
+
+# Keep ordinary release identifiers complete while bounding rejected metadata
+# repo-check: allow-module-constant
+_BUILD_EVIDENCE = reprlib.Repr()
+
+_BUILD_EVIDENCE.maxstring = 256
 
 
 def build_source_wheel(
@@ -59,14 +68,21 @@ def build_source_wheel(
     bundled_sources maps package destinations to their canonical source files.
     """
 
-    if (not source.is_dir()) or (source.is_symlink()):
-        raise ValueError("Cannot build wheel: source must be a real directory.")
+    if not source.is_dir():
+        raise ValueError(f"{source=} should be a directory")
 
-    if any(source_entry.is_symlink() for source_entry in source.rglob("*")):
-        raise ValueError("Cannot build wheel: source must not contain symlinks.")
+    if source.is_symlink():
+        raise ValueError(f"{source=} should not be a symlink")
 
-    if staged_source.resolve().is_relative_to(source.resolve()):
-        raise ValueError("Cannot build wheel: staged source must be outside the input tree.")
+    for source_entry in source.rglob("*"):
+        if source_entry.is_symlink():
+            raise ValueError(f"{source_entry=} should not be a symlink")
+
+    resolved_staged_source = staged_source.resolve()
+    resolved_source = source.resolve()
+
+    if resolved_staged_source.is_relative_to(resolved_source):
+        raise ValueError(f"{resolved_staged_source=} should be outside {resolved_source=}")
 
     shutil.copytree(source, staged_source)
 
@@ -112,8 +128,16 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
 
 
 def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
-    if (output.is_symlink()) or (not output.is_dir()) or (any(output.iterdir())):
-        raise ValueError("Cannot build provider-core: output must be a private empty directory.")
+    if output.is_symlink():
+        raise ValueError(f"{output=} should not be a symlink")
+
+    if not output.is_dir():
+        raise ValueError(f"{output=} should be a directory")
+
+    existing_output_entry = next(output.iterdir(), None)
+
+    if existing_output_entry is not None:
+        raise ValueError(f"{existing_output_entry=} should be absent from {output=}")
 
     with tempfile.TemporaryDirectory(prefix="core-build-") as temporary:
         scratch = pathlib.Path(temporary)
@@ -131,22 +155,18 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         project_metadata = tomllib.loads((source / "pyproject.toml").read_text())
         release_version = project_metadata["project"]["version"]
 
-        if not (project_metadata["project"]["name"] == "provider-core"):
-            raise ValueError(
-                "Cannot build provider-core release: metadata must identify "
-                "provider-core and a three-part release version."
-            )
+        project_name = project_metadata["project"]["name"]
+        expected_project_name = "provider-core"
+
+        if not (project_name == expected_project_name):
+            raise ValueError(f"{_BUILD_EVIDENCE.repr(project_name)=} should match {expected_project_name=}")
 
         require_type(release_version, str)
 
-        if not (re.fullmatch(
-            r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
-            release_version,
-        ) is not None):
-            raise ValueError(
-                "Cannot build provider-core release: metadata must identify "
-                "provider-core and a three-part release version."
-            )
+        release_version_pattern = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+
+        if not re.fullmatch(release_version_pattern, release_version):
+            raise ValueError(f"{_BUILD_EVIDENCE.repr(release_version)=} should match {release_version_pattern=}")
 
         builder = scratch / "builder"
         builder_python = create_environment(builder)
@@ -160,7 +180,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         )
 
         if installed_build_inputs != identities["build"]:
-            raise ValueError("Cannot build provider-core: installed build inputs differ from selected inputs.")
+            raise ValueError(f"{builder_python=}: " + metadata_mismatch(installed_build_inputs, identities["build"]))
 
         staged_package = build_source_wheel(
             source=source,
@@ -188,19 +208,18 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         wheel = output / f"provider_core-{release_version}-py3-none-any.whl"  # machine-string: wheel filename consumed by installers
         sdist = output / f"provider_core-{release_version}.tar.gz"  # machine-string: source archive filename consumed by publishers
 
-        if (
-            (set(output.iterdir()) != {wheel, sdist}) or
-            any(
-                (
-                    ((not distribution.is_file()) or (distribution.is_symlink()))
-                    for distribution in (wheel, sdist)
-                ),
-            )
-        ):
-            raise ValueError(
-                "Cannot publish provider-core: build must produce exactly "
-                "its declared wheel and source distribution."
-            )
+        built_artifacts = set(output.iterdir())
+        expected_artifacts = {wheel, sdist}
+
+        if built_artifacts != expected_artifacts:
+            raise ValueError(f"{output=}: " + metadata_mismatch(built_artifacts, expected_artifacts))
+
+        for distribution in (wheel, sdist):
+            if not distribution.is_file():
+                raise ValueError(f"{distribution=} should be a regular file")
+
+            if distribution.is_symlink():
+                raise ValueError(f"{distribution=} should not be a symlink")
 
         normalize_sdist(sdist)
 
@@ -221,10 +240,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         observed_requirements = requirements(install_lock)
 
         if observed_requirements != expected_requirements:
-            raise ValueError(
-                "Cannot publish provider-core: installation lock differs "
-                "from the runtime closure and built wheel."
-            )
+            raise ValueError(f"{install_lock=}: " + metadata_mismatch(observed_requirements, expected_requirements))
 
         native_lock = output / f"provider_core-{release_version}-native-install.lock"  # machine-string: lock filename consumed by native verification
 
@@ -232,8 +248,11 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             hashed_requirement("provider-core", release_version, digest(wheel))
         )
 
-        if requirements(native_lock) != {("provider-core", release_version): {digest(wheel)}}:
-            raise ValueError("Cannot publish provider-core: native installation lock differs from the built wheel.")
+        observed_native_requirements = requirements(native_lock)
+        expected_native_requirements = {("provider-core", release_version): {digest(wheel)}}
+
+        if observed_native_requirements != expected_native_requirements:
+            raise ValueError(f"{native_lock=}: " + metadata_mismatch(observed_native_requirements, expected_native_requirements))
 
     return (wheel, install_lock, identities)
 
@@ -258,10 +277,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
     )
 
     if (expected_inputs is not None) and (selected_wheel_inputs != expected_inputs):
-        raise ValueError(
-            "Cannot admit provider-core installation: selected wheel identities "
-            "differ from the pinned inputs."
-        )
+        raise ValueError(f"{lock=}: " + metadata_mismatch(selected_wheel_inputs, expected_inputs))
 
     with tempfile.NamedTemporaryFile(prefix="core-install-report-", suffix=".json") as report:
         installed_wheel_inputs = install_locked(
@@ -275,10 +291,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
         )
 
         if installed_wheel_inputs != selected_wheel_inputs:
-            raise ValueError(
-                "Cannot admit provider-core installation: installed wheel "
-                "identities differ from captured inputs."
-            )
+            raise ValueError(f"{environment_python=}: " + metadata_mismatch(installed_wheel_inputs, selected_wheel_inputs))
 
     subprocess.run(check_environment_command(environment_python), check=True)
     shutil.copyfile(lock, root / "provider-core-install.lock")
@@ -299,20 +312,17 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
     if overlapping_requirements:
         overlapping_requirement_list = sorted(overlapping_requirements)
 
-        raise ValueError(
-            f"Cannot install provider-core behavioral tests: test requirements "
-            f"overlap runtime packages; {overlapping_requirement_list=}"
-        )
+        raise ValueError(f"{overlapping_requirement_list=} should be empty")
 
     destination.write_text(
         runtime_lock.read_text().rstrip() + "\n" + test_lock.read_text().strip() + "\n"
     )
 
-    if requirements(destination) != (runtime_requirements | test_requirements):
-        raise ValueError(
-            "Cannot install provider-core behavioral tests: merged wheel lock "
-            "differs from its inputs"
-        )
+    merged_requirements = requirements(destination)
+    expected_merged_requirements = runtime_requirements | test_requirements
+
+    if merged_requirements != expected_merged_requirements:
+        raise ValueError(f"{destination=}: " + metadata_mismatch(merged_requirements, expected_merged_requirements))
 
     return destination
 
@@ -322,14 +332,12 @@ def source_inventory(source):
 
     for source_entry in sorted(source.rglob("*")):
         if source_entry.is_symlink():
-            # todo: better msg
-            raise ValueError(f"Cannot capture package inventory: source links are not release inputs.")
+            raise ValueError(f"{source_entry=} should not be a symlink")
 
         if source_entry.is_file():
             inventory[source_entry.relative_to(source).as_posix()] = source_file_identity(source_entry)
         elif not source_entry.is_dir():
-            # todo: better msg
-            raise ValueError(f"Cannot capture package inventory: source must contain regular files and directories.")
+            raise ValueError(f"{source_entry=} should be a regular file or directory")
 
     return inventory
 
@@ -365,10 +373,7 @@ def normalize_sdist(path):
                 with tarfile.open(fileobj=compressed, mode="w") as normalized_archive:
                     for member in sorted(source_archive.getmembers(), key=lambda member: member.name):
                         if not (member.isfile() or member.isdir()):
-                            raise ValueError(
-                                "Cannot admit source distribution: archive contains "
-                                "an unsupported link or special file."
-                            )
+                            raise ValueError(f"{_BUILD_EVIDENCE.repr(member.name)=} should be a regular file or directory; {member.type=}")
 
                         member.uid = member.gid = 0
                         member.uname = member.gname = ""
@@ -388,8 +393,10 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     from build_bundle import build as build_wheelhouse_bundle, dependency_files
     from build_acquisition_bundle import build as build_acquisition_bundle
 
-    if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
-        raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")
+    expected_revision_pattern = r"[0-9a-f]{40}"
+
+    if not re.fullmatch(expected_revision_pattern, revision):
+        raise ValueError(f"{_BUILD_EVIDENCE.repr(revision)=} should match {expected_revision_pattern=}")
 
     dependency_files(pool, pathlib.Path("/requirements/wheelhouse-tool.lock"))
     source_files = source_inventory(source)
