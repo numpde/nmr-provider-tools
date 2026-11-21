@@ -23,7 +23,7 @@ class ProducerCheckpointRefusalTests(unittest.TestCase):
             ProtectedEvidence("fixture.prepared.v1", b"PRIVATE_COORDINATES")
         )
 
-        with self.assertRaisesRegex(ValueError, "control checkpoint"):
+        with self.assertRaises(ValueError):
             encode_checkpoint(entered_attempt)
 
 

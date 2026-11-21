@@ -72,7 +72,7 @@ class EvidenceDigest:
         require_type(self.byte_length, int)
 
         if not (1 <= self.byte_length):
-            raise ValueError("A prepared identity digest requires its positive byte length.")
+            raise ValueError(f"{self.byte_length=} should be positive")
 
     @classmethod
     def from_evidence(cls, evidence):
@@ -108,7 +108,7 @@ class EnteredCheckpoint:
         require_type(self.acknowledgement, AcknowledgedCheckpoint)
 
         if not attempt_is_in_progress(self.acknowledgement.admission):
-            raise ValueError("Execution entry requires an active acknowledgement and only its prepared identity digest.")
+            raise ValueError(f"{self.acknowledgement.admission.state=} should be in progress for execution entry")
 
         require_type(self.prepared, EvidenceDigest)
 
@@ -129,14 +129,20 @@ def checkpoint_acknowledgement(checkpoint):
     if type(checkpoint) is SuppressedCheckpoint:
         return checkpoint_acknowledgement(checkpoint.attempt)
 
-    raise ValueError("This control checkpoint has no acknowledged Attempt.")
+    require_type(
+        checkpoint,
+        (AcknowledgedCheckpoint, EnteredCheckpoint, TerminalSelectedCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint),
+        error_factory=ValueError,
+    )
 
 
 def _require_active(checkpoint):
     require_type(checkpoint, (AcknowledgedCheckpoint, EnteredCheckpoint))
 
-    if not attempt_is_in_progress(checkpoint_acknowledgement(checkpoint).admission):
-        raise ValueError("A terminal START replay grants no execution or fresh terminal selection.")
+    acknowledgement = checkpoint_acknowledgement(checkpoint)
+
+    if not attempt_is_in_progress(acknowledgement.admission):
+        raise ValueError(f"{acknowledgement.admission.state=} should be in progress")
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,7 +164,7 @@ class TerminalSelectedCheckpoint:
         require_type(self.body_bytes, int)
 
         if not (1 <= self.body_bytes):
-            raise ValueError("Terminal selection requires the chosen command's positive byte length.")
+            raise ValueError(f"{self.body_bytes=} should be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,13 +221,17 @@ def _checkpoint_fields(checkpoint):
     if type(checkpoint) is SuppressedCheckpoint:
         return {"kind": "suppressed", "attempt": _checkpoint_fields(checkpoint.attempt), "reason": checkpoint.reason.value}
 
-    raise ValueError("Cannot encode this value as a producer control checkpoint; scientific records are not accepted.")
+    require_type(
+        checkpoint,
+        (StartPending, AcknowledgedCheckpoint, EnteredCheckpoint, TerminalSelectedCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint),
+        error_factory=ValueError,
+    )
 
 
 def encode_checkpoint(checkpoint):
     raw = json.dumps({"schema_id": SCHEMA, **_checkpoint_fields(checkpoint)}, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
     if not (len(raw) <= MAX_CHECKPOINT_BYTES):
-        raise ValueError("Producer control checkpoint exceeds its metadata byte limit.")
+        raise ValueError(f"{len(raw)=} should be at most {MAX_CHECKPOINT_BYTES=}")
 
     return raw
