@@ -282,7 +282,7 @@ class BoundProxyTests(unittest.TestCase):
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, body))
         client.recv.side_effect = [header[:10], b""]
 
-        with self.assertRaisesRegex(ConnectionError, "closed"):
+        with self.assertRaises(ConnectionError):
             bound_http_proxy.receive_headers(client)
 
     def test_destination_ports_reject_out_of_range_or_noninteger_values_before_transport(self):

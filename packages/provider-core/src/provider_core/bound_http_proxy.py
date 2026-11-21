@@ -115,7 +115,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
         _remaining(deadline, "header read")
 
         if not (chunk):
-            raise ConnectionError("Client closed before completing request headers")
+            raise ConnectionError(f"{len(chunk)=} should be positive before request headers are complete")
 
         request_buffer.extend(chunk)
 
@@ -227,23 +227,23 @@ def resolve_ipv4_bound(
             ) from expired
 
         try:
-            current = normalized_host
+            current_dns_name = normalized_host
             visited = set()
 
             for _ in range(16):
-                if current in visited:
-                    raise dns.DNSResponseRejected("DNS response contains an alias cycle")
+                if current_dns_name in visited:
+                    raise dns.DNSResponseRejected(f"{reprlib.repr(current_dns_name)=} should not already be in {reprlib.repr(visited)=}")
 
-                visited.add(current)
-                (addresses, aliases) = _query_ipv4(current, server, interface, deadline=deadline)
+                visited.add(current_dns_name)
+                (addresses, aliases) = _query_ipv4(current_dns_name, server, interface, deadline=deadline)
 
-                if current in addresses:
-                    return tuple(addresses[current])
+                if current_dns_name in addresses:
+                    return tuple(addresses[current_dns_name])
 
-                if current not in aliases:
+                if current_dns_name not in aliases:
                     break
 
-                current = aliases[current]
+                current_dns_name = aliases[current_dns_name]
 
             errors.append(f"{server = }: response contains no IPv4 address for {host = }")
         except (OSError, UnicodeError, ValueError) as error:
@@ -308,7 +308,7 @@ def relay(left: socket.socket, right: socket.socket) -> None:
         (readable, _, _) = select.select(readers, (), (), _remaining(deadline, "relay"))
 
         if not (readable):
-            raise TimeoutError("Cannot continue proxy relay: no forwarding completed within 120 seconds.")
+            raise TimeoutError(f"{len(readable)=} should be positive within {RELAY_IDLE_SECONDS=}")
 
         for source in readable:
             if source is left:
@@ -439,20 +439,20 @@ class ProxyHandler(socketserver.BaseRequestHandler):
 class ConnectionAdmission:
     """Bound active connections while allowing the owner to change the limit."""
 
-    def __init__(self, limit):
+    def __init__(self, max_connections):
         self._lock = threading.Lock()
         self._active_connection_count = 0
 
-        self.set_limit(limit)
+        self.set_limit(max_connections)
 
-    def set_limit(self, limit):
-        require_type(limit, int)
+    def set_limit(self, max_connections):
+        require_type(max_connections, int)
 
-        if not (limit > 0):
-            raise ValueError("The connection limit should be positive")
+        if not (max_connections > 0):
+            raise ValueError(f"{max_connections=} should be positive")
 
         with self._lock:
-            self._connection_limit = limit
+            self._connection_limit = max_connections
 
     def acquire(self):
         with self._lock:
@@ -582,8 +582,10 @@ def require_interface_name(interface: str) -> None:
 
     # Native lookup admits the same device name consumed by SO_BINDTODEVICE.
     # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L373-L381
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", interface):
-        raise ValueError("Cannot start proxy: require an ASCII interface name of 1 through 15 bytes, without paths or whitespace.")
+    interface_pattern = r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}"
+
+    if not re.fullmatch(interface_pattern, interface):
+        raise ValueError(f"{reprlib.repr(interface)=} should match {interface_pattern=}")
 
 
 def require_interface(interface: str) -> None:
@@ -593,7 +595,7 @@ def require_interface(interface: str) -> None:
     try:
         socket.if_nametoindex(interface)
     except OSError:
-        raise ValueError("Cannot start proxy: the selected network interface does not exist.") from None
+        raise ValueError(f"Cannot find {reprlib.repr(interface)=}") from None
 
 
 def publish_readiness(ready_file, content):
