@@ -410,23 +410,23 @@ class UploadTransfer:
         return self._pending_upload_file is not None
 
     def _remaining_seconds(self):
-        seconds = self._remaining()
+        remaining_seconds = self._remaining()
 
         try:
-            return require_positive_number(seconds)
+            return require_positive_number(remaining_seconds)
         except (TypeError, ValueError) as cause:
-            raise UploadFailed("source transfer requires a positive finite remaining deadline") from cause
+            raise UploadFailed(f"{_UPLOAD_EVIDENCE.repr(remaining_seconds)=} should be finite and positive") from cause
 
     @asynccontextmanager
     async def _operation(self):
         if self._active:
-            raise UploadFailed("another source transfer is active")
+            raise UploadFailed(f"{self._active=} should be False before another transfer")
 
         if not (self._pending_upload_file is None):
-            raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
+            raise UploadFailed(f"{self._pending_upload_file is None=} should be True before another transfer")
 
         if not (self._store.retirement_confirmed):
-            raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
+            raise UploadFailed(f"{self._store.retirement_confirmed=} should be True before another transfer")
 
         self._active = True
 
@@ -451,19 +451,20 @@ class UploadTransfer:
 
             require_type(directory_fd, int, error_factory=UploadFailed)
 
-            if directory_fd < 0:
-                raise UploadFailed("private-file acquisition requires an open directory descriptor")
+            if not (0 <= directory_fd):
+                raise UploadFailed(f"{directory_fd=} should be nonnegative")
 
             try:
                 require_positive_number(retirement_seconds)
             except (TypeError, ValueError) as cause:
-                raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds") from cause
+                raise UploadFailed(f"{_UPLOAD_EVIDENCE.repr(retirement_seconds)=} should be finite and positive") from cause
 
             pending_upload_file = self._pending_upload_file = _UploadFile(directory_fd, retirement_seconds)
 
             try:
                 await pending_upload_file.create(self._remaining_seconds())
-                deadline = asyncio.timeout(self._remaining_seconds())
+                grant_wait_seconds = self._remaining_seconds()
+                deadline = asyncio.timeout(grant_wait_seconds)
 
                 try:
                     async with deadline:
@@ -476,23 +477,23 @@ class UploadTransfer:
 
                     if prior is None:
                         raise UploadFailed(
-                            "the source session's total deadline expired while obtaining the grant",
+                            f"The read grant did not arrive within {grant_wait_seconds=}",
                             cause=failure,
                         ) from None
 
                     raise UploadFailed(
-                        "the source session's total deadline expired while obtaining the grant",
+                        f"The read grant did not arrive within {grant_wait_seconds=}",
                         cause=prior,
                         interruption=failure,
                     ) from None
 
-                response = await self._transfer(grant, output_fd=pending_upload_file.fd)
+                downloaded_file = await self._transfer(grant, output_fd=pending_upload_file.fd)
 
-                if response.byte_length != grant.byte_length:
-                    raise UploadFailed("downloaded byte length differs from the grant")
+                if not (downloaded_file.byte_length == grant.byte_length):
+                    raise UploadFailed(f"{downloaded_file.byte_length=} should match {grant.byte_length=}")
 
-                if response.content_hash != grant.content_hash:
-                    raise UploadFailed("downloaded SHA-256 differs from the grant")
+                if not (downloaded_file.content_hash == grant.content_hash):
+                    raise UploadFailed(f"{downloaded_file.content_hash=} should match {grant.content_hash=}")
 
                 await pending_upload_file.close(self._remaining_seconds())
                 self._remaining_seconds()
@@ -576,12 +577,12 @@ class UploadTransfer:
         deadline = time.monotonic() + pending_upload_file.retirement_seconds
 
         def remaining():
-            seconds = deadline - time.monotonic()
+            cleanup_seconds = deadline - time.monotonic()
 
-            if seconds <= 0:
-                raise UploadFailed("private-file cleanup observation expired; preserve its original I/O and file")
+            if cleanup_seconds <= 0:
+                raise UploadFailed(f"{cleanup_seconds=} should be positive")
 
-            return seconds
+            return cleanup_seconds
 
         if pending_upload_file.pending is not None:
             operation = pending_upload_file.pending.operation
@@ -599,7 +600,7 @@ class UploadTransfer:
                 self.last_failure.cause = failure
 
         if pending_upload_file.close_uncertain:
-            raise UploadFailed("private-file descriptor closure is unconfirmed; retire the enclosing process")
+            raise UploadFailed(f"{pending_upload_file.close_uncertain=} requires process retirement")
 
         if pending_upload_file.fd is not None:
             await pending_upload_file.close(remaining())
@@ -619,20 +620,20 @@ class UploadTransfer:
         """
 
         if self._active:
-            raise UploadFailed("another source operation is active")
+            raise UploadFailed(f"{self._active=} should be False before file settlement")
 
         if self._pending_upload_file is None:
-            raise UploadFailed("no unresolved private source file is available to settle")
+            raise UploadFailed(f"{self._pending_upload_file is not None=} should be True before file settlement")
 
         if not (self._store.retirement_confirmed):
             raise UploadFailed(
-                "store retirement remains unconfirmed; retire the exact transfer before settling its file",
+                f"{self._store.retirement_confirmed=} should be True before file settlement",
                 cause=self.last_failure,
             )
 
         if self._pending_upload_file.close_uncertain and (self._pending_upload_file.pending is None):
             raise UploadFailed(
-                "private-file descriptor closure is unconfirmed; retire the enclosing process",
+                f"{self._pending_upload_file.close_uncertain=} requires process retirement",
                 cause=self.last_failure
             )
 
@@ -649,7 +650,7 @@ class UploadTransfer:
             self._retain_file_cleanup(failure)
 
             raise UploadFailed(
-                "private-file cleanup remains unresolved; preserve its file and original I/O",
+                f"{self._pending_upload_file.name=} in {self._pending_upload_file.directory_fd=} still needs cleanup",
                 cause=self.last_failure
             ) from None
         finally:
@@ -667,23 +668,26 @@ class UploadTransfer:
         try:
             require_read_grant(grant, job_ref=self.job_ref)
         except ResponseRejected as failure:
-            raise UploadFailed("the read grant is malformed or belongs to a different Job", cause=failure) from None
+            raise UploadFailed(str(failure), cause=failure) from None
 
-        target = download_target(self._origin, grant.upload_ref)
+        expected_download_url = download_target(self._origin, grant.upload_ref)
 
-        if grant.download_url != target:
-            raise UploadFailed("download grant does not name the configured store and exact Upload path")
+        if not (grant.download_url == expected_download_url):
+            raise UploadFailed(f"{_UPLOAD_EVIDENCE.repr(grant.download_url)=} should match {_UPLOAD_EVIDENCE.repr(expected_download_url)=}")
 
-        if grant.expires_at <= datetime.now(UTC):
-            raise UploadFailed("download grant expired before transfer; inspect sources before explicitly requesting fresh access")
+        grant_checked_at = datetime.now(UTC)
 
-        return download_request(target, capability=grant.capability)
+        if not (grant.expires_at > grant_checked_at):
+            raise UploadFailed(f"{grant.expires_at=} should be after {grant_checked_at=}")
+
+        return download_request(expected_download_url, capability=grant.capability)
 
     async def _transfer(self, grant, *, output_fd=None):
         download_http_request = self._download_request(grant)
 
         self._before_request()
-        deadline = asyncio.timeout(self._remaining_seconds())
+        transfer_seconds = self._remaining_seconds()
+        deadline = asyncio.timeout(transfer_seconds)
         self._transfer_grant = grant
 
         def admit(head):
@@ -720,7 +724,7 @@ class UploadTransfer:
             if not deadline.expired():
                 raise
 
-            raise UploadFailed("the source session's total deadline expired", cause=self._store.last_failure) from None
+            raise UploadFailed(f"The store exchange exceeded {transfer_seconds=}", cause=self._store.last_failure) from None
         except asyncio.CancelledError:
             self._interrupted = True
             self._store_outcome = self._store.last_failure

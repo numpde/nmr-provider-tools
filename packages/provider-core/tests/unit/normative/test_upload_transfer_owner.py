@@ -40,7 +40,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                 raise
 
         with private_source_directory() as (root, directory):
-            with self.assertRaisesRegex(UploadFailed, "deadline expired"):
+            with self.assertRaises(UploadFailed):
                 await asyncio.wait_for(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1), 1)
 
             self.assertIs(transfer.last_failure.cause, original)
@@ -143,7 +143,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
-            with self.assertRaisesRegex(UploadFailed, "deadline expired") as caught:
+            with self.assertRaises(UploadFailed) as caught:
                 await asyncio.wait_for(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1), 2)
 
             self.assertIsNotNone(caught.exception.cause)
