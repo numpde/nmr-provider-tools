@@ -577,3 +577,83 @@ lookup and before framing or operation acquisition. The original operation remai
 retrievable. The same 12 lifecycle and 11 host tests passed again, including a
 fresh-invocation refusal without channel corruption; logs end in -submission.log.
 The independent reviewer rechecked this guard and retained scores 9/9/9/10.
+
+## NMRPeak integration: rebooted five-auditor panel (2026-11-22)
+
+The user stopped the earlier full-rubric panel and requested five auditors with
+distinct assignments under the revised critical-panel skill. Five fresh
+gpt-6-luna/medium reviewers audited read-only. Each scored only its assigned
+criteria; the coordinator checked coverage and adjudicated material findings.
+No tests, campaigns or implementation changes were performed by this panel.
+
+Frozen consumer: 05d6b179db5267a28cdf415444d762dbfd83a1af plus the captured
+qualification-driver patch, SHA-256
+aabe38cd132cce2db9baec5d8bf796722aa1e8d02b7e9fbe5cc4b1c9fd82782b.
+SDK: released 6e10c2e6/v0.6.21, wheel SHA-256
+d45e82d05786e727ddcdaec739f18e3a0f96ed679ffba413db435e6afdf825bf.
+The seven criteria follow nmrpeak-repro/notes/013_scientific_sdk_end_state.txt.
+No numerical acceptance threshold was specified. Missing required proof blocks
+whole-integration acceptance independently of scores; these are scoped judgments.
+
+| Auditor | Assigned criterion | Mandatory status | Score /10 |
+| --- | --- | --- | ---: |
+| Science | C1 Scientific fidelity | Proved in pinned CPU/scripted-prose scope | 9 |
+| Science | C2 Prepared state and residency | Proved by composed evidence | 9 |
+| Execution | C3 Authority and permission | Proved in supported adapter paths | 9 |
+| Execution | C4 Outcome, handoff and settlement | Proved, with historical fault-case limits | 8 |
+| Availability | C5 Bilateral availability | Unproved | 6, revised to 7 |
+| Installation | C6 Installed artifacts and grants | Proved in qualified CPU profile | 9 |
+| Parsimony | C7 Ownership and necessary machinery | Proved for inspected integration | 8 |
+
+C5 remains the acceptance gap. Existing captures show corrected Hello requests,
+not provider-side acceptance of those responses. They do not establish idle
+worker exit through acknowledged corrected Hello without another request, or
+runtime readiness transitions. Current source has the SDK-owned passive monitor
+and provider withdrawal/publication wiring; this is an evidence gap, not a
+confirmed recurrence of the historical stale-availability implementation defect.
+
+The availability reviewer initially reported a missing aggregate budget. It
+retracted that finding after checking consumer notes 022/030 and actual captures:
+the fixed service sum is 9 CPUs, 26038239232 bytes and 576 PIDs, enforced through
+the respective descendant-inclusive container ceilings. Fixture resources are
+separate. No shared parent cgroup or host reservation is claimed. This correction
+changed C5 from 6 to 7; its required idle/acknowledgement/readiness proof is still
+missing. Peer request logging must not be described as a received acknowledgement.
+
+The coordinator checked all 141 manifest entries across
+/tmp/nmrpeak-0621-baseline-fixed, /tmp/nmrpeak-0621-cleanup-hf and
+/tmp/nmrpeak-0621-cleanup-chf. Current installed SDK inventories identify the
+published wheel and 138 runtime members. The saved tensor/lease witness uses an
+older SDK; version difference alone is neither proof nor disproof of transfer.
+The relevant provider materialization/consumption code and SDK semantics were
+reviewed, with current service worker histories and current SDK ownership tests.
+
+The installation reviewer corrected an attribution: byte-identical d570aca6/.21
+inventories are not the older tensor witness's inventory. The 39-entry manifest
+in /tmp/nmrpeak-combined-real-service verifies the exact witness image IDs and
+installed 701fa6f2 wheel SHA 23b5babb...8b7f6. Lease transfer uses that real-model
+probe, the unchanged relevant lease semantics and the passing installed .21 exec
+test, not whole-file equality across those SDK versions. C6 remained 9.
+
+The science reviewer withdrew model_requests as a model-load counter: it counts
+scripted interpretation HTTP requests. Current residency evidence is the same
+worker PID/start-time/operation across real service histories plus initialization
+and call ownership; the saved direct witness separately records model loads and
+tensor identity. Direct .21 service tensor/load instrumentation is not claimed.
+C1/C2 remained 9/9 with those evidence boundaries stated.
+
+The execution reviewer withdrew a hypothetical ordinary-observation-exception
+race as a mandatory proof gap: no supported competing-RPC path was established.
+Target delivery_events=[] does not negate the sibling receipt stored separately
+while cleanup was held. C4 retains a qualification limit: installed post-capture
+kill and acknowledgement-loss records predate the exact .21 identity. Local
+durable acceptance, not central API acceptance, is the qualified delivery claim.
+
+During review the consumer advanced to 8cfb708b, committing the captured driver
+fix and updating notes. No production runtime changes occurred. The three public
+release runs contain the same driver bytes (SHA-256
+9101f1908672fab8b34490511c61121617a422b69f8b0db740db743709a0acc0).
+Consumer note 034 now records separately authorized F3/F4 idle-death cases. Their
+planned status is not runtime proof; this audit neither implemented nor ran them.
+Earlier source/test limits, synthetic-reference and scripted-prose boundaries,
+CPU-only scope and unproved service claims remain explicit.
