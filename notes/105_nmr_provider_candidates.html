@@ -2125,8 +2125,11 @@
           const fact = entry[field];
           let value;
           if (field === "size") {
-            const n = fact.unit === "B" ? fact.value / 1e6 : fact.value;
-            const unit = fact.unit === "B" ? "MB" : fact.unit;
+            const fromBytes = fact.unit === "B";
+            const n = !fromBytes ? fact.value :
+              fact.value >= 1e9 ? fact.value / 1e9 : fact.value / 1e6;
+            const unit = !fromBytes ? fact.unit :
+              fact.value >= 1e9 ? "GB" : "MB";
             value = (fact.approximate ? "≈" : "") +
               Number(n.toFixed(2)).toLocaleString("en-US") + " " + unit;
             if (fact.quantity) value += " × " + fact.quantity;
