@@ -431,6 +431,10 @@
       {
         "id": "nmrspec",
         "role": "training / validation / test"
+      },
+      {
+        "id": "nmrtrans-nmrexp-merged",
+        "role": "alternative merged-data checkpoint"
       }
     ],
     "code": [
@@ -451,7 +455,41 @@
         }
       },
       {
-        "text": "All six",
+        "text": "¹³C-only",
+        "url": "https://huggingface.co/little1d/C",
+        "size": {
+          "value": 552,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H + ¹³C",
+        "url": "https://huggingface.co/little1d/C-H",
+        "size": {
+          "value": 729,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-H/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "H+C+formula (original)",
+        "url": "https://huggingface.co/little1d/C-H-Formula",
+        "codeRef": "main",
+        "datasetRef": "nmrspec"
+      },
+      {
+        "text": "H+C+formula (merged)",
+        "url": "https://huggingface.co/little1d/C-H-Formula",
+        "codeRef": "bugfix",
+        "datasetRef": "nmrtrans-nmrexp-merged"
+      },
+      {
+        "text": "Six original configurations",
         "url": "https://huggingface.co/collections/little1d/nmrtrans"
       }
     ],
@@ -2879,6 +2917,27 @@
         "url": "https://doi.org/10.1039/D5SC06988B"
       }
     ]
+  },
+  {
+    "id": "nmrtrans-nmrexp-merged",
+    "name": "NMRTrans + NMRexp merged (bugfix variant)",
+    "size": null,
+    "kind": "Experimental ¹H/¹³C and formulas",
+    "origin": "Alternative NMRTrans checkpoint trained on a union of NMRTrans and NMRexp, with corrected peak masking and a 223-token SMILES vocabulary. Uses a revised train/validation/test split; the published result is evaluated on a cleaned 113,323-record held-out test subset. Neither this test-set count nor the sum of source corpus sizes establishes an exact deduplicated training count.",
+    "references": [
+      {
+        "text": "Model release",
+        "url": "https://huggingface.co/little1d/C-H-Formula"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/little1d/NMRTrans/tree/bugfix"
+      },
+      {
+        "text": "Source NMRexp",
+        "url": "https://doi.org/10.1038/s41597-025-06245-5"
+      }
+    ]
   }
 ]
   </script>
@@ -2939,6 +2998,8 @@
             if (entry && entry.releaseVerification === "unverified") {
               anchor.textContent += " (unverified)";
               anchor.title = "Upstream README cites two conflicting Zenodo deposit IDs";
+            } else if (entry && entry.codeRef) {
+              anchor.title = "Requires code branch: " + entry.codeRef;
             }
           }
         } else td.textContent = "—";
