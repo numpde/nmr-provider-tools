@@ -345,7 +345,11 @@
     "datasets": [
       {
         "id": "nmrshiftdb2-dft-cstshift",
-        "role": "supervised training / test"
+        "role": "¹³C training / test"
+      },
+      {
+        "id": "nmrshiftdb2-dft-cstshift-h",
+        "role": "¹H training / test"
       }
     ],
     "code": [
@@ -1501,6 +1505,10 @@
       {
         "id": "mmst-pubchem-1m5",
         "role": "out-of-distribution evaluation / adaptation"
+      },
+      {
+        "id": "mmst-experimental-34",
+        "role": "experimental evaluation"
       }
     ],
     "code": [
@@ -2976,14 +2984,14 @@
   },
   {
     "id": "nmrshiftdb2-dft-cstshift",
-    "name": "NMRShiftDB2-DFT · CSTShift",
+    "name": "NMRShiftDB2-DFT · CSTShift ¹³C",
     "derivedFrom": "nmrshiftdb2",
     "size": {
       "count": 26353,
       "unit": "¹³C molecule records"
     },
-    "kind": "Experimental ¹H/¹³C shifts + DFT geometry and shielding tensors",
-    "origin": "CSTShift's NMRShiftDB2-DFT cohort: 21,064 training + 5,289 test ¹³C molecule records; the separate ¹H cohort has 9,590 training + 2,393 test molecule records. These numbers are not atom-level chemical-shift counts or the number of unique molecules across both nuclei. Experimental shifts are paired with DFT-optimized geometries and GIAO shielding tensors.",
+    "kind": "Experimental atom-assigned ¹³C and DFT shielding tensors",
+    "origin": "¹³C dataset: 21,064 training plus 5,289 test molecule records (26,353 total), paired with DFT-optimized geometries/GIAO shielding descriptors. The proton cohort is a separately counted dataset; carbon and proton sample totals may share molecules.",
     "references": [
       {
         "text": "Paper",
@@ -3325,6 +3333,43 @@
       {
         "text": "Third-party mirror (not verified identical)",
         "url": "https://huggingface.co/datasets/SpectrumWorld/SA-MolNMR-SI-240K"
+      }
+    ]
+  },
+  {
+    "id": "nmrshiftdb2-dft-cstshift-h",
+    "name": "NMRShiftDB2-DFT · CSTShift ¹H",
+    "derivedFrom": "nmrshiftdb2",
+    "size": {
+      "count": 11983,
+      "unit": "¹H molecule records"
+    },
+    "kind": "Experimental atom-assigned ¹H and DFT shielding tensors",
+    "origin": "¹H dataset: 9,590 training plus 2,393 test molecule records (11,983 total), with DFT-optimized geometries and GIAO shielding tensors. The overlap with the ¹³C cohort must not be inferred from its row counts.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.jctc.4c00422"
+      },
+      {
+        "text": "Data",
+        "url": "https://yzhang.hpc.nyu.edu/IMA/Datasets/NMRShiftDB2_DFT.zip"
+      }
+    ]
+  },
+  {
+    "id": "mmst-experimental-34",
+    "name": "MMST measured multimodal evaluation",
+    "size": {
+      "count": 34,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C, HSQC, COSY, IR and MS",
+    "origin": "34 compounds with manually checked experimental multimodal spectra selected for the MMST study's simulation-to-experiment validation. The paper describes curation to exclude unclear assignments/artifacts. Their possible overlap with the separate ChemStructLLM 34-molecule set is not claimed.",
+    "references": [
+      {
+        "text": "MMST paper",
+        "url": "https://doi.org/10.1002/anie.202517611"
       }
     ]
   }
