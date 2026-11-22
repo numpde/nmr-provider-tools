@@ -19,7 +19,7 @@
 <body>
   <main>
     <table>
-      <thead><tr><th scope="col">Method</th><th scope="col">Integrated</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Description</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th></tr></thead>
+      <thead><tr><th scope="col">Method</th><th scope="col">Integrated</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Description</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th><th scope="col">Checkpoint size</th><th scope="col">Parameters</th></tr></thead>
       <tbody id="method-rows"></tbody>
     </table>
     <table>
@@ -82,8 +82,15 @@
     ],
     "checkpoints": [
       {
-        "text": "Zenodo",
-        "url": "https://zenodo.org/records/19122815"
+        "text": "Weights ZIP",
+        "url": "https://zenodo.org/records/19122815",
+        "size": {
+          "value": 31.3,
+          "unit": "GB",
+          "scope": "archive",
+          "source": "https://zenodo.org/records/19122815",
+          "approximate": true
+        }
       }
     ]
   },
@@ -120,8 +127,37 @@
     ],
     "checkpoints": [
       {
-        "text": "Zenodo",
-        "url": "https://zenodo.org/records/18232165"
+        "text": "¹H",
+        "url": "https://zenodo.org/records/18232165",
+        "size": {
+          "value": 571201518,
+          "unit": "B",
+          "scope": "archive member",
+          "source": "https://github.com/numpde/nmrnet-repro/blob/main/artifacts/prediction-models.json",
+          "approximate": false
+        }
+      },
+      {
+        "text": "¹³C",
+        "url": "https://zenodo.org/records/18232165",
+        "size": {
+          "value": 571201518,
+          "unit": "B",
+          "scope": "archive member",
+          "source": "https://github.com/numpde/nmrnet-repro/blob/main/artifacts/prediction-models.json",
+          "approximate": false
+        }
+      },
+      {
+        "text": "All",
+        "url": "https://zenodo.org/records/18232165",
+        "size": {
+          "value": 4902250077,
+          "unit": "B",
+          "scope": "archive",
+          "source": "https://github.com/numpde/nmrnet-repro/blob/main/artifacts/prediction-models.json",
+          "approximate": false
+        }
       }
     ]
   },
@@ -219,7 +255,13 @@
     "checkpoints": [
       {
         "text": "¹H + formula",
-        "url": "https://huggingface.co/little1d/H-Formula"
+        "url": "https://huggingface.co/little1d/H-Formula",
+        "parameters": {
+          "count": 60000000,
+          "scope": "T5-small backbone only",
+          "source": "https://arxiv.org/abs/2602.10158",
+          "approximate": true
+        }
       },
       {
         "text": "All six",
@@ -298,7 +340,14 @@
     "checkpoints": [
       {
         "text": "Pretrained",
-        "url": "https://zenodo.org/records/16914550"
+        "url": "https://zenodo.org/records/16914550",
+        "size": {
+          "value": 709.7,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://zenodo.org/records/16914550",
+          "approximate": true
+        }
       }
     ]
   },
@@ -356,8 +405,55 @@
     ],
     "checkpoints": [
       {
-        "text": "Zenodo",
-        "url": "https://doi.org/10.5281/zenodo.23600371"
+        "text": "spec2mol",
+        "url": "https://doi.org/10.5281/zenodo.23600371",
+        "size": {
+          "value": 649.81,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://github.com/alhqlearn/PRISM/blob/main/README.md",
+          "approximate": true
+        },
+        "parameters": {
+          "count": 55000000,
+          "scope": "model",
+          "source": "https://doi.org/10.1002/anie.7185622",
+          "approximate": true
+        }
+      },
+      {
+        "text": "mol2spec ¹H",
+        "url": "https://doi.org/10.5281/zenodo.23600371",
+        "size": {
+          "value": 263.83,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://github.com/alhqlearn/PRISM/blob/main/README.md",
+          "approximate": true
+        },
+        "parameters": {
+          "count": 22000000,
+          "scope": "model",
+          "source": "https://doi.org/10.1002/anie.7185622",
+          "approximate": false
+        }
+      },
+      {
+        "text": "mol2spec ¹³C",
+        "url": "https://doi.org/10.5281/zenodo.23600371",
+        "size": {
+          "value": 262.65,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://github.com/alhqlearn/PRISM/blob/main/README.md",
+          "approximate": true
+        },
+        "parameters": {
+          "count": 22000000,
+          "scope": "model",
+          "source": "https://doi.org/10.1002/anie.7185622",
+          "approximate": false
+        }
       }
     ]
   },
@@ -394,8 +490,21 @@
     ],
     "checkpoints": [
       {
-        "text": "Hugging Face",
-        "url": "https://huggingface.co/ziyux123/chefnmr2"
+        "text": "10 checkpoints",
+        "url": "https://huggingface.co/ziyux123/chefnmr2",
+        "size": {
+          "value": 1.15,
+          "unit": "GB × 10",
+          "scope": "per model",
+          "source": "https://github.com/ml-struct-bio/chefnmr2/blob/main/README.md",
+          "approximate": true
+        },
+        "parameters": {
+          "count": 288000000,
+          "scope": "model; third-party estimate",
+          "source": "https://isitsota.com/m/chefnmr2",
+          "approximate": true
+        }
       }
     ]
   },
@@ -553,8 +662,15 @@
     ],
     "checkpoints": [
       {
-        "text": "Zenodo v2 (weights + configs)",
-        "url": "https://zenodo.org/records/21423825"
+        "text": "Five-model ZIP",
+        "url": "https://zenodo.org/records/21423825",
+        "size": {
+          "value": 2.5,
+          "unit": "GB",
+          "scope": "archive",
+          "source": "https://zenodo.org/records/21423825",
+          "approximate": true
+        }
       }
     ]
   },
@@ -591,8 +707,15 @@
     ],
     "checkpoints": [
       {
-        "text": "Zenodo",
-        "url": "https://zenodo.org/records/19240523"
+        "text": "Checkpoints ZIP",
+        "url": "https://zenodo.org/records/19240523",
+        "size": {
+          "value": 10.7,
+          "unit": "GB",
+          "scope": "archive",
+          "source": "https://zenodo.org/records/19240523",
+          "approximate": true
+        }
       }
     ]
   },
@@ -847,7 +970,14 @@
     "checkpoints": [
       {
         "text": "Hugging Face",
-        "url": "https://huggingface.co/smidooo/moldetr"
+        "url": "https://huggingface.co/smidooo/moldetr",
+        "size": {
+          "value": 974,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/smidooo/moldetr/tree/main",
+          "approximate": true
+        }
       },
       {
         "text": "Zenodo",
@@ -1984,6 +2114,30 @@
         const td = document.createElement("td");
         if (entries.length) links(td, entries);
         else td.textContent = "—";
+        row.append(td);
+      }
+      for (const field of ["size", "parameters"]) {
+        const td = document.createElement("td");
+        const available = method.checkpoints.filter(entry => entry[field]);
+        available.forEach((entry, index) => {
+          if (index) td.append(document.createTextNode(" · "));
+          const fact = entry[field];
+          let value;
+          if (field === "size") {
+            const n = fact.unit === "B" ? fact.value / 1e6 : fact.value;
+            const unit = fact.unit === "B" ? "MB" : fact.unit;
+            value = (fact.approximate ? "≈" : "") +
+              Number(n.toFixed(2)).toLocaleString("en-US") + " " + unit;
+            if (fact.scope !== "checkpoint" && fact.scope !== "per model")
+              value += " (" + fact.scope + ")";
+          } else {
+            value = (fact.approximate ? "≈" : "") +
+              Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") + "M";
+            if (fact.scope !== "model") value += " (" + fact.scope + ")";
+          }
+          td.append(document.createTextNode(entry.text + ": " + value));
+        });
+        if (!available.length) td.textContent = "—";
         row.append(td);
       }
       document.getElementById("method-rows").append(row);
