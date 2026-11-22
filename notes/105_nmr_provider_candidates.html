@@ -198,6 +198,35 @@
     ]
   },
   {
+    "method": "LL-NMR",
+    "integrated": false,
+    "year": "2023",
+    "publications": [
+      {
+        "text": "NeurIPS workshop",
+        "url": "https://doi.org/10.26434/chemrxiv-2023-8wxcz"
+      }
+    ],
+    "description": "Encoder–decoder Transformer reads processed ¹H multiplets and/or ¹³C shift lists to generate SMILES; a second model chooses among supplied molecular candidates using the spectra.",
+    "datasets": [
+      {
+        "id": "ll-nmr-pistachio-h",
+        "role": "simulated ¹H training"
+      },
+      {
+        "id": "ll-nmr-pistachio-c",
+        "role": "simulated ¹³C training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/rxn4chemistry/nmr-to-structure"
+      }
+    ],
+    "checkpoints": []
+  },
+  {
     "method": "NMRMind",
     "integrated": false,
     "year": "2025",
@@ -327,6 +356,26 @@
         "url": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_elucidation/diffnmr/DiffNMR_nless15_best.pdparams"
       }
     ]
+  },
+  {
+    "method": "PINS",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Analytical Chemistry",
+        "url": "https://doi.org/10.1021/acs.analchem.6c02952"
+      }
+    ],
+    "description": "Physics-informed 1D NMR-to-structure generator constrains molecular stoichiometry and candidate validity during decoding; evaluated additionally on new psychoactive substances.",
+    "datasets": [],
+    "code": [
+      {
+        "text": "Research code",
+        "url": "https://github.com/AI4DrugControl/PINS"
+      }
+    ],
+    "checkpoints": []
   },
   {
     "method": "NMR2Struct",
@@ -530,6 +579,52 @@
     ]
   },
   {
+    "method": "SpectraLLM",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "ICLR",
+        "url": "https://proceedings.iclr.cc/paper_files/paper/2026/hash/2aad9aaf0e14591f7b7d4770752eec89-Abstract-Conference.html"
+      }
+    ],
+    "description": "Spectroscopy-specialized language model maps one or several simulated NMR, IR, Raman, UV–Vis and experimental or simulated MS spectra into a shared textual representation and generates SMILES.",
+    "datasets": [
+      {
+        "id": "msd",
+        "role": "simulated NMR/IR/MS corpus"
+      },
+      {
+        "id": "qm9s",
+        "role": "simulated IR/Raman/UV–Vis corpus"
+      },
+      {
+        "id": "massspecgym",
+        "role": "experimental MS corpus"
+      },
+      {
+        "id": "massbank-ms",
+        "role": "experimental MS corpus"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/OPilgrim/SpectraLLM"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Adapter",
+        "url": "https://huggingface.co/ccjh/SpectraLLM_32B"
+      },
+      {
+        "text": "Additional adapter",
+        "url": "https://huggingface.co/ccjh/widthIrplus_msg_qm9s_mb_msd"
+      }
+    ]
+  },
+  {
     "method": "CASCADE-2.0",
     "integrated": false,
     "year": "2025",
@@ -642,6 +737,35 @@
       {
         "text": "GitHub",
         "url": "https://github.com/NFDI4Chem/sherlock"
+      }
+    ],
+    "checkpoints": []
+  },
+  {
+    "method": "SPECTRE",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "J. Chem. Inf. Model.",
+        "url": "https://doi.org/10.1021/acs.jcim.5c02444"
+      }
+    ],
+    "description": "Transformer predicts entropy-optimized molecular fingerprints from ¹H, ¹³C and/or HSQC peak lists plus optional molecular weight; identifies similar natural products by retrieval, not de novo bond enumeration.",
+    "datasets": [
+      {
+        "id": "spectre-db",
+        "role": "training / test"
+      },
+      {
+        "id": "spectre-retrieval",
+        "role": "candidate retrieval"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/xwd0418/Spectre"
       }
     ],
     "checkpoints": []
@@ -1194,6 +1318,139 @@
       {
         "text": "Data + weights",
         "url": "https://doi.org/10.5281/zenodo.21217102"
+      }
+    ]
+  },
+  {
+    "id": "ll-nmr-pistachio-h",
+    "name": "LL-NMR · Pistachio simulated ¹H",
+    "size": {
+      "count": 1120390,
+      "unit": "¹H spectra"
+    },
+    "kind": "MestReNova-simulated ¹H peak tables",
+    "origin": "From 1,029,381 sampled Pistachio patent reactions, after molecular filters (5–35 heavy atoms); includes shift, multiplicity and integral. Training corpus is available from authors on request, not released publicly.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.26434/chemrxiv-2023-8wxcz"
+      },
+      {
+        "text": "IBM",
+        "url": "https://research.ibm.com/publications/learning-the-language-of-nmr-structure-elucidation-from-nmr-spectra-using-transformer-models"
+      }
+    ]
+  },
+  {
+    "id": "ll-nmr-pistachio-c",
+    "name": "LL-NMR · Pistachio simulated ¹³C",
+    "size": {
+      "count": 1943950,
+      "unit": "¹³C spectra"
+    },
+    "kind": "MestReNova-simulated ¹³C shift tables",
+    "origin": "Patent reaction structures drawn from the same Pistachio source as LL-NMR ¹H. The number counts carbon spectra, not unique molecules shared across both nuclei.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.26434/chemrxiv-2023-8wxcz"
+      },
+      {
+        "text": "IBM",
+        "url": "https://research.ibm.com/publications/learning-the-language-of-nmr-structure-elucidation-from-nmr-spectra-using-transformer-models"
+      }
+    ]
+  },
+  {
+    "id": "spectre-db",
+    "name": "SPECTRE-DB",
+    "size": {
+      "count": 181534,
+      "unit": "molecules"
+    },
+    "kind": "Experimental / predicted ¹H, ¹³C and HSQC NMR",
+    "origin": "173,422 training, 4,056 validation and 4,056 test molecules. Includes 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H records. Calculated HSQC used for training was excluded from the public archive owing to ACD/Labs redistribution restrictions.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.jcim.5c02444"
+      },
+      {
+        "text": "Public data",
+        "url": "https://github.com/xwd0418/Spectre"
+      }
+    ]
+  },
+  {
+    "id": "spectre-retrieval",
+    "name": "SPECTRE natural-product retrieval pool",
+    "size": {
+      "count": 526163,
+      "unit": "molecules"
+    },
+    "kind": "Structure candidate index",
+    "origin": "Retrieval space drawn from SPECTRE-DB and natural-product resources including COCONUT and LOTUS; not the training set. Candidates are ranked by predicted fingerprints.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.jcim.5c02444"
+      },
+      {
+        "text": "Index builder",
+        "url": "https://github.com/xwd0418/Spectre"
+      }
+    ]
+  },
+  {
+    "id": "qm9s",
+    "name": "QM9s",
+    "size": {
+      "count": 129817,
+      "unit": "molecules"
+    },
+    "kind": "Simulated IR, Raman and UV–Vis",
+    "origin": "QM9s source dataset in the combined SpectraLLM study (389,451 spectra). No NMR spectra are provided by this subset.",
+    "references": [
+      {
+        "text": "SpectraLLM study",
+        "url": "https://openreview.net/forum?id=J5XUzUW8o3"
+      }
+    ]
+  },
+  {
+    "id": "massspecgym",
+    "name": "MassSpecGym · SpectraLLM source",
+    "size": {
+      "count": 29000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Experimental mass spectrometry",
+    "origin": "Approximately 231,104 experimental MS spectra across approximately 29,000 compounds; not a source of NMR training spectra.",
+    "references": [
+      {
+        "text": "SpectraLLM study",
+        "url": "https://openreview.net/forum?id=J5XUzUW8o3"
+      }
+    ]
+  },
+  {
+    "id": "massbank-ms",
+    "name": "MassBank · SpectraLLM source",
+    "size": {
+      "count": 122746,
+      "unit": "mass spectra"
+    },
+    "kind": "Experimental mass spectrometry",
+    "origin": "MassBank experimental MS records used alongside other modalities in the SpectraLLM training/evaluation corpus. This count describes mass spectra, not molecules.",
+    "references": [
+      {
+        "text": "SpectraLLM study",
+        "url": "https://openreview.net/forum?id=J5XUzUW8o3"
+      },
+      {
+        "text": "MassBank",
+        "url": "https://massbank.eu/MassBank/"
       }
     ]
   }
