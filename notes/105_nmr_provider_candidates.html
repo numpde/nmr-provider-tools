@@ -3300,7 +3300,7 @@
       "unit": "unique molecules"
     },
     "kind": "Curated experimental ¹H/¹³C",
-    "origin": "269,999 distinct molecular structures with paired curated ¹H and ¹³C shifts, assembled from experimental sources. Bemis–Murcko scaffold split: 215,861 train, 27,084 validation and 27,054 test; paper's benchmark inputs are shift lists, not raw FIDs. Dataset card requests contacting its curator for access.",
+    "origin": "269,999 distinct molecular structures with paired curated ¹H and ¹³C shifts, assembled from experimental sources. Bemis–Murcko scaffold split: 215,861 train, 27,084 validation and 27,054 test; paper's benchmark inputs are shift lists, not raw FIDs. The data card requests contacting its curator, although public Hub file listings currently show the three deduplicated pickle splits.",
     "references": [
       {
         "text": "KDD 2026",
@@ -3314,7 +3314,12 @@
         "text": "Project",
         "url": "https://AIMS-Lab-HKUSTGZ.github.io/NMRGym/"
       }
-    ]
+    ],
+    "access": {
+      "curatorRequest": "https://huggingface.co/datasets/meaw0415/NMRGym/blob/main/README.md",
+      "visibleHubFiles": "https://huggingface.co/datasets/meaw0415/NMRGym/tree/main",
+      "assessment": "The curator asks prospective users to email for access, while the Hub currently lists three split pickle artifacts; verify access and provenance before operational use."
+    }
   },
   {
     "id": "ultranmr-retrieval-94m",
@@ -3455,7 +3460,11 @@
         authors.title = method.authors.works
           ? method.authors.works.map(work =>
               work.year + ": " + work.authors.join(", ")).join(" | ")
-          : method.authors.names.join(", ");
+          : method.authors.variants
+            ? method.authors.names.join(", ") + " | " +
+              method.authors.variants.map(version =>
+                version.label + ": " + version.names.join(", ")).join(" | ")
+            : method.authors.names.join(", ");
       }
       const publications = document.createElement("td");
       links(publications, method.publications);
