@@ -198,6 +198,35 @@
     ]
   },
   {
+    "method": "NMRMind",
+    "integrated": false,
+    "year": "2025",
+    "publications": [
+      {
+        "text": "Analytical Chemistry",
+        "url": "https://doi.org/10.1021/acs.analchem.5c03783"
+      }
+    ],
+    "description": "Multimodal Transformer generates structures from 1D and 2D NMR, optionally conditioned on molecular formula or fragments; mixed-modality dropout permits different combinations of spectra.",
+    "datasets": [
+      {
+        "id": "nmrmind-pretrain",
+        "role": "pretraining"
+      },
+      {
+        "id": "nmrmind-finetune",
+        "role": "fine-tuning"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/nes0zx/NMRMind"
+      }
+    ],
+    "checkpoints": []
+  },
+  {
     "method": "PRISM",
     "integrated": false,
     "year": "2026",
@@ -342,6 +371,44 @@
     ]
   },
   {
+    "method": "NMRViT",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Chemical Science",
+        "url": "https://doi.org/10.1039/D6SC02352E"
+      }
+    ],
+    "description": "Vision Transformer encodes dense ¹H/¹³C and 2D HSQC intensity arrays as patches; an autoregressive decoder generates SMILES, optionally conditioned on molecular formula, with external shift-based reranking.",
+    "datasets": [
+      {
+        "id": "msd",
+        "role": "simulated training"
+      },
+      {
+        "id": "nmrvit-chem-edu",
+        "role": "experimental adaptation / evaluation"
+      },
+      {
+        "id": "nmrvit-hmdb-hsqc",
+        "role": "experimental adaptation / evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/ChaoNyu/NMRViT"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Model release",
+        "url": "https://zenodo.org/records/21423825"
+      }
+    ]
+  },
+  {
     "method": "NMRElucidator",
     "integrated": false,
     "year": "2026",
@@ -405,6 +472,31 @@
       }
     ],
     "code": [],
+    "checkpoints": []
+  },
+  {
+    "method": "inverse-IMPRESSION",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "J. Am. Chem. Soc.",
+        "url": "https://doi.org/10.1021/jacs.6c14119"
+      }
+    ],
+    "description": "Inverted graph transformer predicts atom–atom bonding from ¹H/¹³C shifts and 2D COSY, HSQC and HMBC correlations; stepwise bond repair and noise-augmented sampling produce ranked candidate graphs.",
+    "datasets": [
+      {
+        "id": "impression-pubchem-chembl",
+        "role": "training / evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "Zenodo source",
+        "url": "https://doi.org/10.5281/zenodo.20432239"
+      }
+    ],
     "checkpoints": []
   },
   {
@@ -472,6 +564,40 @@
     ]
   },
   {
+    "method": "MolDeTr",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Analytical Chemistry",
+        "url": "https://doi.org/10.1021/acs.analchem.5c03465"
+      }
+    ],
+    "description": "Deformable DETR detects and parameterizes multiplets in preprocessed dense ¹H spectrum windows: chemical shift, largest J coupling, proton count and line width. It does not generate molecular structures.",
+    "datasets": [
+      {
+        "id": "moldetr-synthetic",
+        "role": "training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/smidooo/MolDeTr"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Hugging Face",
+        "url": "https://huggingface.co/smidooo/moldetr"
+      },
+      {
+        "text": "Zenodo",
+        "url": "https://doi.org/10.5281/zenodo.21214876"
+      }
+    ]
+  },
+  {
     "method": "DP4-AI",
     "integrated": false,
     "year": "2020",
@@ -487,6 +613,31 @@
       {
         "text": "GitHub",
         "url": "https://github.com/KristapsE/DP4-AI"
+      }
+    ],
+    "checkpoints": []
+  },
+  {
+    "method": "Sherlock",
+    "integrated": false,
+    "year": "2023",
+    "publications": [
+      {
+        "text": "Molecules",
+        "url": "https://doi.org/10.3390/molecules28031448"
+      }
+    ],
+    "description": "Computer-assisted structure elucidation combines dereplication, statistical structure constraints from 1D/2D NMR and PyLSD enumeration, using predicted chemical shifts to prioritize candidates.",
+    "datasets": [
+      {
+        "id": "nmrshiftdb2",
+        "role": "dereplication / shift knowledge base"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/NFDI4Chem/sherlock"
       }
     ],
     "checkpoints": []
@@ -914,6 +1065,105 @@
       {
         "text": "Project",
         "url": "https://nova.chem.colostate.edu/v2/cascade/about/"
+      }
+    ]
+  },
+  {
+    "id": "nmrmind-pretrain",
+    "name": "NMRMind 1D pretraining corpus",
+    "size": {
+      "count": 45000000,
+      "unit": "spectra"
+    },
+    "kind": "1D NMR (data origin not specified here)",
+    "origin": "Reported 45 million 1D spectra for Transformer pretraining. The publication abstract does not establish experimental versus calculated provenance for this count.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.analchem.5c03783"
+      }
+    ]
+  },
+  {
+    "id": "nmrmind-finetune",
+    "name": "NMRMind multimodal fine-tuning corpus",
+    "size": {
+      "count": 2200000,
+      "unit": "spectra"
+    },
+    "kind": "1D and 2D NMR (curated benchmark)",
+    "origin": "Reported self-curated 2.2 million 1D/2D spectra used after initial pretraining; molecule count not specified here.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.analchem.5c03783"
+      }
+    ]
+  },
+  {
+    "id": "nmrvit-chem-edu",
+    "name": "Chemical Education (NMRViT)",
+    "size": null,
+    "kind": "Experimental ¹H/¹³C",
+    "origin": "One-dimensional NMR benchmark for zero-shot transfer and limited-data fine-tuning; not the primary simulated pretraining set.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D6SC02352E"
+      },
+      {
+        "text": "Processed files",
+        "url": "https://github.com/ChaoNyu/NMRViT/tree/main/datasets/chem_edu_ch"
+      }
+    ]
+  },
+  {
+    "id": "nmrvit-hmdb-hsqc",
+    "name": "HMDB-HSQC (NMRViT)",
+    "size": null,
+    "kind": "Experimental 2D HSQC",
+    "origin": "2D HSQC benchmark used for testing and experimental fine-tuning, separate from simulated MSD training.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D6SC02352E"
+      },
+      {
+        "text": "Processed files",
+        "url": "https://github.com/ChaoNyu/NMRViT/tree/main/datasets/hmdb_hsqc"
+      }
+    ]
+  },
+  {
+    "id": "impression-pubchem-chembl",
+    "name": "inverse-IMPRESSION PubChem/ChEMBL",
+    "size": {
+      "count": 122000,
+      "unit": "molecules"
+    },
+    "kind": "Simulated ¹H/¹³C, COSY, HSQC, HMBC",
+    "origin": "72,998 PubChem and 49,002 ChEMBL structures with simulated NMR parameters: 120,000 molecules for training and 2,000 for testing; a 120,000-fragment training set is derived from the training molecules.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/jacs.6c14119"
+      }
+    ]
+  },
+  {
+    "id": "moldetr-synthetic",
+    "name": "MolDeTr spin-dynamics simulations",
+    "size": null,
+    "kind": "Simulated ¹H line shapes",
+    "origin": "Spin-Hamiltonian simulations with experimentally motivated distortions supply supervised multiplet parameters; the experimental spectra are held out for evaluation. Sample count not established here.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.analchem.5c03465"
+      },
+      {
+        "text": "Archive",
+        "url": "https://doi.org/10.5281/zenodo.21214876"
       }
     ]
   }
