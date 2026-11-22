@@ -455,18 +455,16 @@
     ],
     "checkpoints": [
       {
-        "text": "¹H + formula",
-        "url": "https://huggingface.co/little1d/H-Formula",
-        "parameters": {
-          "count": 60000000,
-          "scope": "T5-small backbone only",
-          "source": "https://arxiv.org/abs/2602.10158",
-          "approximate": true
-        }
+        "text": "¹H",
+        "url": "https://huggingface.co/little1d/H",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits"
       },
       {
-        "text": "¹³C-only",
+        "text": "¹³C",
         "url": "https://huggingface.co/little1d/C",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
         "size": {
           "value": 552,
           "unit": "MB",
@@ -478,6 +476,8 @@
       {
         "text": "¹H + ¹³C",
         "url": "https://huggingface.co/little1d/C-H",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
         "size": {
           "value": 729,
           "unit": "MB",
@@ -487,20 +487,42 @@
         }
       },
       {
-        "text": "H+C+formula (original)",
-        "url": "https://huggingface.co/little1d/C-H-Formula",
+        "text": "¹H + formula",
+        "url": "https://huggingface.co/little1d/H-Formula",
         "codeRef": "main",
         "datasetRef": "nmrspec-nmrtrans-release-splits"
       },
       {
-        "text": "H+C+formula (merged)",
-        "url": "https://huggingface.co/little1d/C-H-Formula",
-        "codeRef": "bugfix",
-        "datasetRef": "nmrtrans-nmrexp-merged"
+        "text": "¹³C + formula",
+        "url": "https://huggingface.co/little1d/C-Formula",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits"
       },
       {
-        "text": "Six original configurations",
-        "url": "https://huggingface.co/collections/little1d/nmrtrans"
+        "text": "¹H + ¹³C + formula (original)",
+        "url": "https://huggingface.co/little1d/C-H-Formula/blob/main/nmrtrans-c-h-nmr-formula.ckpt",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
+        "size": {
+          "value": 736,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-H-Formula/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H + ¹³C + formula (merged)",
+        "url": "https://huggingface.co/little1d/C-H-Formula/blob/main/nmrtrans-c-h-nmr-formula-nmrexp.ckpt",
+        "codeRef": "bugfix",
+        "datasetRef": "nmrtrans-nmrexp-merged",
+        "size": {
+          "value": 737,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-H-Formula/tree/main",
+          "approximate": true
+        }
       }
     ],
     "authors": {
@@ -541,6 +563,15 @@
           ]
         }
       ]
+    },
+    "architectureFacts": {
+      "backboneParameters": {
+        "count": 60000000,
+        "scope": "T5-small backbone only",
+        "source": "https://arxiv.org/abs/2602.10158",
+        "approximate": true
+      },
+      "wholeModelParameterCount": null
     }
   },
   {
@@ -3388,7 +3419,12 @@
           }
           td.append(document.createTextNode(entry.text + ": " + value));
         });
-        if (!available.length) td.textContent = "—";
+        if (!available.length && field === "parameters" && method.architectureFacts?.backboneParameters) {
+          const fact = method.architectureFacts.backboneParameters;
+          td.textContent = (fact.approximate ? "≈" : "") +
+            Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") +
+            "M (" + fact.scope + "; complete model unknown)";
+        } else if (!available.length) td.textContent = "—";
         row.append(td);
       }
       document.getElementById("method-rows").append(row);
