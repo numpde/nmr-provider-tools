@@ -498,7 +498,7 @@
     ],
     "checkpoints": [
       {
-        "text": "Model release",
+        "text": "Zenodo v2 (weights + configs)",
         "url": "https://zenodo.org/records/21423825"
       }
     ]
@@ -825,7 +825,7 @@
     "datasets": [
       {
         "id": "smart2-hsqc",
-        "role": "training / reference"
+        "role": "CNN training (25,434) / embedding index (53,076)"
       }
     ],
     "code": [],
@@ -946,7 +946,7 @@
       "unit": "NMR records"
     },
     "kind": "Experimental NMR",
-    "origin": "Nearly 200,000 chemistry supporting-information documents, 2010–2024; six nuclei.",
+    "origin": "Literature supporting information, 2010–2024: 3,372,987 experimental NMR records across six nuclei, including 1,667,135 ¹H and 1,455,670 ¹³C records. Counts are spectra, not unique molecules.",
     "references": [
       {
         "text": "Study",
@@ -1577,8 +1577,8 @@
       "count": 53076,
       "unit": "spectra"
     },
-    "kind": "Experimental and calculated ¹H–¹³C HSQC",
-    "origin": "Natural-product HSQC reference database used to train the SMART 2.0 similarity model (2019 implementation, 2020 publication); spectrum count, not molecule count.",
+    "kind": "Constructed and predicted ¹H–¹³C HSQC",
+    "origin": "SMART 2.0 CNN trained on 25,434 constructed HSQC spectra from the JEOL natural-product database; 27,642 additional ACD/Labs-predicted HSQC spectra were mapped into its embedding space. The combined 53,076 is a reference-pool count, not 53,076 training observations.",
     "references": [
       {
         "text": "JACS paper",
