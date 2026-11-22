@@ -1551,6 +1551,37 @@
     }
   },
   {
+    "method": "DP5q",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Ruslan Kotlyarov, Alexander Howarth & Jonathan M. Goodman",
+      "names": [
+        "Ruslan Kotlyarov",
+        "Alexander Howarth",
+        "Jonathan M. Goodman"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D5SC06988B"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Chemical Science",
+        "url": "https://doi.org/10.1039/D5SC06988B"
+      }
+    ],
+    "description": "DFT-free structure confirmation: a graph convolutional network predicts quantiles of atom-specific ¹³C chemical-shift distributions; DP5q combines their uncertainties and experimental residuals to score each proposed structure independently rather than assuming that one candidate must be correct.",
+    "datasets": [
+      {
+        "id": "nmrshiftdb2-dp5q",
+        "role": "¹³C training / validation / test"
+      }
+    ],
+    "code": [],
+    "checkpoints": []
+  },
+  {
     "method": "Sherlock",
     "integrated": false,
     "year": "2023",
@@ -2829,6 +2860,23 @@
       {
         "text": "Code",
         "url": "https://github.com/Goodman-lab/CSP5"
+      }
+    ]
+  },
+  {
+    "id": "nmrshiftdb2-dp5q",
+    "name": "NMRShiftDB2 · DP5q curated ¹³C",
+    "derivedFrom": "nmrshiftdb2",
+    "size": {
+      "count": 22349,
+      "unit": "NMR records"
+    },
+    "kind": "Experimental atom-assigned ¹³C / calculated model geometries",
+    "origin": "22,349 entries representing 22,248 distinct molecules after filtering rare elements, fragments and large DFT-reference discrepancies; ETKDG/MMFF geometries and DFT shielding estimates used in the study's data preparation. Records are not unique molecules.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D5SC06988B"
       }
     ]
   }
