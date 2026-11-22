@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NMR provider candidates</title>
+  <style>
+    body { max-width: 1300px; margin: 2rem auto; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; color: #222; background: white; }
+    main { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .7rem .85rem; text-align: left; vertical-align: top; border-bottom: 1px solid #ddd; }
+    th { border-bottom: 2px solid #999; font-weight: 600; }
+    td:first-child { font-weight: 600; }
+    td:nth-child(2) { white-space: nowrap; }
+    a { color: #175b99; }
+    @media (max-width: 800px) { table { min-width: 850px; } body { margin: 1rem auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <table>
+      <thead>
+        <tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Training set</th></tr>
+      </thead>
+      <tbody id="provider-rows"></tbody>
+    </table>
+  </main>
+
+  <script type="application/json" id="provider-data">
+[
+  {
+    "provider": "NMRTrans",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "KDD 2026",
+        "url": "https://doi.org/10.1145/3770855.3818935"
+      }
+    ],
+    "method": "Set Transformer encodes unordered ¹H/¹³C peak lists; a T5 decoder generates SMILES, optionally conditioned on molecular formula.",
+    "training": "NMRSpec: 239,997 unique molecules with experimental NMR data extracted from published chemical literature."
+  },
+  {
+    "provider": "PRISM",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Angew. Chem. Int. Ed.",
+        "url": "https://doi.org/10.1002/anie.7185622"
+      }
+    ],
+    "method": "Bidirectional Transformer: ¹H/¹³C peak lists → SMILES and molecular structures → predicted spectra, with chemistry-aware spectral encoders.",
+    "training": "NMRexp: 1.19 million unique experimental molecule–spectrum pairs with both ¹H and ¹³C records after curation and deduplication (80/10/10 split)."
+  },
+  {
+    "provider": "ChefNMR2",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "bioRxiv preprint",
+        "url": "https://doi.org/10.64898/2026.10.29.762711"
+      }
+    ],
+    "method": "Atomic flow-matching generation predicts molecular structure from NMR peak lists and molecular formula; a separate agent can refine candidates.",
+    "training": "2,524,941 molecules: 1,187,838 from experimental NMRexp; 674,761 from simulated SpectraNP+; 662,342 simulated USPTO compounds."
+  },
+  {
+    "provider": "DiffNMR",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Materials Futures",
+        "url": "https://doi.org/10.1088/2752-5724/ae301f"
+      }
+    ],
+    "method": "Conditional discrete diffusion generates molecular graphs using spectral conditioning, contrastive pretraining and retrieval initialization.",
+    "training": "MSD: 794,403 USPTO molecules with simulated ¹H, ¹³C, HSQC, IR and mass spectra. NMRexp is used for additional experimental evaluation."
+  },
+  {
+    "provider": "NMR2Struct",
+    "year": "2024",
+    "publications": [
+      {
+        "text": "ACS Central Science",
+        "url": "https://doi.org/10.1021/acscentsci.4c01132"
+      }
+    ],
+    "method": "CNN encodes gridded ¹H/¹³C spectra; a multitask Transformer predicts substructures and full molecular structures without requiring a formula.",
+    "training": "~143,000 SpectraBase molecules with MestreNova-simulated ¹H/¹³C spectra for spectrum-to-structure training; ~3.1 million SpectraBase/GDB-17 molecules for substructure-to-structure pretraining."
+  },
+  {
+    "provider": "LSD / PyLSD",
+    "year": "1991 / 2017",
+    "publications": [
+      {
+        "text": "LSD · Tetrahedron",
+        "url": "https://doi.org/10.1016/S0040-4020(01)80878-4"
+      },
+      {
+        "text": "PyLSD · Magn. Reson. Chem.",
+        "url": "https://doi.org/10.1002/mrc.4612"
+      }
+    ],
+    "method": "Constraint-based enumeration from atom properties and 2D NMR correlations (COSY, HSQC, HMBC); optional candidate ranking by predicted ¹³C shifts.",
+    "training": "No structure-generation training set. PyLSD can use the nmrshiftdb2 shift predictor for candidate ranking."
+  }
+]
+  </script>
+  <script>
+    "use strict";
+    const providers = JSON.parse(document.getElementById("provider-data").textContent);
+    const tbody = document.getElementById("provider-rows");
+
+    function cell(row, value) {
+      const td = document.createElement("td");
+      td.textContent = value;
+      row.append(td);
+      return td;
+    }
+
+    for (const provider of providers) {
+      const row = document.createElement("tr");
+      cell(row, provider.provider);
+      cell(row, provider.year);
+      const links = document.createElement("td");
+      provider.publications.forEach((publication, index) => {
+        if (index) links.append(document.createTextNode(" · "));
+        const anchor = document.createElement("a");
+        anchor.href = publication.url;
+        anchor.textContent = publication.text;
+        links.append(anchor);
+      });
+      row.append(links);
+      cell(row, provider.method);
+      cell(row, provider.training);
+      tbody.append(row);
+    }
+  </script>
+</body>
+</html>
