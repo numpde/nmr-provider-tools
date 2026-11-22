@@ -126,6 +126,36 @@
     ]
   },
   {
+    "method": "CSTShift",
+    "integrated": false,
+    "year": "2024",
+    "publications": [
+      {
+        "text": "J. Chem. Theory Comput.",
+        "url": "https://doi.org/10.1021/acs.jctc.4c00422"
+      }
+    ],
+    "description": "DFT-assisted 3D graph neural network predicts atom-specific ¹H and ¹³C chemical shifts from optimized geometry and GIAO shielding tensors; can rerank candidate molecular structures but requires quantum-chemical descriptors.",
+    "datasets": [
+      {
+        "id": "nmrshiftdb2-dft-cstshift",
+        "role": "supervised training / test"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/ChaoNyu/CSTShift"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Trained models",
+        "url": "https://yzhang.hpc.nyu.edu/IMA/Datasets/CSTShift_models.zip"
+      }
+    ]
+  },
+  {
     "method": "SECS",
     "integrated": true,
     "year": "2026",
@@ -1861,6 +1891,27 @@
       {
         "text": "Data",
         "url": "https://huggingface.co/datasets/zhiyuanyan1/multi-spec-elucidation/tree/main/ms-mol2mol"
+      }
+    ]
+  },
+  {
+    "id": "nmrshiftdb2-dft-cstshift",
+    "name": "NMRShiftDB2-DFT · CSTShift",
+    "derivedFrom": "nmrshiftdb2",
+    "size": {
+      "count": 26353,
+      "unit": "¹³C entries"
+    },
+    "kind": "Experimental ¹H/¹³C shifts + DFT geometry and shielding tensors",
+    "origin": "CSTShift archive lists 26,353 ¹³C and 11,983 ¹H entries; the two counts are separate and may overlap by molecule. DFT geometry optimization and GIAO tensors supplement experimental shift targets.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.1021/acs.jctc.4c00422"
+      },
+      {
+        "text": "Data",
+        "url": "https://yzhang.hpc.nyu.edu/IMA/Datasets/NMRShiftDB2_DFT.zip"
       }
     ]
   }
