@@ -494,10 +494,11 @@
         "url": "https://huggingface.co/ziyux123/chefnmr2",
         "size": {
           "value": 1.15,
-          "unit": "GB × 10",
-          "scope": "per model",
+          "unit": "GB",
+          "scope": "per checkpoint",
           "source": "https://github.com/ml-struct-bio/chefnmr2/blob/main/README.md",
-          "approximate": true
+          "approximate": true,
+          "quantity": 10
         },
         "parameters": {
           "count": 288000000,
@@ -2128,7 +2129,8 @@
             const unit = fact.unit === "B" ? "MB" : fact.unit;
             value = (fact.approximate ? "≈" : "") +
               Number(n.toFixed(2)).toLocaleString("en-US") + " " + unit;
-            if (fact.scope !== "checkpoint" && fact.scope !== "per model")
+            if (fact.quantity) value += " × " + fact.quantity;
+            if (fact.scope !== "checkpoint" && fact.scope !== "per checkpoint")
               value += " (" + fact.scope + ")";
           } else {
             value = (fact.approximate ? "≈" : "") +
