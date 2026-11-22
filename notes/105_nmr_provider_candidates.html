@@ -1353,6 +1353,63 @@
     }
   },
   {
+    "method": "MMST",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Martin Priessner et al.",
+      "names": [
+        "Martin Priessner",
+        "Richard J. Lewis",
+        "Isak Lemurell",
+        "Magnus J. Johansson",
+        "Jonathan M. Goodman",
+        "Jon Paul Janet",
+        "Anna Tomberg"
+      ],
+      "source": [
+        "https://doi.org/10.1002/anie.202517611"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Angew. Chem. Int. Ed.",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      }
+    ],
+    "description": "Flexible multimodal Transformer generates SMILES from ¹H/¹³C, HSQC, COSY, IR and mass/formula inputs. Candidate spectra are used for ranking; an improvement cycle simulates spectra for proposed analogues and fine-tunes the model to new chemical space.",
+    "datasets": [
+      {
+        "id": "mmst-zinc-4m",
+        "role": "simulated training"
+      },
+      {
+        "id": "mmst-pubchem-1m5",
+        "role": "out-of-distribution evaluation / adaptation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/mpriessner/MultiModalSpectralTransformer"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Model/data archive, part 1",
+        "url": "https://doi.org/10.5281/zenodo.16076914"
+      },
+      {
+        "text": "Model/data archive, part 2",
+        "url": "https://doi.org/10.5281/zenodo.16257786"
+      },
+      {
+        "text": "Model/data archive, part 3",
+        "url": "https://doi.org/10.5281/zenodo.17284940"
+      }
+    ]
+  },
+  {
     "method": "SpectroMol + MS-Mol2Mol",
     "integrated": false,
     "year": "2026",
@@ -1446,6 +1503,58 @@
         "https://arxiv.org/abs/2608.14720"
       ]
     }
+  },
+  {
+    "method": "ChemStructLLM",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Martin Priessner et al.",
+      "names": [
+        "Martin Priessner",
+        "Richard J. Lewis",
+        "Magnus J. Johansson",
+        "Jonathan M. Goodman",
+        "Jon Paul Janet",
+        "Anna Tomberg"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D5DD00359H"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Digital Discovery",
+        "url": "https://doi.org/10.1039/D5DD00359H"
+      }
+    ],
+    "description": "Reasoning-capable LLM coordinates MMST, Chemformer and Mol2Mol for candidate generation, checks predicted against observed ¹H/¹³C/HSQC/COSY evidence and iteratively refines molecular hypotheses. Tool orchestration rather than a standalone NMR-to-SMILES checkpoint.",
+    "datasets": [
+      {
+        "id": "mmst-zinc-4m",
+        "role": "underlying MMST model training"
+      },
+      {
+        "id": "chemstruct-34",
+        "role": "experimental method evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/mpriessner/ChemStructLLM_"
+      },
+      {
+        "text": "Source ZIP",
+        "url": "https://zenodo.org/records/21111281/files/ChemStructLLM_-main.zip"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Pretrained tool models, multipart",
+        "url": "https://zenodo.org/records/21111281"
+      }
+    ]
   },
   {
     "method": "CASCADE-2.0",
@@ -2936,6 +3045,76 @@
       {
         "text": "Source NMRexp",
         "url": "https://doi.org/10.1038/s41597-025-06245-5"
+      }
+    ]
+  },
+  {
+    "id": "mmst-zinc-4m",
+    "name": "MMST simulated ZINC corpus",
+    "size": {
+      "count": 4000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C, HSQC, COSY, IR, MS",
+    "origin": "Approximately 4 million ZINC molecules with simulated multimodal spectra, used for MMST training. The reported 72% top-1 and 80% top-3 results are from an in-distribution held-out test, not experimental ¹H-only performance.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      },
+      {
+        "text": "Data, part 1",
+        "url": "https://doi.org/10.5281/zenodo.16076914"
+      },
+      {
+        "text": "Data, part 2",
+        "url": "https://doi.org/10.5281/zenodo.16257786"
+      },
+      {
+        "text": "Data, part 3",
+        "url": "https://doi.org/10.5281/zenodo.17284940"
+      }
+    ]
+  },
+  {
+    "id": "mmst-pubchem-1m5",
+    "name": "MMST PubChem expansion corpus",
+    "size": {
+      "count": 1500000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated multimodal spectra, PubChem",
+    "origin": "Approximately 1.5 million PubChem molecules released for broader chemical-space tests and improvement-cycle work. A separately reported evaluation selected three disjoint groups of 1,000 PubChem molecules; the entire 1.5M set is not asserted to have trained the base MMST.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      },
+      {
+        "text": "Archive",
+        "url": "https://doi.org/10.5281/zenodo.14712886"
+      }
+    ]
+  },
+  {
+    "id": "chemstruct-34",
+    "name": "ChemStructLLM experimental set",
+    "size": {
+      "count": 34,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C, HSQC and COSY",
+    "origin": "Structured spectroscopic observations and reference structures for 34 organic molecules released for workflow evaluation. This is not the training corpus of the reasoning LLM or MMST.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D5DD00359H"
+      },
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/21111281"
       }
     ]
   }
