@@ -742,6 +742,26 @@
     "checkpoints": []
   },
   {
+    "method": "SMART 2.0",
+    "integrated": false,
+    "year": "2020",
+    "publications": [
+      {
+        "text": "JACS",
+        "url": "https://doi.org/10.1021/jacs.9b13786"
+      }
+    ],
+    "description": "Convolutional neural network embeds ²D ¹H–¹³C HSQC spectra to retrieve structurally similar natural products; useful for mixtures and scaffold annotation rather than de novo structure generation.",
+    "datasets": [
+      {
+        "id": "smart2-hsqc",
+        "role": "training / reference"
+      }
+    ],
+    "code": [],
+    "checkpoints": []
+  },
+  {
     "method": "SPECTRE",
     "integrated": false,
     "year": "2026",
@@ -766,6 +786,31 @@
       {
         "text": "GitHub",
         "url": "https://github.com/xwd0418/Spectre"
+      }
+    ],
+    "checkpoints": []
+  },
+  {
+    "method": "DeepSAT",
+    "integrated": false,
+    "year": "2023",
+    "publications": [
+      {
+        "text": "J. Cheminformatics",
+        "url": "https://doi.org/10.1186/s13321-023-00738-4"
+      }
+    ],
+    "description": "Multitask CNN predicts molecular fingerprints, molecular weight and natural-product classes from ¹H–¹³C HSQC spectra, then ranks related database structures; it does not generate structures de novo.",
+    "datasets": [
+      {
+        "id": "deepsat-hsqc",
+        "role": "training / reference"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/mwang87/DeepSAT"
       }
     ],
     "checkpoints": []
@@ -1451,6 +1496,46 @@
       {
         "text": "MassBank",
         "url": "https://massbank.eu/MassBank/"
+      }
+    ]
+  },
+  {
+    "id": "smart2-hsqc",
+    "name": "SMART 2.0 HSQC corpus",
+    "size": {
+      "count": 53076,
+      "unit": "spectra"
+    },
+    "kind": "Experimental and calculated ¹H–¹³C HSQC",
+    "origin": "Natural-product HSQC reference database used to train the SMART 2.0 similarity model (2019 implementation, 2020 publication); spectrum count, not molecule count.",
+    "references": [
+      {
+        "text": "JACS paper",
+        "url": "https://doi.org/10.1021/jacs.9b13786"
+      },
+      {
+        "text": "Usage guide",
+        "url": "https://mwang87.github.io/SMART_NMR_Documentation/smart_usage/"
+      }
+    ]
+  },
+  {
+    "id": "deepsat-hsqc",
+    "name": "DeepSAT HSQC corpus",
+    "size": {
+      "count": 143467,
+      "unit": "HSQC spectra"
+    },
+    "kind": "Experimental and ACD-calculated ¹H–¹³C HSQC",
+    "origin": "Literature-derived and calculated HSQC spectra for natural products and organic molecules. Study evaluates 3,982 held-out spectra, separate from trained examples.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1186/s13321-023-00738-4"
+      },
+      {
+        "text": "Data + source",
+        "url": "https://github.com/mwang87/DeepSAT"
       }
     ]
   }
