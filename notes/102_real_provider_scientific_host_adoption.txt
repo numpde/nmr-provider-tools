@@ -657,3 +657,78 @@ Consumer note 034 now records separately authorized F3/F4 idle-death cases. Thei
 planned status is not runtime proof; this audit neither implemented nor ran them.
 Earlier source/test limits, synthetic-reference and scripted-prose boundaries,
 CPU-only scope and unproved service claims remain explicit.
+
+## NMRPeak integration re-audit (2026-11-22)
+
+This round reviews consumer b0179c382d939e3af5362b5c21e646728df045c7
+and the same released SDK 6e10c2e6/v0.6.21. The consumer was clean at freeze;
+later unrelated working-tree edits are excluded. Five primary assignments stayed
+distinct: C1/C2 science, C3/C4 execution, C5 availability, C6 installed boundaries,
+and C7 parsimony. All reviewers used fresh Luna-medium contexts and investigated
+read-only. No tests, campaigns or production changes were performed by the panel.
+
+| Criterion | Initial assessment | Final mandatory status | Final score /10 |
+| --- | --- | --- | ---: |
+| C1 Scientific fidelity | Proved, 8 | Proved in pinned calculation/scripted-prose scope | 8 |
+| C2 Prepared state/residency | Wrong-scope evidence unproved, 7 | Proved by installed witness and owned-boundary composition | 9 |
+| C3 Authority/permission | Proved, 9 | Proved | 9 |
+| C4 Outcome/handoff/settlement | Proved, 9 | Proved | 9 |
+| C5 Bilateral availability | Provisional proof limits, 8 | Proved within selected local service contract | 9 |
+| C6 Installed artifacts/grants | Claimed denial-matrix gap, 8 | Proved within declared CPU/process grants | 9 |
+| C7 Parsimony | First grade 9 lacked independence; replacement began at 8 | Proved after fresh source/producer review | 9 |
+
+All assigned mandatory claims are now proved within the declared local scope.
+No numeric acceptance threshold was specified and no aggregate score was used.
+The earlier C5 unproved disposition is superseded for this reviewed source and
+evidence, not erased from the historical audit above.
+
+The current .21 encoded witness is /tmp/nmrpeak-0621-encoded-witness; it supplies
+direct model-load, token/tensor identity, A-B-A, rejection, abandonment, disposal
+and unrelated-exec observations. Wrong-scope/old-allocation refusal composes the
+SDK's state-owner checks and existing native test with the provider's exact
+current-session/single-use gate and its existing foreign/reused-handle test.
+A duplicate installed adversarial case is not required for that SDK-owned rule.
+
+F3/F4 raw roots /tmp/nmrpeak-0621-idle-hf-final and idle-chf-final now record
+validated Hello return, SDK exit identity, readiness continuity, original healthy
+sibling work and bounded retirement. Signal-to-ACK upper bounds are 0.162785 and
+0.128968 seconds. Signal precedes actual death, so these conservatively bound
+exit-to-ACK; they are not exact death instants. Existing maintained composition
+tests cover no-survivor readiness and Hello recovery. SDK .21's installed native
+idle witness waits beyond its 0.5-second retirement allowance, then performs
+science on the same healthy child before retirement. Source has no idle cleanup
+timer; neither an infinite-duration run nor another both-worker-death case is
+needed to prove those scoped properties.
+
+Current .21 active-kill/hold, handoff-kill and lost-ACK roots under
+/tmp/nmrpeak-0621-active-*, /tmp/nmrpeak-0621-handoff-{hf,chf} and
+/tmp/nmrpeak-0621-lost-ack-{hf,chf} replace the earlier version-transfer limit
+for those scenarios. Two identical delivery attempts are separate handoff log
+events, not two durable SQLite outcomes. Calculation/unknown/stop/death and
+scientific/native/scratch settlement remain distinct.
+
+Actual worker probes record the claimed CPU-profile credentials, namespaces,
+environment, descriptors, storage, cgroups and source/checkpoint/network denials.
+The initial C6 request for an exhaustive denial matrix exceeded the declared
+scope and was withdrawn after inspecting those raw records. API credentials are
+excluded from science, not injected to demonstrate exclusion. No universal
+sandbox, secrecy, GPU or hostile-code isolation guarantee is inferred.
+
+The first C7 auditor disclosed reading favorable prior assessment text. Its
+source findings remain usable, but its 9 was not accepted as independent. A new
+auditor read source/callers without those notes, initially scored 8 for incomplete
+qualification-producer mapping, then traced the actual F1/F2 cleanup and F3/F4
+idle hooks, pidfd/ACK/readiness producers and artifact consumers and scored 9.
+It found no supported safely removable authority. Reviewers independently
+reissued ratings after clarification that preserving an earlier score meant
+keeping history, not fixing their subsequent numeric judgment.
+
+Coordinator checks verified 704 manifest entries across 15 current evidence
+roots and matched all 68 installed final-baseline parent runtime files against
+the frozen consumer commit. The existing final baseline and runtime-transfer
+record connect the later three-line ScientificOffering cleanup to fault runs
+using older image-source labels; identical whole-tree source is not claimed.
+The CPU-only fixture, scripted interpretation, synthetic calculation references,
+local durable acceptance and selected response/resource budgets remain limits.
+This closes the scoped integration audit, not deployed central-API, GPU,
+general interpretation/chemical accuracy or universal load qualification.
