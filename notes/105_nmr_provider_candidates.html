@@ -249,6 +249,83 @@
     }
   },
   {
+    "method": "CSP5",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "J. Benji Rowlands et al.",
+      "names": [
+        "J. Benji Rowlands",
+        "Richard J. Lewis",
+        "Peter Howe",
+        "Jonathan M. Goodman"
+      ],
+      "source": [
+        "https://doi.org/10.26434/chemrxiv.15001823/v1",
+        "https://github.com/Goodman-lab/CSP5"
+      ]
+    },
+    "publications": [
+      {
+        "text": "ChemRxiv",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      }
+    ],
+    "description": "Solvent-conditioned graph neural chemical-shift prediction from molecular structure; an optimal-assignment objective learns from unassigned ¹H/¹³C NMRexp spectra alongside assigned data. CSP5q variants predict per-shift quantile distributions for structure verification.",
+    "datasets": [
+      {
+        "id": "nmrexp-csp5-13c",
+        "role": "unassigned ¹³C training / evaluation"
+      },
+      {
+        "id": "nmrexp-csp5-1h",
+        "role": "unassigned ¹H training / evaluation"
+      },
+      {
+        "id": "exp22k-csp5",
+        "role": "assigned ¹³C training"
+      },
+      {
+        "id": "dft8k-csp5",
+        "role": "assigned ¹H training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/Goodman-lab/CSP5"
+      },
+      {
+        "text": "Inference package",
+        "url": "https://pypi.org/project/csp5/"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "¹³C, CDCl₃",
+        "url": "https://doi.org/10.5281/zenodo.23668018",
+        "size": {
+          "value": 18.4,
+          "unit": "MB",
+          "scope": "one solvent-specific model",
+          "source": "https://zenodo.org/records/19486118",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H, CDCl₃",
+        "url": "https://doi.org/10.5281/zenodo.23668018",
+        "size": {
+          "value": 18.4,
+          "unit": "MB",
+          "scope": "one solvent-specific model",
+          "source": "https://zenodo.org/records/19486118",
+          "approximate": true
+        }
+      }
+    ]
+  },
+  {
     "method": "CSTShift",
     "integrated": false,
     "year": "2024",
@@ -2666,6 +2743,92 @@
       {
         "text": "Release",
         "url": "https://doi.org/10.5281/zenodo.13317524"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-csp5-13c",
+    "name": "NMRexp · CSP5 unassigned ¹³C",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1200000,
+      "unit": "¹³C spectra",
+      "approximate": true
+    },
+    "kind": "Experimental unassigned ¹³C",
+    "origin": "Approximately 1.2 million experimental ¹³C spectra selected from NMRexp for solvent-specific optimal-assignment weak supervision; count is an approximate method-specific training/evaluation corpus, not atom-assigned observations.",
+    "references": [
+      {
+        "text": "Preprint",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Release",
+        "url": "https://doi.org/10.5281/zenodo.23668018"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-csp5-1h",
+    "name": "NMRexp · CSP5 unassigned ¹H",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1400000,
+      "unit": "¹H spectra",
+      "approximate": true
+    },
+    "kind": "Experimental unassigned ¹H",
+    "origin": "Approximately 1.4 million experimental ¹H spectra selected from NMRexp for solvent-specific optimal-assignment weak supervision; not 1.4 million different molecules.",
+    "references": [
+      {
+        "text": "Preprint",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Release",
+        "url": "https://doi.org/10.5281/zenodo.23668018"
+      }
+    ]
+  },
+  {
+    "id": "exp22k-csp5",
+    "name": "Exp22K · CSP5 assigned ¹³C",
+    "size": {
+      "count": 22000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Experimental atom-assigned ¹³C",
+    "origin": "Exp22K assigned ¹³C shifts used for CSP5 pretraining and joint supervision. Count is the nominal dataset name, not an independently checked train-split size.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/Goodman-lab/CSP5"
+      }
+    ]
+  },
+  {
+    "id": "dft8k-csp5",
+    "name": "DFT8K · CSP5 assigned ¹H",
+    "size": {
+      "count": 8000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Computed atom-assigned ¹H",
+    "origin": "DFT8K molecular ¹H training targets used to warm-start the CSP5 ¹H prediction model; exact filtered sample and split sizes are not asserted.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/Goodman-lab/CSP5"
       }
     ]
   }
