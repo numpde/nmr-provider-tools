@@ -19,7 +19,7 @@
 <body>
   <main>
     <table>
-      <thead><tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Datasets</th></tr></thead>
+      <thead><tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th></tr></thead>
       <tbody id="provider-rows"></tbody>
     </table>
     <table>
@@ -44,6 +44,22 @@
         "id": "nmrspec",
         "role": "training"
       }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/little1d/NMRTrans"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "¹H + formula",
+        "url": "https://huggingface.co/little1d/H-Formula"
+      },
+      {
+        "text": "All six",
+        "url": "https://huggingface.co/collections/little1d/nmrtrans"
+      }
     ]
   },
   {
@@ -60,6 +76,18 @@
       {
         "id": "nmrexp-prism",
         "role": "training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/alhqlearn/PRISM"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo",
+        "url": "https://doi.org/10.5281/zenodo.23600371"
       }
     ]
   },
@@ -86,6 +114,18 @@
         "id": "uspto-chefnmr2",
         "role": "training"
       }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/ml-struct-bio/chefnmr2"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Hugging Face",
+        "url": "https://huggingface.co/ziyux123/chefnmr2"
+      }
     ]
   },
   {
@@ -106,6 +146,18 @@
       {
         "id": "nmrexp",
         "role": "evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/PaddlePaddle/PaddleMaterials/tree/develop/spectrum_elucidation"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "DiffNMR weights",
+        "url": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_elucidation/diffnmr/DiffNMR_nless15_best.pdparams"
       }
     ]
   },
@@ -128,6 +180,26 @@
         "id": "gdb17-nmr2struct",
         "role": "pretraining"
       }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/MarklandGroup/NMR2Struct"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Multitask",
+        "url": "https://github.com/MarklandGroup/NMR2Struct/blob/main/checkpoints/multitask_checkpoint.pt"
+      },
+      {
+        "text": "¹H",
+        "url": "https://github.com/MarklandGroup/NMR2Struct/blob/main/checkpoints/hnmr_only_checkpoint.pt"
+      },
+      {
+        "text": "¹³C",
+        "url": "https://github.com/MarklandGroup/NMR2Struct/blob/main/checkpoints/cnmr_only_checkpoint.pt"
+      }
     ]
   },
   {
@@ -149,7 +221,14 @@
         "id": "nmrshiftdb2",
         "role": "ranking only; no training"
       }
-    ]
+    ],
+    "code": [
+      {
+        "text": "PyLSD",
+        "url": "https://github.com/nuzillard/PyLSD"
+      }
+    ],
+    "checkpoints": []
   }
 ]
   </script>
@@ -387,6 +466,12 @@
         }
       });
       row.append(uses);
+      for (const entries of [provider.code, provider.checkpoints]) {
+        const td = document.createElement("td");
+        if (entries.length) links(td, entries);
+        else td.textContent = "—";
+        row.append(td);
+      }
       document.getElementById("provider-rows").append(row);
     }
 
