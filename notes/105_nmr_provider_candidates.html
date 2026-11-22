@@ -471,6 +471,14 @@
       {
         "id": "secs-exp-tune",
         "role": "experimental fine-tuning"
+      },
+      {
+        "id": "secs-inhouse-eval-34",
+        "role": "independent experimental evaluation"
+      },
+      {
+        "id": "secs-chemotion-eval-1486",
+        "role": "independent experimental evaluation"
       }
     ],
     "code": [
@@ -3617,6 +3625,38 @@
       {
         "text": "NMRPeak paper",
         "url": "https://arxiv.org/abs/2602.08752"
+      }
+    ]
+  },
+  {
+    "id": "secs-inhouse-eval-34",
+    "name": "SECS in-house experimental evaluation",
+    "size": {
+      "count": 34,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C NMR",
+    "origin": "Separate held-out evaluation set of 34 molecules with experimental proton and carbon spectra; not part of the 2,370-molecule experimental fine-tuning set. The authors use it to compare simulated, augmented and experimentally fine-tuned encoders.",
+    "references": [
+      {
+        "text": "Nature Communications 2026",
+        "url": "https://doi.org/10.1038/s41467-026-73846-y"
+      }
+    ]
+  },
+  {
+    "id": "secs-chemotion-eval-1486",
+    "name": "SECS Chemotion experimental evaluation",
+    "size": {
+      "count": 1486,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H NMR",
+    "origin": "Held-out published Chemotion examples; includes a 323-compound subset satisfying the paper's narrow formula and ≤15-heavy-atom search constraints. Evaluation, not model training. The reported top-1 is 10.3% on the full 1,486 and 27.9% on the constrained subset.",
+    "references": [
+      {
+        "text": "Nature Communications 2026",
+        "url": "https://doi.org/10.1038/s41467-026-73846-y"
       }
     ]
   }
