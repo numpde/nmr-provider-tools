@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NMR provider candidates</title>
   <style>
-    body { max-width: 1300px; margin: 2rem auto; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; color: #222; background: white; }
+    body { max-width: 1550px; margin: 2rem auto; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; color: #222; background: white; }
     main { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; margin: 0 0 2rem; }
     th, td { padding: .7rem .85rem; text-align: left; vertical-align: top; border-bottom: 1px solid #ddd; }
@@ -13,13 +13,13 @@
     td:first-child { font-weight: 600; }
     td:nth-child(2) { white-space: nowrap; }
     a { color: #175b99; }
-    @media (max-width: 800px) { table { min-width: 850px; } body { margin: 1rem auto; } }
+    @media (max-width: 800px) { table { min-width: 1200px; } body { margin: 1rem auto; } }
   </style>
 </head>
 <body>
   <main>
     <table>
-      <thead><tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th></tr></thead>
+      <thead><tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th><th scope="col">Integrated</th></tr></thead>
       <tbody id="provider-rows"></tbody>
     </table>
     <table>
@@ -29,6 +29,140 @@
   </main>
   <script type="application/json" id="provider-data">
 [
+  {
+    "provider": "Magnet",
+    "year": "2026",
+    "publications": [],
+    "method": "Our learned inverse models E01/E02 generate molecular candidates from NMR input; G01 predicts atom-assigned shifts, multiplicities and J-coupling candidates from structures.",
+    "datasets": [
+      {
+        "id": "nmrexp",
+        "role": "training source"
+      }
+    ],
+    "code": [
+      {
+        "text": "Provider",
+        "url": "https://github.com/numpde/magnet-deploy"
+      }
+    ],
+    "checkpoints": [],
+    "integrated": true
+  },
+  {
+    "provider": "NMRPeak",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "arXiv",
+        "url": "https://arxiv.org/abs/2602.08752"
+      }
+    ],
+    "method": "Unified peak-token models for spectrum prediction, molecular retrieval and SMILES generation; our provider offers formula + ¹H and formula + ¹H/¹³C generation.",
+    "datasets": [
+      {
+        "id": "nmrexp-nmrpeak",
+        "role": "training"
+      },
+      {
+        "id": "mst-nmr-nmrpeak",
+        "role": "training / benchmark"
+      }
+    ],
+    "code": [
+      {
+        "text": "Provider",
+        "url": "https://github.com/numpde/nmrpeak-repro"
+      },
+      {
+        "text": "Upstream",
+        "url": "https://github.com/Colin-Jay/NMRPeak"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo",
+        "url": "https://zenodo.org/records/19122815"
+      }
+    ],
+    "integrated": true
+  },
+  {
+    "provider": "NMRNet++",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "ICML 2026",
+        "url": "https://proceedings.mlr.press/v306/jin26k.html"
+      }
+    ],
+    "method": "SE(3)-equivariant, 3D molecular chemical-shift predictor trained with atom-assigned labels and permutation-invariant matching to unassigned literature spectra; our provider serves ¹H/¹³C shifts.",
+    "datasets": [
+      {
+        "id": "nmrnet-assigned",
+        "role": "supervised training"
+      },
+      {
+        "id": "nmrexp",
+        "role": "weakly supervised training"
+      }
+    ],
+    "code": [
+      {
+        "text": "Provider",
+        "url": "https://github.com/numpde/nmrnet-repro"
+      },
+      {
+        "text": "Upstream",
+        "url": "https://github.com/YongqiJin/NMRNetplusplus"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo",
+        "url": "https://zenodo.org/records/18232165"
+      }
+    ],
+    "integrated": true
+  },
+  {
+    "provider": "SECS",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Nature Communications",
+        "url": "https://doi.org/10.1038/s41467-026-73846-y"
+      }
+    ],
+    "method": "Contrastively aligns spectra and molecular embeddings, retrieves formula-compatible candidates and refines structures using graph-based evolutionary search; our provider uses dense ¹H spectra.",
+    "datasets": [
+      {
+        "id": "msd",
+        "role": "pretraining"
+      },
+      {
+        "id": "secs-exp-tune",
+        "role": "experimental fine-tuning"
+      }
+    ],
+    "code": [
+      {
+        "text": "Provider",
+        "url": "https://github.com/numpde/secs-repro"
+      },
+      {
+        "text": "Upstream",
+        "url": "https://github.com/lamalab-org/secs"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo",
+        "url": "https://zenodo.org/records/14638782"
+      }
+    ],
+    "integrated": true
+  },
   {
     "provider": "NMRTrans",
     "year": "2026",
@@ -60,7 +194,8 @@
         "text": "All six",
         "url": "https://huggingface.co/collections/little1d/nmrtrans"
       }
-    ]
+    ],
+    "integrated": false
   },
   {
     "provider": "PRISM",
@@ -89,7 +224,8 @@
         "text": "Zenodo",
         "url": "https://doi.org/10.5281/zenodo.23600371"
       }
-    ]
+    ],
+    "integrated": false
   },
   {
     "provider": "ChefNMR2",
@@ -126,7 +262,8 @@
         "text": "Hugging Face",
         "url": "https://huggingface.co/ziyux123/chefnmr2"
       }
-    ]
+    ],
+    "integrated": false
   },
   {
     "provider": "DiffNMR",
@@ -159,7 +296,8 @@
         "text": "DiffNMR weights",
         "url": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_elucidation/diffnmr/DiffNMR_nless15_best.pdparams"
       }
-    ]
+    ],
+    "integrated": false
   },
   {
     "provider": "NMR2Struct",
@@ -200,7 +338,158 @@
         "text": "¹³C",
         "url": "https://github.com/MarklandGroup/NMR2Struct/blob/main/checkpoints/cnmr_only_checkpoint.pt"
       }
-    ]
+    ],
+    "integrated": false
+  },
+  {
+    "provider": "NMRElucidator",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "J. Chem. Inf. Model.",
+        "url": "https://doi.org/10.1021/acs.jcim.6c00905"
+      }
+    ],
+    "method": "CNN spectral encoder and multitask Transformer generating SMILES and substructure predictions, pretrained on fingerprint-to-structure reconstruction; formula not required.",
+    "datasets": [
+      {
+        "id": "pubchem-nmre",
+        "role": "structural pretraining"
+      },
+      {
+        "id": "acd-nmre",
+        "role": "spectrum-to-structure training"
+      },
+      {
+        "id": "nmre-bmrb",
+        "role": "experimental fine-tuning / evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/MarklandGroup/NMRElucidator"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo",
+        "url": "https://zenodo.org/records/19240523"
+      }
+    ],
+    "integrated": false
+  },
+  {
+    "provider": "NMRElucidator+C",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "arXiv",
+        "url": "https://arxiv.org/abs/2611.07133"
+      }
+    ],
+    "method": "Context-aware extension of NMRElucidator: a Transformer cross-attends to SMILES prompts representing retrosynthetic precursors as well as ¹H/¹³C spectra.",
+    "datasets": [
+      {
+        "id": "pubchem-nmre",
+        "role": "structural pretraining"
+      },
+      {
+        "id": "acd-nmre",
+        "role": "spectral training"
+      },
+      {
+        "id": "nmre-precursors",
+        "role": "precursor-context augmentation"
+      }
+    ],
+    "code": [],
+    "checkpoints": [],
+    "integrated": false
+  },
+  {
+    "provider": "NMR-Solver",
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Nature Communications",
+        "url": "https://doi.org/10.1038/s41467-026-71315-0"
+      }
+    ],
+    "method": "Spectral nearest-neighbor initialization from a large PubChem index, followed by fragment recombination guided by NMRNet-predicted chemical shifts.",
+    "datasets": [
+      {
+        "id": "simnmr-pubchem",
+        "role": "candidate retrieval, not training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/YongqiJin/NMR-Solver"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "NMRNet weights",
+        "url": "https://doi.org/10.5281/zenodo.16952024"
+      }
+    ],
+    "integrated": false
+  },
+  {
+    "provider": "CASCADE-2.0",
+    "year": "2025",
+    "publications": [
+      {
+        "text": "ChemRxiv",
+        "url": "https://doi.org/10.26434/chemrxiv-2025-r8m9m"
+      }
+    ],
+    "method": "Conformer-aware molecular graph networks predict ¹³C shifts, with trained experimental-shift corrections; the associated site also offers a separately trained ¹H model.",
+    "datasets": [
+      {
+        "id": "cascade-exp22k",
+        "role": "¹³C training"
+      },
+      {
+        "id": "cascade-dft8k",
+        "role": "¹H web-model training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/asbhd/CASCADE-2.0"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Repository models",
+        "url": "https://github.com/asbhd/CASCADE-2.0/tree/main/models"
+      }
+    ],
+    "integrated": false
+  },
+  {
+    "provider": "DP4-AI",
+    "year": "2020",
+    "publications": [
+      {
+        "text": "Chemical Science",
+        "url": "https://doi.org/10.1039/D0SC00442A"
+      }
+    ],
+    "method": "Automatically processes and assigns raw ¹H/¹³C NMR spectra, then ranks supplied stereoisomer or structural candidates via DFT chemical shifts and DP4 probabilities.",
+    "datasets": [],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/KristapsE/DP4-AI"
+      }
+    ],
+    "checkpoints": [],
+    "integrated": false
   },
   {
     "provider": "LSD / PyLSD",
@@ -228,7 +517,8 @@
         "url": "https://github.com/nuzillard/PyLSD"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "integrated": false
   }
 ]
   </script>
@@ -419,6 +709,213 @@
         "url": "https://doi.org/10.1002/mrc.4612"
       }
     ]
+  },
+  {
+    "id": "nmrexp-nmrpeak",
+    "name": "NMRexp · NMRPeak curated",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1076955,
+      "unit": "samples"
+    },
+    "kind": "Experimental ¹H/¹³C",
+    "origin": "NMRPeak curated release: train 920,796; validation 48,463; test 107,696; 784,251 samples have both nuclei.",
+    "references": [
+      {
+        "text": "NMRPeak supplement",
+        "url": "https://assets-eu.researchsquare.com/files/rs-9921505/v1/f48bc89b65941cd889312fa0.pdf"
+      },
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/19122815"
+      }
+    ]
+  },
+  {
+    "id": "mst-nmr-nmrpeak",
+    "name": "MST-NMR · NMRPeak release",
+    "size": {
+      "count": 794370,
+      "unit": "samples"
+    },
+    "kind": "Simulated ¹H/¹³C",
+    "origin": "NMRPeak simulated-spectra benchmark: train 679,186; validation 35,747; test 79,437.",
+    "references": [
+      {
+        "text": "NMRPeak supplement",
+        "url": "https://assets-eu.researchsquare.com/files/rs-9921505/v1/f48bc89b65941cd889312fa0.pdf"
+      },
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/19122815"
+      }
+    ]
+  },
+  {
+    "id": "secs-exp-tune",
+    "name": "SECS experimental fine-tuning",
+    "size": {
+      "count": 2370,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Experimental NMR",
+    "origin": "In-house measured spectra, in a disjoint fine-tuning set, used after simulated-spectra pretraining.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s41467-026-73846-y"
+      }
+    ]
+  },
+  {
+    "id": "nmrnet-assigned",
+    "name": "NMRNet++ atom-assigned data",
+    "size": null,
+    "kind": "Experimental assigned NMR",
+    "origin": "Atom-assigned spectra supervising individual chemical shifts; combined with unassigned literature spectra in NMRNet++ training. Corpus count not established here.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://proceedings.mlr.press/v306/jin26k.html"
+      }
+    ]
+  },
+  {
+    "id": "acd-nmre",
+    "name": "NMRElucidator 1D NMR corpus",
+    "size": {
+      "count": 2000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C",
+    "origin": "ACD/Labs-computed spectra for molecules with up to 40 heavy atoms; multitask spectrum-to-structure training.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.1021/acs.jcim.6c00905"
+      },
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/19240523"
+      }
+    ]
+  },
+  {
+    "id": "pubchem-nmre",
+    "name": "PubChem · NMRElucidator pretraining",
+    "size": {
+      "count": 88000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Structure-only pretraining",
+    "origin": "PubChem structures with Morgan fingerprints, used to train a fingerprint-to-SMILES encoder–decoder prior to spectrum-to-structure training.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.1021/acs.jcim.6c00905"
+      },
+      {
+        "text": "Context paper",
+        "url": "https://arxiv.org/abs/2611.07133"
+      }
+    ]
+  },
+  {
+    "id": "nmre-precursors",
+    "name": "NMRElucidator+C precursor prompts",
+    "derivedFrom": "acd-nmre",
+    "size": {
+      "count": 2000000,
+      "unit": "target molecules",
+      "approximate": true
+    },
+    "kind": "Retrosynthetic context augmentation",
+    "origin": "AiZynthExpander generated retrospective trees to depth 5 and approximately 53 precursor prompts per target molecule; distinct from the underlying NMR corpus.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://arxiv.org/abs/2611.07133"
+      }
+    ]
+  },
+  {
+    "id": "nmre-bmrb",
+    "name": "NMRElucidator BMRB spectra",
+    "size": null,
+    "kind": "Experimental NMR",
+    "origin": "Experimental spectra and train/test splits released for fine-tuning and evaluation; count not asserted.",
+    "references": [
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/19240523"
+      },
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.1021/acs.jcim.6c00905"
+      }
+    ]
+  },
+  {
+    "id": "simnmr-pubchem",
+    "name": "SimNMR-PubChem",
+    "size": {
+      "count": 106000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C retrieval index",
+    "origin": "106 million filtered, deduplicated PubChem molecules with NMRNet-predicted shifts; used to initialize NMR-Solver searches, not to train its optimizer.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s41467-026-71315-0"
+      },
+      {
+        "text": "Data",
+        "url": "https://huggingface.co/datasets/yqj01/SimNMR-PubChem"
+      }
+    ]
+  },
+  {
+    "id": "cascade-exp22k",
+    "name": "CASCADE-2.0 experimental ¹³C",
+    "size": {
+      "count": 170000,
+      "unit": "¹³C shift assignments",
+      "approximate": true
+    },
+    "kind": "Experimental atom-assigned ¹³C",
+    "origin": "Experimental ¹³C chemical shifts in CASCADE-2.0 training; shift count is not a molecule count.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.26434/chemrxiv-2025-r8m9m"
+      },
+      {
+        "text": "Project",
+        "url": "https://nova.chem.colostate.edu/v2/cascade/about/"
+      }
+    ]
+  },
+  {
+    "id": "cascade-dft8k",
+    "name": "DFT8K · CASCADE ¹H model",
+    "size": {
+      "count": 8000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Computed ¹H shifts",
+    "origin": "DFT-computed training corpus for the ¹H predictor used by the CASCADE webserver (from the earlier CASCADE model).",
+    "references": [
+      {
+        "text": "Project",
+        "url": "https://nova.chem.colostate.edu/v2/cascade/about/"
+      }
+    ]
   }
 ]
   </script>
@@ -465,6 +962,7 @@
           uses.append(document.createTextNode(" (" + use.role + ")"));
         }
       });
+      if (!provider.datasets.length) uses.textContent = "—";
       row.append(uses);
       for (const entries of [provider.code, provider.checkpoints]) {
         const td = document.createElement("td");
@@ -472,6 +970,7 @@
         else td.textContent = "—";
         row.append(td);
       }
+      cell(row, provider.integrated ? "✓" : "");
       document.getElementById("provider-rows").append(row);
     }
 
@@ -479,9 +978,11 @@
       const row = document.createElement("tr");
       row.id = "dataset-" + dataset.id;
       cell(row, dataset.name);
-      const size = (dataset.size.approximate ? "≈" : "") +
-        dataset.size.count.toLocaleString("en-US") + " " + dataset.size.unit +
-        (dataset.size.asOf ? " (" + dataset.size.asOf + ")" : "");
+      const size = dataset.size
+        ? (dataset.size.approximate ? "≈" : "") +
+          dataset.size.count.toLocaleString("en-US") + " " + dataset.size.unit +
+          (dataset.size.asOf ? " (" + dataset.size.asOf + ")" : "")
+        : "—";
       cell(row, size);
       cell(row, dataset.kind);
       const origin = cell(row, dataset.origin);
