@@ -59,7 +59,7 @@
         "url": "https://arxiv.org/abs/2602.08752"
       }
     ],
-    "description": "Unified peak-token models for spectrum prediction, molecular retrieval and SMILES generation; our implementation offers formula + ¹H and formula + ¹H/¹³C generation.",
+    "description": "Peak-token Transformer modules for molecular-to-spectrum prediction, retrieval and spectrum-to-SMILES generation. Our integration exposes formula + ¹H (HF) and formula + ¹H/¹³C (CHF) generation.",
     "datasets": [
       {
         "id": "nmrexp-nmrpeak",
@@ -97,7 +97,7 @@
         "url": "https://proceedings.mlr.press/v306/jin26k.html"
       }
     ],
-    "description": "SE(3)-equivariant, 3D molecular chemical-shift predictor trained with atom-assigned labels and permutation-invariant matching to unassigned literature spectra; our implementation serves ¹H/¹³C shifts.",
+    "description": "An SE(3)-equivariant model predicts per-atom ¹H and ¹³C shifts from 3D geometry; training combines atom-assigned labels with unassigned literature spectra. Our integration serves the released H/C heads.",
     "datasets": [
       {
         "id": "nmrnet-assigned",
@@ -135,7 +135,7 @@
         "url": "https://doi.org/10.1038/s41467-026-73846-y"
       }
     ],
-    "description": "Contrastively aligns spectra and molecular embeddings, retrieves formula-compatible candidates and refines structures using graph-based evolutionary search; our implementation uses dense ¹H spectra.",
+    "description": "Contrastive molecular/spectral embeddings support nearest-neighbor retrieval and graph-evolutionary refinement. The implemented analysis accepts a dense ¹H spectrum and formula.",
     "datasets": [
       {
         "id": "msd",
@@ -207,7 +207,7 @@
         "url": "https://doi.org/10.1002/anie.7185622"
       }
     ],
-    "description": "Bidirectional Transformer: ¹H/¹³C peak lists → SMILES and molecular structures → predicted spectra, with chemistry-aware spectral encoders.",
+    "description": "Two transformer models: experimental ¹H/¹³C peak lists to SMILES (spec2mol), and SMILES to predicted peak lists (mol2spec), with chemistry-aware spectral conditioning.",
     "datasets": [
       {
         "id": "nmrexp-prism",
@@ -237,7 +237,7 @@
         "url": "https://doi.org/10.64898/2026.10.29.762711"
       }
     ],
-    "description": "Atomic flow-matching generation predicts molecular structure from NMR peak lists and molecular formula; a separate agent can refine candidates.",
+    "description": "Atomic flow matching constructs candidate molecular structures from molecular formula and ¹H/¹³C peak lists. Its LLM reasoning agent is described in the paper but not included in the released inference code.",
     "datasets": [
       {
         "id": "nmrexp-chefnmr2",
@@ -447,15 +447,15 @@
         "url": "https://doi.org/10.26434/chemrxiv-2025-r8m9m"
       }
     ],
-    "description": "Conformer-aware molecular graph networks predict ¹³C shifts, with trained experimental-shift corrections; the associated site also offers a separately trained ¹H model.",
+    "description": "Graph-based ¹³C chemical-shift prediction with conformer-aware features and uncertainty estimates. The project's web service also exposes a separately trained ¹H predictor.",
     "datasets": [
       {
-        "id": "cascade-exp22k",
-        "role": "¹³C training"
+        "id": "cascade-exp-13c",
+        "role": "¹³C training (augmented)"
       },
       {
         "id": "cascade-dft8k",
-        "role": "¹H web-model training"
+        "role": "separate ¹H web model"
       }
     ],
     "code": [
@@ -481,7 +481,7 @@
         "url": "https://doi.org/10.1039/D0SC00442A"
       }
     ],
-    "description": "Automatically processes and assigns raw ¹H/¹³C NMR spectra, then ranks supplied stereoisomer or structural candidates via DFT chemical shifts and DP4 probabilities.",
+    "description": "Automated processing, peak picking and assignment of raw ¹H/¹³C spectra, followed by DP4 probability ranking of supplied structures against calculated chemical shifts.",
     "datasets": [],
     "code": [
       {
@@ -505,7 +505,7 @@
         "url": "https://doi.org/10.1002/mrc.4612"
       }
     ],
-    "description": "Constraint-based enumeration from atom properties and 2D NMR correlations (COSY, HSQC, HMBC); optional candidate ranking by predicted ¹³C shifts.",
+    "description": "Rule-based constraint enumeration from atom properties and NMR correlations; PyLSD extends LSD's search. Candidate structures can be ranked separately by predicted ¹³C shifts.",
     "datasets": [
       {
         "id": "nmrshiftdb2",
@@ -880,15 +880,15 @@
     ]
   },
   {
-    "id": "cascade-exp22k",
-    "name": "CASCADE-2.0 experimental ¹³C",
+    "id": "cascade-exp-13c",
+    "name": "CASCADE-2.0 experimental ¹³C shifts",
     "size": {
       "count": 170000,
       "unit": "¹³C shift assignments",
       "approximate": true
     },
     "kind": "Experimental atom-assigned ¹³C",
-    "origin": "Experimental ¹³C chemical shifts in CASCADE-2.0 training; shift count is not a molecule count.",
+    "origin": "Approximately 170,000 experimentally measured ¹³C shifts cross-validated against DFT; the CASCADE-2.0 study augments these to approximately 211,000 training shift values.",
     "references": [
       {
         "text": "Study",
