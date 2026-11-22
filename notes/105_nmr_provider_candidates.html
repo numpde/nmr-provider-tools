@@ -625,6 +625,30 @@
     ]
   },
   {
+    "method": "MACROS",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "arXiv preprint",
+        "url": "https://arxiv.org/abs/2608.14720"
+      }
+    ],
+    "description": "Multi-agent hypothesis/refinement system proposes molecular structures from multimodal spectra, evaluates candidates against spectral evidence and iterates through structure hypotheses; preprint results are not independently qualified here.",
+    "datasets": [
+      {
+        "id": "macros-simulated",
+        "role": "simulated training"
+      },
+      {
+        "id": "macros-experimental",
+        "role": "experimental training"
+      }
+    ],
+    "code": [],
+    "checkpoints": []
+  },
+  {
     "method": "CASCADE-2.0",
     "integrated": false,
     "year": "2025",
@@ -1554,6 +1578,40 @@
       {
         "text": "Source dataset",
         "url": "https://doi.org/10.5281/zenodo.17296666"
+      }
+    ]
+  },
+  {
+    "id": "macros-simulated",
+    "name": "MACROS simulated spectral pairs",
+    "size": {
+      "count": 100000000,
+      "unit": "spectra–molecule pairs",
+      "approximate": true
+    },
+    "kind": "Simulated multimodal spectra",
+    "origin": "Approximately 100 million simulated pairs reported in the MACROS preprint. Per-modality counts and public data release have not been independently established.",
+    "references": [
+      {
+        "text": "Preprint",
+        "url": "https://arxiv.org/abs/2608.14720"
+      }
+    ]
+  },
+  {
+    "id": "macros-experimental",
+    "name": "MACROS experimental spectral pairs",
+    "size": {
+      "count": 1600000,
+      "unit": "spectra–molecule pairs",
+      "approximate": true
+    },
+    "kind": "Experimental multimodal spectra",
+    "origin": "Approximately 1.6 million experimental pairs reported in the MACROS preprint. The underlying source records, deduplication and split provenance are not established here.",
+    "references": [
+      {
+        "text": "Preprint",
+        "url": "https://arxiv.org/abs/2608.14720"
       }
     ]
   }
