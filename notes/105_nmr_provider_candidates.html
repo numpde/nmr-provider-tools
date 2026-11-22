@@ -540,6 +540,80 @@
     }
   },
   {
+    "method": "UltraNMR",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Chen Yang et al.",
+      "names": [
+        "Chen Yang",
+        "Zheng Fang",
+        "Hanyu Sun",
+        "Fanjie Xu",
+        "Hongxin Xiang",
+        "Hanyu Gao",
+        "Xiangxiang Zeng",
+        "Yuqiang Li",
+        "Xiaojian Wang",
+        "Jun Xia"
+      ],
+      "source": [
+        "https://arxiv.org/abs/2606.20756"
+      ]
+    },
+    "publications": [
+      {
+        "text": "arXiv",
+        "url": "https://arxiv.org/abs/2606.20756"
+      }
+    ],
+    "description": "Foundation model pretrained on simulated paired ¹H/¹³C spectra with intra- and cross-spectrum objectives. Its spectral embeddings support experimental fine-tuning, library retrieval and downstream formula-conditioned NMR-to-SMILES generation.",
+    "datasets": [
+      {
+        "id": "ultranmr-pretrain-158m",
+        "role": "simulated representation pretraining"
+      },
+      {
+        "id": "nmrgym-269999",
+        "role": "experimental fine-tuning / scaffold-disjoint evaluation"
+      },
+      {
+        "id": "ultranmr-retrieval-94m",
+        "role": "retrieval index"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/wuycM/UltraNMR"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Pretrained spectral encoder",
+        "url": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nce",
+        "size": {
+          "value": 1.51,
+          "unit": "GB",
+          "scope": "encoder model file",
+          "source": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nce",
+          "approximate": true
+        }
+      },
+      {
+        "text": "NMRGym structure decoder",
+        "url": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nmrgym_formula",
+        "size": {
+          "value": 2.11,
+          "unit": "GB",
+          "scope": "NMR-to-SMILES model file",
+          "source": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nmrgym_formula",
+          "approximate": true
+        }
+      }
+    ]
+  },
+  {
     "method": "LL-NMR",
     "integrated": false,
     "year": "2023",
@@ -3128,6 +3202,72 @@
       {
         "text": "Data",
         "url": "https://zenodo.org/records/21111281"
+      }
+    ]
+  },
+  {
+    "id": "ultranmr-pretrain-158m",
+    "name": "UltraNMR simulation pretraining",
+    "size": {
+      "count": 158000000,
+      "unit": "paired ¹H/¹³C spectra",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C spectra",
+    "origin": "Approximately 158 million paired simulated proton and carbon NMR spectra for foundation-model pretraining. This counts paired spectral examples, not deduplicated experimental molecules.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://arxiv.org/abs/2606.20756"
+      },
+      {
+        "text": "Implementation",
+        "url": "https://github.com/wuycM/UltraNMR"
+      }
+    ]
+  },
+  {
+    "id": "nmrgym-269999",
+    "name": "NMRGym scaffold-split benchmark",
+    "size": {
+      "count": 269999,
+      "unit": "unique molecules"
+    },
+    "kind": "Curated experimental ¹H/¹³C",
+    "origin": "269,999 distinct molecular structures with paired curated ¹H and ¹³C shifts, assembled from experimental sources. Bemis–Murcko scaffold split: 215,861 train, 27,084 validation and 27,054 test; paper's benchmark inputs are shift lists, not raw FIDs. Dataset card requests contacting its curator for access.",
+    "references": [
+      {
+        "text": "KDD 2026",
+        "url": "https://doi.org/10.1145/3770855.3817452"
+      },
+      {
+        "text": "Data card",
+        "url": "https://huggingface.co/datasets/meaw0415/NMRGym"
+      },
+      {
+        "text": "Project",
+        "url": "https://AIMS-Lab-HKUSTGZ.github.io/NMRGym/"
+      }
+    ]
+  },
+  {
+    "id": "ultranmr-retrieval-94m",
+    "name": "UltraNMR molecular spectral-index library",
+    "size": {
+      "count": 94000000,
+      "unit": "unique molecules",
+      "approximate": true
+    },
+    "kind": "Simulated spectra and stored learned embeddings",
+    "origin": "Approximately 94 million unique molecular structures indexed by UltraNMR spectral embeddings for approximate structure-aware retrieval. Retrieval-library size is not additional pretraining data or experimental spectra.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://arxiv.org/abs/2606.20756"
+      },
+      {
+        "text": "Implementation",
+        "url": "https://github.com/wuycM/UltraNMR"
       }
     ]
   }
