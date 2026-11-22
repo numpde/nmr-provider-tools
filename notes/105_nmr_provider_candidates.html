@@ -475,11 +475,11 @@
       },
       {
         "id": "acd-nmre",
-        "role": "spectrum-to-structure training"
+        "role": "training / validation / test"
       },
       {
         "id": "nmre-bmrb",
-        "role": "experimental fine-tuning / evaluation"
+        "role": "experimental fine-tuning / validation / test"
       }
     ],
     "code": [
@@ -513,7 +513,7 @@
       },
       {
         "id": "acd-nmre",
-        "role": "spectral training"
+        "role": "training / validation / test"
       },
       {
         "id": "nmre-precursors",
@@ -634,7 +634,7 @@
         "url": "https://arxiv.org/abs/2608.14720"
       }
     ],
-    "description": "Multi-agent hypothesis/refinement system proposes molecular structures from multimodal spectra, evaluates candidates against spectral evidence and iterates through structure hypotheses; preprint results are not independently qualified here.",
+    "description": "Multi-agent system repeatedly proposes molecular structures, evaluates them against available spectra and refines the hypotheses using multimodal spectroscopic evidence.",
     "datasets": [
       {
         "id": "macros-simulated",
@@ -775,7 +775,7 @@
         "url": "https://doi.org/10.1021/jacs.9b13786"
       }
     ],
-    "description": "Convolutional neural network embeds ²D ¹H–¹³C HSQC spectra to retrieve structurally similar natural products; useful for mixtures and scaffold annotation rather than de novo structure generation.",
+    "description": "Convolutional neural network embeds 2D ¹H–¹³C HSQC spectra to retrieve structurally similar natural products; useful for mixtures and scaffold annotation rather than de novo structure generation.",
     "datasets": [
       {
         "id": "smart2-hsqc",
@@ -1133,12 +1133,11 @@
     "id": "acd-nmre",
     "name": "NMRElucidator 1D NMR corpus",
     "size": {
-      "count": 2000000,
-      "unit": "molecules",
-      "approximate": true
+      "count": 1999897,
+      "unit": "molecules"
     },
     "kind": "Simulated ¹H/¹³C",
-    "origin": "ACD/Labs-computed spectra for molecules with up to 40 heavy atoms; multitask spectrum-to-structure training.",
+    "origin": "ACD/Labs-generated ¹H/¹³C spectra for 1,999,897 molecules: 1,595,793 training, 202,151 validation and 201,953 test. Molecules range up to 40 heavy atoms.",
     "references": [
       {
         "text": "Paper",
@@ -1176,12 +1175,11 @@
     "name": "NMRElucidator+C precursor prompts",
     "derivedFrom": "acd-nmre",
     "size": {
-      "count": 2000000,
-      "unit": "target molecules",
-      "approximate": true
+      "count": 1999897,
+      "unit": "target molecules"
     },
     "kind": "Retrosynthetic context augmentation",
-    "origin": "AiZynthExpander generated retrospective trees to depth 5 and approximately 53 precursor prompts per target molecule; distinct from the underlying NMR corpus.",
+    "origin": "AiZynthExpander generates five retrosynthesis trees per original ACD/Labs target (maximum depth 5), then samples precursor pairs for context-conditioned training; five trees are not five new target molecules.",
     "references": [
       {
         "text": "Study",
@@ -1192,9 +1190,12 @@
   {
     "id": "nmre-bmrb",
     "name": "NMRElucidator BMRB spectra",
-    "size": null,
-    "kind": "Experimental NMR",
-    "origin": "Experimental spectra and train/test splits released for fine-tuning and evaluation; count not asserted.",
+    "size": {
+      "count": 100,
+      "unit": "experimental paired spectra"
+    },
+    "kind": "Experimental ¹H/¹³C in CDCl₃",
+    "origin": "100 selected BMRB compounds with ¹H and ¹³C spectra at 400–500 MHz; scaffold split of 50 fine-tuning, 25 validation and 25 test examples.",
     "references": [
       {
         "text": "Data",
