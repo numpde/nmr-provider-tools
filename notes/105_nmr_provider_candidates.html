@@ -395,6 +395,26 @@
       ],
       "source": [
         "https://doi.org/10.1145/3770855.3818935"
+      ],
+      "variants": [
+        {
+          "source": "https://arxiv.org/abs/2602.10158",
+          "label": "arXiv 2026-02",
+          "names": [
+            "Liujia Yang",
+            "Zhuo Yang",
+            "Jiaqing Xie",
+            "Yubin Wang",
+            "Ben Gao",
+            "Tianfan Fu",
+            "Xingjian Wei",
+            "Jiaxing Sun",
+            "Jiang Wu",
+            "Conghui He",
+            "Yuqiang Li",
+            "Qinying Gu"
+          ]
+        }
       ]
     }
   },
@@ -1714,7 +1734,7 @@
       "unit": "molecules"
     },
     "kind": "Experimental ¹H/¹³C",
-    "origin": "Literature supporting information (2013–2025), filtered to one sample per unique molecule. Authors report 58,796 molecules overlapping NMRexp and 181,201 unique to NMRSpec; the overlap depends on their molecular-identity processing.",
+    "origin": "Experimental ¹H/¹³C spectra from chemistry supporting information (2013–2025), deduplicated to 239,997 molecular structures. In the authors' molecular-identity comparison to NMRexp, 58,796 are shared and 181,201 are exclusive to NMRSpec.",
     "references": [
       {
         "text": "Study",
@@ -1723,6 +1743,14 @@
       {
         "text": "Data",
         "url": "https://huggingface.co/datasets/little1d/NMRTrans-Data"
+      }
+    ],
+    "overlaps": [
+      {
+        "datasetId": "nmrexp",
+        "count": 58796,
+        "unit": "shared molecular structures",
+        "source": "https://arxiv.org/abs/2602.10158"
       }
     ]
   },
