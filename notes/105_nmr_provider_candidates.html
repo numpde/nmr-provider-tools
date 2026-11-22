@@ -1740,7 +1740,7 @@
         "url": "https://doi.org/10.1039/D5DD00359H"
       }
     ],
-    "description": "Reasoning-capable LLM coordinates MMST, Chemformer and Mol2Mol for candidate generation, checks predicted against observed ¹H/¹³C/HSQC/COSY evidence and iteratively refines molecular hypotheses. Tool orchestration rather than a standalone NMR-to-SMILES checkpoint.",
+    "description": "Reasoning-capable LLM evaluates and revises candidate molecules using a supplied starting structure and ¹H/¹³C, HSQC, COSY and MS evidence. Chemformer, Mol2Mol and MMST supply complementary structure proposals; it is a tool-orchestration workflow, not a standalone NMR-to-SMILES model.",
     "datasets": [
       {
         "id": "mmst-zinc-4m",
@@ -2041,7 +2041,7 @@
         "url": "https://doi.org/10.1021/acs.jcim.5c02444"
       }
     ],
-    "description": "Transformer predicts entropy-optimized molecular fingerprints from ¹H, ¹³C and/or HSQC peak lists plus optional molecular weight; identifies similar natural products by retrieval, not de novo bond enumeration.",
+    "description": "Transformer predicts collision-free, entropy-selected molecular fingerprints from ¹H, ¹³C, HSQC and optional molecular weight, then retrieves similar natural products. Training uses data-type dropout; ¹H-only retrieval is less accurate than combinations with HSQC/¹³C.",
     "datasets": [
       {
         "id": "spectre-db",
@@ -2798,7 +2798,7 @@
       "unit": "molecules"
     },
     "kind": "Experimental / predicted ¹H, ¹³C and HSQC NMR",
-    "origin": "173,422 training, 4,056 validation and 4,056 test molecules; 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H entries. Most simulated HSQC data used for training cannot be redistributed and are absent from the public dataset.",
+    "origin": "SPECTRE-DB comprises 173,422 training, 4,056 validation and 4,056 test molecules. Its 1D spectra are drawn from NP-MRD and predominantly predicted; HSQC combines experimental JEOL records and ACD/Labs calculations. ACD/Labs-calculated HSQC spectra used during training are omitted from the public release due to redistribution restrictions.",
     "references": [
       {
         "text": "Study",
