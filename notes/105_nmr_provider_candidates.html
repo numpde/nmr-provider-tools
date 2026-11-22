@@ -2060,7 +2060,7 @@
     ],
     "checkpoints": [],
     "authors": {
-      "display": "Wangdong Xu et al.",
+      "display": "Wangdong Xu, Byeol Ryu et al.",
       "names": [
         "Wangdong Xu",
         "Byeol Ryu",
@@ -2076,7 +2076,12 @@
       ],
       "source": [
         "https://doi.org/10.1021/acs.jcim.5c02444"
-      ]
+      ],
+      "equalContributors": [
+        "Wangdong Xu",
+        "Byeol Ryu"
+      ],
+      "equalContributionSource": "https://doi.org/10.1021/acs.jcim.5c02444"
     }
   },
   {
@@ -2798,7 +2803,7 @@
       "unit": "molecules"
     },
     "kind": "Experimental / predicted ¹H, ¹³C and HSQC NMR",
-    "origin": "SPECTRE-DB comprises 173,422 training, 4,056 validation and 4,056 test molecules. Its 1D spectra are drawn from NP-MRD and predominantly predicted; HSQC combines experimental JEOL records and ACD/Labs calculations. ACD/Labs-calculated HSQC spectra used during training are omitted from the public release due to redistribution restrictions.",
+    "origin": "SPECTRE-DB: 173,422 training, 4,056 validation, 4,056 test molecules; available spectrum types comprise 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H records. The 1D NP-MRD inputs are mostly predicted, while HSQC combines JEOL experimental and ACD/Labs-calculated data. ACD/Labs-calculated HSQC spectra are excluded from public download by redistribution restrictions.",
     "references": [
       {
         "text": "Study",
@@ -2808,7 +2813,17 @@
         "text": "Public data",
         "url": "https://drive.google.com/file/d/16eKPJz2hwsfnPIKweJyKrfi9cZiGVErD/view"
       }
-    ]
+    ],
+    "modalityCounts": {
+      "hsqc": 117806,
+      "13C": 111521,
+      "1H": 101486
+    },
+    "splits": {
+      "training": 173422,
+      "validation": 4056,
+      "test": 4056
+    }
   },
   {
     "id": "spectre-retrieval",
