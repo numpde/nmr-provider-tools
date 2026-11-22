@@ -1873,6 +1873,10 @@
       {
         "id": "nmrshiftdb2",
         "role": "dereplication / shift knowledge base"
+      },
+      {
+        "id": "sherlock-eval-45",
+        "role": "experimental validation (45 cases)"
       }
     ],
     "code": [
@@ -2069,7 +2073,7 @@
   {
     "method": "LSD / PyLSD",
     "integrated": false,
-    "year": "1991 / 2017",
+    "year": "1991 / 2018",
     "publications": [
       {
         "text": "LSD · Tetrahedron",
@@ -2095,7 +2099,7 @@
     ],
     "checkpoints": [],
     "authors": {
-      "display": "Jean-Marc Nuzillard et al.",
+      "display": "J.-M. Nuzillard et al.",
       "names": [
         "Jean-Marc Nuzillard",
         "Guy Massiot",
@@ -2104,6 +2108,25 @@
       "source": [
         "https://doi.org/10.1016/S0040-4020(01)80878-4",
         "https://doi.org/10.1002/mrc.4612"
+      ],
+      "works": [
+        {
+          "year": 1991,
+          "authors": [
+            "Jean-Marc Nuzillard",
+            "Guy Massiot"
+          ],
+          "publication": "https://doi.org/10.1016/S0040-4020(01)80878-4"
+        },
+        {
+          "year": 2018,
+          "firstPublishedOnline": 2017,
+          "authors": [
+            "Jean-Marc Nuzillard",
+            "Bertrand Plainchont"
+          ],
+          "publication": "https://doi.org/10.1002/mrc.4612"
+        }
       ]
     }
   }
@@ -3372,6 +3395,26 @@
         "url": "https://doi.org/10.1002/anie.202517611"
       }
     ]
+  },
+  {
+    "id": "sherlock-eval-45",
+    "name": "Sherlock 45-case validation",
+    "size": {
+      "count": 45,
+      "unit": "structure-elucidation test cases"
+    },
+    "kind": "Experimental 1D/2D NMR and reference structures",
+    "origin": "45 openly archived NMR structure-elucidation test cases. The default settings produced candidate lists containing the expected structure in 37/45 cases; after three parameter adjustments, 40/45 could be elucidated, while five were stopped after three hours. Experimental validation, not model training.",
+    "references": [
+      {
+        "text": "Study & dataset inventory",
+        "url": "https://doi.org/10.3390/molecules28031448"
+      },
+      {
+        "text": "Example spectrum archive",
+        "url": "https://doi.org/10.57992/NMRXIV.P10.S69"
+      }
+    ]
   }
 ]
   </script>
@@ -3408,7 +3451,12 @@
       cell(row, method.integrated ? "✓" : "");
       cell(row, method.year);
       const authors = cell(row, method.authors ? method.authors.display : "—");
-      if (method.authors) authors.title = method.authors.names.join(", ");
+      if (method.authors) {
+        authors.title = method.authors.works
+          ? method.authors.works.map(work =>
+              work.year + ": " + work.authors.join(", ")).join(" | ")
+          : method.authors.names.join(", ");
+      }
       const publications = document.createElement("td");
       links(publications, method.publications);
       row.append(publications);
