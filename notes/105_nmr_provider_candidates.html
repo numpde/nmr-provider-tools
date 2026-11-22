@@ -227,6 +227,52 @@
     "checkpoints": []
   },
   {
+    "method": "Alberts multimodal multitask",
+    "integrated": false,
+    "year": "2025",
+    "publications": [
+      {
+        "text": "NeurIPS AI4Mat",
+        "url": "https://openreview.net/forum?id=VMWpN8DaDM"
+      },
+      {
+        "text": "ChemRxiv",
+        "url": "https://doi.org/10.26434/chemrxiv-2025-q80r9"
+      }
+    ],
+    "description": "Multitask Transformer maps ¹H/¹³C NMR and IR spectra, separately or jointly, to SMILES. It is pretrained on simulated spectra and fine-tuned with paired and unpaired experimental spectra.",
+    "datasets": [
+      {
+        "id": "msd",
+        "role": "simulated pretraining"
+      },
+      {
+        "id": "chem-edu-alberts",
+        "role": "experimental fine-tuning / test"
+      },
+      {
+        "id": "alberts-unpaired",
+        "role": "unpaired experimental fine-tuning"
+      },
+      {
+        "id": "alberts-measured-16",
+        "role": "experimental evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/rxn4chemistry/MultimodalAnalytical"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Pretrained",
+        "url": "https://zenodo.org/records/16914550"
+      }
+    ]
+  },
+  {
     "method": "NMRMind",
     "integrated": false,
     "year": "2025",
@@ -1613,6 +1659,66 @@
       {
         "text": "Preprint",
         "url": "https://arxiv.org/abs/2608.14720"
+      }
+    ]
+  },
+  {
+    "id": "chem-edu-alberts",
+    "name": "Chemical Education · Alberts subset",
+    "size": {
+      "count": 171,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H, ¹³C and IR",
+    "origin": "Original experimental corpus of 171 Chemical Education compounds used for fine-tuning and evaluation of the 2025 multimodal multitask model; not the 226-compound aligned H/C subset used by NMRViT.",
+    "references": [
+      {
+        "text": "Multitask study",
+        "url": "https://doi.org/10.26434/chemrxiv-2025-q80r9"
+      },
+      {
+        "text": "Source dataset",
+        "url": "https://doi.org/10.1021/acs.jchemed.3c00046"
+      }
+    ]
+  },
+  {
+    "id": "alberts-unpaired",
+    "name": "Alberts experimental unpaired augmentation",
+    "size": {
+      "count": 33088,
+      "unit": "distinct molecules"
+    },
+    "kind": "Experimental ¹³C NMR and IR",
+    "origin": "Experimental fine-tuning augmentation from nmrshiftdb2 and NIST EPA: 29,960 ¹³C spectra, 5,027 IR spectra, and 1,899 paired records, yielding 33,088 distinct molecules. No additional ¹H spectra in this augmentation.",
+    "references": [
+      {
+        "text": "Multitask study",
+        "url": "https://doi.org/10.26434/chemrxiv-2025-q80r9"
+      },
+      {
+        "text": "Reproduction",
+        "url": "https://github.com/rxn4chemistry/MultimodalAnalytical/tree/main/paper_replication/multimodal"
+      }
+    ]
+  },
+  {
+    "id": "alberts-measured-16",
+    "name": "Alberts experimental measured spectra",
+    "size": {
+      "count": 16,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H, ¹³C and IR",
+    "origin": "Sixteen spectra/structure examples measured for the paper and deposited for experimental evaluation; distinct from the simulated pretraining corpus.",
+    "references": [
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/15496312"
+      },
+      {
+        "text": "Multitask study",
+        "url": "https://doi.org/10.26434/chemrxiv-2025-q80r9"
       }
     ]
   }
