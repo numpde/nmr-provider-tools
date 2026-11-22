@@ -38,16 +38,63 @@
     "datasets": [
       {
         "id": "nmrexp",
-        "role": "training source"
+        "role": "source archive for E01/E02/G01"
+      },
+      {
+        "id": "nmrexp-magnet-e01",
+        "role": "E01 training lineage"
+      },
+      {
+        "id": "nmrexp-magnet-e02",
+        "role": "E02 training lineage"
+      },
+      {
+        "id": "nmrexp-magnet-g01",
+        "role": "G01 training lineage"
       }
     ],
     "code": [
       {
-        "text": "Method",
+        "text": "Scientific code",
+        "url": "https://github.com/numpde/magnet"
+      },
+      {
+        "text": "Integration",
         "url": "https://github.com/numpde/magnet-deploy"
       }
     ],
-    "checkpoints": [],
+    "checkpoints": [
+      {
+        "text": "E01 · ¹H→structure",
+        "url": "https://github.com/numpde/magnet-deploy/blob/main/models/e_01_jvae_nmrexp/runner/release/checkpoint.pt",
+        "parameters": {
+          "count": 2377684,
+          "scope": "E01 weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
+        "text": "E02 · ¹H+¹³C→structure",
+        "url": "https://github.com/numpde/magnet-deploy/blob/main/models/e_02_ch_nmrexp/runner/release/checkpoint.pt",
+        "parameters": {
+          "count": 2872886,
+          "scope": "E02 weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
+        "text": "G01 · structure→NMR",
+        "url": "https://github.com/numpde/magnet-deploy/blob/main/models/g_01_nmr_forward/runner/release/checkpoint.pt",
+        "parameters": {
+          "count": 99236,
+          "scope": "G01 weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      }
+    ],
     "authors": null
   },
   {
@@ -69,6 +116,14 @@
       {
         "id": "mst-nmr-nmrpeak",
         "role": "training / validation / test"
+      },
+      {
+        "id": "nmrexp-nmrpeak-hf",
+        "role": "HF published eligible training subset"
+      },
+      {
+        "id": "nmrexp-nmrpeak-chf",
+        "role": "CHF published eligible training subset"
       }
     ],
     "code": [
@@ -82,6 +137,26 @@
       }
     ],
     "checkpoints": [
+      {
+        "text": "HF · ¹H+formula",
+        "url": "https://zenodo.org/records/19122815",
+        "parameters": {
+          "count": 106443264,
+          "scope": "HF model weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
+        "text": "CHF · ¹H+¹³C+formula",
+        "url": "https://zenodo.org/records/19122815",
+        "parameters": {
+          "count": 106443264,
+          "scope": "CHF model weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
       {
         "text": "Weights ZIP",
         "url": "https://zenodo.org/records/19122815",
@@ -3420,6 +3495,97 @@
         "url": "https://doi.org/10.57992/NMRXIV.P10.S69"
       }
     ]
+  },
+  {
+    "id": "nmrexp-magnet-e01",
+    "name": "NMRexp · Magnet E01 training lineage",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 966100,
+      "unit": "final-epoch training examples",
+      "approximate": true
+    },
+    "kind": "Experimental ¹H",
+    "origin": "The deployed E01 weights first trained on a strict ¹H cohort (1,346,191 accepted ¹H spectra out of NMRexp's 1,667,135) with fixed early 100,000-molecule hash training selection, then continued on the full eligible 80% training partition. The final run emitted approximately 966,100 examples after filtering and ≈121,000 validation examples. These are final-epoch samples, not the unique molecules or cumulative exposure across all stages.",
+    "references": [
+      {
+        "text": "Checkpoint / training audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-magnet-e02",
+    "name": "NMRexp · Magnet E02 training lineage",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 414232,
+      "unit": "final-epoch training examples"
+    },
+    "kind": "Experimental paired ¹H+¹³C",
+    "origin": "E02 began from the full eligible paired-spectrum 80% NMRexp training partition, then continued on nested fixed 20% and 50% hash subsets. Final 50% continuation emitted 414,232 training and 104,056 validation examples after filtering; exact cumulative training exposure cannot be reconstructed from retained evidence. One ¹H and one ¹³C record per molecule are selected independently and need not share solvent or source document.",
+    "references": [
+      {
+        "text": "Checkpoint / training audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-magnet-g01",
+    "name": "NMRexp · Magnet G01 training lineage",
+    "derivedFrom": "nmrexp",
+    "size": null,
+    "kind": "Experimental atom-assigned ¹H+¹³C",
+    "origin": "Deployed G01 forward predictor uses epoch-8 checkpoint trained on the full 80% NMRexp molecule partition, with graph limit of 160 atoms including explicit hydrogens. Exact final-epoch training population and earlier continuation history are not established here.",
+    "references": [
+      {
+        "text": "Checkpoint / training audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-nmrpeak-hf",
+    "name": "NMRPeak-G HF eligible training subset",
+    "derivedFrom": "nmrexp-nmrpeak",
+    "size": {
+      "count": 805224,
+      "unit": "training molecules"
+    },
+    "kind": "Experimental ¹H and molecular formula",
+    "origin": "The NMRPeak paper reports 805,224 eligible ¹H+formula training molecules after curation, out of the separately counted total NMRPeak NMRexp corpus. Counts describe the published recipe, not independently verified exact membership of the released HF checkpoint.",
+    "references": [
+      {
+        "text": "Paper and deployed-release audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      },
+      {
+        "text": "NMRPeak paper",
+        "url": "https://arxiv.org/abs/2602.08752"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-nmrpeak-chf",
+    "name": "NMRPeak-G CHF eligible training subset",
+    "derivedFrom": "nmrexp-nmrpeak",
+    "size": {
+      "count": 670668,
+      "unit": "training molecules"
+    },
+    "kind": "Experimental paired ¹H+¹³C and formula",
+    "origin": "The NMRPeak paper reports 670,668 eligible paired ¹H+¹³C+formula training molecules. The published recipe does not prove exact trained-molecule membership of the released CHF checkpoint.",
+    "references": [
+      {
+        "text": "Paper and deployed-release audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      },
+      {
+        "text": "NMRPeak paper",
+        "url": "https://arxiv.org/abs/2602.08752"
+      }
+    ]
   }
 ]
   </script>
@@ -3515,8 +3681,9 @@
             if (fact.scope !== "checkpoint" && fact.scope !== "per checkpoint")
               value += " (" + fact.scope + ")";
           } else {
-            value = (fact.approximate ? "≈" : "") +
-              Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") + "M";
+            value = fact.approximate
+              ? "≈" + Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") + "M"
+              : fact.count.toLocaleString("en-US");
             if (fact.scope !== "model") value += " (" + fact.scope + ")";
           }
           td.append(document.createTextNode(entry.text + ": " + value));
