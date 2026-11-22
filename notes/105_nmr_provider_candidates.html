@@ -436,7 +436,11 @@
     "datasets": [
       {
         "id": "nmrspec",
-        "role": "training / validation / test"
+        "role": "source corpus (before model-specific filtering)"
+      },
+      {
+        "id": "nmrspec-nmrtrans-release-splits",
+        "role": "original checkpoint train / validation / test"
       },
       {
         "id": "nmrtrans-nmrexp-merged",
@@ -486,7 +490,7 @@
         "text": "H+C+formula (original)",
         "url": "https://huggingface.co/little1d/C-H-Formula",
         "codeRef": "main",
-        "datasetRef": "nmrspec"
+        "datasetRef": "nmrspec-nmrtrans-release-splits"
       },
       {
         "text": "H+C+formula (merged)",
@@ -3268,6 +3272,28 @@
       {
         "text": "Implementation",
         "url": "https://github.com/wuycM/UltraNMR"
+      }
+    ]
+  },
+  {
+    "id": "nmrspec-nmrtrans-release-splits",
+    "name": "NMRTrans original checkpoint splits",
+    "derivedFrom": "nmrspec",
+    "size": null,
+    "kind": "Filtered experimental ¹H/¹³C and formula training records",
+    "origin": "The authors distribute train.pkl.lz4, val.pkl.lz4 and test.pkl.lz4 consumed by the original checkpoint models. Their README verifies 21,298 records in the original test split, but does not state the combined post-filter train/validation/test count; the 239,997-molecule NMRSpec extraction total must not be substituted as the training size. A separate third-party structured mirror reports 212,440 total records (169,863/21,279/21,298); equivalence to the official pickle cache was not independently checked.",
+    "references": [
+      {
+        "text": "Author data cache",
+        "url": "https://huggingface.co/datasets/little1d/NMRTrans-Data"
+      },
+      {
+        "text": "Author release notes",
+        "url": "https://github.com/little1d/NMRTrans/blob/main/README.md"
+      },
+      {
+        "text": "Third-party mirror (not verified identical)",
+        "url": "https://huggingface.co/datasets/SpectrumWorld/SA-MolNMR-SI-240K"
       }
     ]
   }
