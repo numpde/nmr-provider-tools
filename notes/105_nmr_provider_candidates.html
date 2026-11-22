@@ -115,6 +115,59 @@
     }
   },
   {
+    "method": "NMRNet",
+    "integrated": false,
+    "year": "2025",
+    "authors": {
+      "display": "Fanjie Xu et al.",
+      "names": [
+        "Fanjie Xu",
+        "Wentao Guo",
+        "Feng Wang",
+        "Lin Yao",
+        "Hongshuai Wang",
+        "Fujie Tang",
+        "Zhifeng Gao",
+        "Linfeng Zhang",
+        "Weinan E",
+        "Zhong-Qun Tian",
+        "Jun Cheng"
+      ],
+      "source": [
+        "https://doi.org/10.1038/s43588-025-00783-z"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Nature Computational Science",
+        "url": "https://doi.org/10.1038/s43588-025-00783-z"
+      }
+    ],
+    "description": "An SE(3)-equivariant Transformer predicts atom-specific NMR shifts from three-dimensional structures. Self-supervised geometric pretraining is followed by supervised fine-tuning for liquid-state and solid-state NMR; unlike NMRNet++, it does not use literature spectra as unassigned training targets.",
+    "datasets": [
+      {
+        "id": "nmrnet-geometric-pretraining",
+        "role": "structure-only pretraining"
+      },
+      {
+        "id": "nmrnet-finetuning",
+        "role": "supervised chemical-shift fine-tuning / evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/Colin-Jay/NMRNet"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo weights",
+        "url": "https://doi.org/10.5281/zenodo.13317524"
+      }
+    ]
+  },
+  {
     "method": "NMRNet++",
     "integrated": true,
     "year": "2026",
@@ -2551,6 +2604,40 @@
       {
         "text": "Repository",
         "url": "https://github.com/AI4DrugControl/PINS"
+      }
+    ]
+  },
+  {
+    "id": "nmrnet-geometric-pretraining",
+    "name": "NMRNet geometric pretraining",
+    "size": null,
+    "kind": "3D molecular / crystal structures",
+    "origin": "Self-supervised pretraining on public structural resources including AFLOW, Materials Project and the Cambridge Structural Database. No single consolidated molecule/crystal count is asserted.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s43588-025-00783-z"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/Colin-Jay/NMRNet"
+      }
+    ]
+  },
+  {
+    "id": "nmrnet-finetuning",
+    "name": "NMRNet supervised benchmark collections",
+    "size": null,
+    "kind": "Experimental and computed atom-assigned NMR shifts",
+    "origin": "Multiple distinct liquid-state and solid-state fine-tuning/evaluation sets, including nmrshiftdb2-2024, QM9NMR, ShiftML1 and NN-NMR. The sets should not be conflated into one uniform experimental corpus.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s43588-025-00783-z"
+      },
+      {
+        "text": "Release",
+        "url": "https://doi.org/10.5281/zenodo.13317524"
       }
     ]
   }
