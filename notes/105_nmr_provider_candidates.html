@@ -444,13 +444,13 @@
       }
     ],
     "description": "Physics-informed 1D NMR-to-structure generator constrains molecular stoichiometry and candidate validity during decoding; evaluated additionally on new psychoactive substances.",
-    "datasets": [],
-    "code": [
+    "datasets": [
       {
-        "text": "Research code",
-        "url": "https://github.com/AI4DrugControl/PINS"
+        "id": "pins-training-unreleased",
+        "role": "training; corpus not characterized"
       }
     ],
+    "code": [],
     "checkpoints": []
   },
   {
@@ -1912,6 +1912,23 @@
       {
         "text": "Data",
         "url": "https://yzhang.hpc.nyu.edu/IMA/Datasets/NMRShiftDB2_DFT.zip"
+      }
+    ]
+  },
+  {
+    "id": "pins-training-unreleased",
+    "name": "PINS training corpus (unverified)",
+    "size": null,
+    "kind": "1D NMR spectra",
+    "origin": "The PINS paper reports a learned generative model, but the public project repository currently provides a README and dependencies without the advertised model/train.py source files or dataset. Training source records, modalities, sample counts and split boundaries were not verified.",
+    "references": [
+      {
+        "text": "Publication",
+        "url": "https://doi.org/10.1021/acs.analchem.6c02952"
+      },
+      {
+        "text": "Repository",
+        "url": "https://github.com/AI4DrugControl/PINS"
       }
     ]
   }
