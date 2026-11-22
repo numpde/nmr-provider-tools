@@ -139,7 +139,7 @@
     "datasets": [
       {
         "id": "msd",
-        "role": "pretraining"
+        "role": "encoder training (95% source split)"
       },
       {
         "id": "secs-exp-tune",
@@ -380,7 +380,7 @@
         "url": "https://doi.org/10.1039/D6SC02352E"
       }
     ],
-    "description": "Vision Transformer encodes dense ¹H/¹³C and 2D HSQC intensity arrays as patches; an autoregressive decoder generates SMILES, optionally conditioned on molecular formula, with external shift-based reranking.",
+    "description": "Vision Transformer encodes dense ¹H/¹³C and reconstructed 2D HSQC intensity arrays as patches; an autoregressive SMILES decoder optionally uses molecular formula, with external shift-based reranking.",
     "datasets": [
       {
         "id": "msd",
@@ -578,6 +578,10 @@
       {
         "id": "moldetr-synthetic",
         "role": "training"
+      },
+      {
+        "id": "moldetr-experimental-rois",
+        "role": "evaluation"
       }
     ],
     "code": [
@@ -593,7 +597,7 @@
       },
       {
         "text": "Zenodo",
-        "url": "https://doi.org/10.5281/zenodo.21214876"
+        "url": "https://doi.org/10.5281/zenodo.21217102"
       }
     ]
   },
@@ -794,7 +798,7 @@
       "unit": "molecules"
     },
     "kind": "Simulated ¹H/¹³C, HSQC, IR, MS",
-    "origin": "USPTO reaction molecules with simulated spectra; used to train DiffNMR.",
+    "origin": "USPTO reaction molecules with MestReNova-simulated ¹H, ¹³C and HSQC plus IR and MS; shared source corpus for DiffNMR, NMRViT and SECS. SECS trains encoders on a random 95% and holds out 5%.",
     "references": [
       {
         "text": "Dataset",
@@ -1103,9 +1107,12 @@
   {
     "id": "nmrvit-chem-edu",
     "name": "Chemical Education (NMRViT)",
-    "size": null,
+    "size": {
+      "count": 226,
+      "unit": "molecules"
+    },
     "kind": "Experimental ¹H/¹³C",
-    "origin": "One-dimensional NMR benchmark for zero-shot transfer and limited-data fine-tuning; not the primary simulated pretraining set.",
+    "origin": "Curated from 251 source compounds (2,337 experimental spectra); 226 have aligned ¹H/¹³C spectra. Used for experimental transfer/fine-tuning, not simulated pretraining.",
     "references": [
       {
         "text": "Study",
@@ -1120,9 +1127,12 @@
   {
     "id": "nmrvit-hmdb-hsqc",
     "name": "HMDB-HSQC (NMRViT)",
-    "size": null,
-    "kind": "Experimental 2D HSQC",
-    "origin": "2D HSQC benchmark used for testing and experimental fine-tuning, separate from simulated MSD training.",
+    "size": {
+      "count": 74,
+      "unit": "molecules"
+    },
+    "kind": "Experimental HSQC peak lists, reconstructed as 2D intensity arrays",
+    "origin": "74 HMDB metabolites with observed HSQC cross-peak lists (50 structures overlap simulated training, 24 unseen). The displayed 2D input matrices are reconstructed from peaks, not acquired raw spectral images.",
     "references": [
       {
         "text": "Study",
@@ -1163,7 +1173,27 @@
       },
       {
         "text": "Archive",
-        "url": "https://doi.org/10.5281/zenodo.21214876"
+        "url": "https://doi.org/10.5281/zenodo.21217102"
+      }
+    ]
+  },
+  {
+    "id": "moldetr-experimental-rois",
+    "name": "MolDeTr experimental evaluation windows",
+    "size": {
+      "count": 13,
+      "unit": "regions of interest"
+    },
+    "kind": "Experimental ¹H",
+    "origin": "Thirteen evaluation ROIs drawn from 12 spectra acquired at 80–600 MHz; not part of MolDeTr's spin-dynamics synthetic training.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.analchem.5c03465"
+      },
+      {
+        "text": "Data + weights",
+        "url": "https://doi.org/10.5281/zenodo.21217102"
       }
     ]
   }
