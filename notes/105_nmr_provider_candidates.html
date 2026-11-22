@@ -7,7 +7,7 @@
   <style>
     body { max-width: 1300px; margin: 2rem auto; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; color: #222; background: white; }
     main { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; }
+    table { width: 100%; border-collapse: collapse; margin: 0 0 2rem; }
     th, td { padding: .7rem .85rem; text-align: left; vertical-align: top; border-bottom: 1px solid #ddd; }
     th { border-bottom: 2px solid #999; font-weight: 600; }
     td:first-child { font-weight: 600; }
@@ -19,13 +19,14 @@
 <body>
   <main>
     <table>
-      <thead>
-        <tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Training set</th></tr>
-      </thead>
+      <thead><tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Datasets</th></tr></thead>
       <tbody id="provider-rows"></tbody>
     </table>
+    <table>
+      <thead><tr><th scope="col">Dataset</th><th scope="col">Size</th><th scope="col">Type</th><th scope="col">Origin / scope</th><th scope="col">References</th></tr></thead>
+      <tbody id="dataset-rows"></tbody>
+    </table>
   </main>
-
   <script type="application/json" id="provider-data">
 [
   {
@@ -38,7 +39,12 @@
       }
     ],
     "method": "Set Transformer encodes unordered ¹H/¹³C peak lists; a T5 decoder generates SMILES, optionally conditioned on molecular formula.",
-    "training": "NMRSpec: 239,997 unique molecules with experimental NMR data extracted from published chemical literature."
+    "datasets": [
+      {
+        "id": "nmrspec",
+        "role": "training"
+      }
+    ]
   },
   {
     "provider": "PRISM",
@@ -50,7 +56,12 @@
       }
     ],
     "method": "Bidirectional Transformer: ¹H/¹³C peak lists → SMILES and molecular structures → predicted spectra, with chemistry-aware spectral encoders.",
-    "training": "NMRexp: 1.19 million unique experimental molecule–spectrum pairs with both ¹H and ¹³C records after curation and deduplication (80/10/10 split)."
+    "datasets": [
+      {
+        "id": "nmrexp-prism",
+        "role": "training"
+      }
+    ]
   },
   {
     "provider": "ChefNMR2",
@@ -62,7 +73,20 @@
       }
     ],
     "method": "Atomic flow-matching generation predicts molecular structure from NMR peak lists and molecular formula; a separate agent can refine candidates.",
-    "training": "2,524,941 molecules: 1,187,838 from experimental NMRexp; 674,761 from simulated SpectraNP+; 662,342 simulated USPTO compounds."
+    "datasets": [
+      {
+        "id": "nmrexp-chefnmr2",
+        "role": "training"
+      },
+      {
+        "id": "spectranp-plus",
+        "role": "training"
+      },
+      {
+        "id": "uspto-chefnmr2",
+        "role": "training"
+      }
+    ]
   },
   {
     "provider": "DiffNMR",
@@ -74,7 +98,16 @@
       }
     ],
     "method": "Conditional discrete diffusion generates molecular graphs using spectral conditioning, contrastive pretraining and retrieval initialization.",
-    "training": "MSD: 794,403 USPTO molecules with simulated ¹H, ¹³C, HSQC, IR and mass spectra. NMRexp is used for additional experimental evaluation."
+    "datasets": [
+      {
+        "id": "msd",
+        "role": "training"
+      },
+      {
+        "id": "nmrexp",
+        "role": "evaluation"
+      }
+    ]
   },
   {
     "provider": "NMR2Struct",
@@ -86,7 +119,16 @@
       }
     ],
     "method": "CNN encodes gridded ¹H/¹³C spectra; a multitask Transformer predicts substructures and full molecular structures without requiring a formula.",
-    "training": "~143,000 SpectraBase molecules with MestreNova-simulated ¹H/¹³C spectra for spectrum-to-structure training; ~3.1 million SpectraBase/GDB-17 molecules for substructure-to-structure pretraining."
+    "datasets": [
+      {
+        "id": "spectrabase-mnova",
+        "role": "training and pretraining"
+      },
+      {
+        "id": "gdb17-nmr2struct",
+        "role": "pretraining"
+      }
+    ]
   },
   {
     "provider": "LSD / PyLSD",
@@ -102,14 +144,210 @@
       }
     ],
     "method": "Constraint-based enumeration from atom properties and 2D NMR correlations (COSY, HSQC, HMBC); optional candidate ranking by predicted ¹³C shifts.",
-    "training": "No structure-generation training set. PyLSD can use the nmrshiftdb2 shift predictor for candidate ranking."
+    "datasets": [
+      {
+        "id": "nmrshiftdb2",
+        "role": "ranking only; no training"
+      }
+    ]
+  }
+]
+  </script>
+  <script type="application/json" id="dataset-data">
+[
+  {
+    "id": "nmrspec",
+    "name": "NMRSpec",
+    "size": {
+      "count": 239997,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C",
+    "origin": "Literature supporting information, 2013–2025; deduplicated structures.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1145/3770855.3818935"
+      },
+      {
+        "text": "Data",
+        "url": "https://huggingface.co/datasets/little1d/NMRTrans-Data"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp",
+    "name": "NMRexp",
+    "size": {
+      "count": 3372987,
+      "unit": "NMR records"
+    },
+    "kind": "Experimental NMR",
+    "origin": "Nearly 200,000 chemistry supporting-information documents, 2010–2024; six nuclei.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s41597-025-06245-5"
+      },
+      {
+        "text": "Data",
+        "url": "https://doi.org/10.5281/zenodo.17296666"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-prism",
+    "name": "NMRexp · PRISM subset",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1190000,
+      "unit": "molecule–spectrum pairs",
+      "approximate": true
+    },
+    "kind": "Experimental ¹H + ¹³C",
+    "origin": "Curated paired spectra with canonical-SMILES deduplication; 80/10/10 molecule-disjoint train/validation/test split.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.7185622"
+      },
+      {
+        "text": "Release",
+        "url": "https://github.com/alhqlearn/PRISM"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-chefnmr2",
+    "name": "NMRexp · ChefNMR2 subset",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1187838,
+      "unit": "molecules"
+    },
+    "kind": "Experimental NMR",
+    "origin": "NMRexp-derived experimental peak lists used in ChefNMR2 training.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.64898/2026.10.29.762711"
+      }
+    ]
+  },
+  {
+    "id": "spectranp-plus",
+    "name": "SpectraNP+",
+    "size": {
+      "count": 674761,
+      "unit": "molecules"
+    },
+    "kind": "Simulated NMR",
+    "origin": "Natural products drawn from COCONUT, NPAtlas and NP-MRD; ChefNMR2 training subset.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.64898/2026.10.29.762711"
+      }
+    ]
+  },
+  {
+    "id": "uspto-chefnmr2",
+    "name": "USPTO · ChefNMR2 subset",
+    "size": {
+      "count": 662342,
+      "unit": "molecules"
+    },
+    "kind": "Simulated NMR",
+    "origin": "Patent-derived molecular structures with simulated spectra for ChefNMR2.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.64898/2026.10.29.762711"
+      }
+    ]
+  },
+  {
+    "id": "msd",
+    "name": "MSD (multimodal spectroscopic dataset)",
+    "size": {
+      "count": 794403,
+      "unit": "molecules"
+    },
+    "kind": "Simulated ¹H/¹³C, HSQC, IR, MS",
+    "origin": "USPTO reaction molecules with simulated spectra; used to train DiffNMR.",
+    "references": [
+      {
+        "text": "Dataset",
+        "url": "https://doi.org/10.5281/zenodo.14770232"
+      },
+      {
+        "text": "DiffNMR",
+        "url": "https://doi.org/10.1088/2752-5724/ae301f"
+      }
+    ]
+  },
+  {
+    "id": "spectrabase-mnova",
+    "name": "SpectraBase–Mnova",
+    "size": {
+      "count": 143000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C",
+    "origin": "SpectraBase structures containing C, N and O as heavy elements; MestreNova spectra for NMR2Struct.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acscentsci.4c01132"
+      }
+    ]
+  },
+  {
+    "id": "gdb17-nmr2struct",
+    "name": "GDB-17 · NMR2Struct sample",
+    "size": {
+      "count": 3000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Structures only",
+    "origin": "Random GDB-17 structures; combined with the SpectraBase subset for ≈3.1M-molecule substructure-to-structure pretraining.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acscentsci.4c01132"
+      }
+    ]
+  },
+  {
+    "id": "nmrshiftdb2",
+    "name": "nmrshiftdb2",
+    "size": {
+      "count": 53954,
+      "unit": "measured spectra",
+      "asOf": "2023"
+    },
+    "kind": "Experimental NMR database",
+    "origin": "External ¹³C shift prediction used for PyLSD candidate ranking; not an LSD training set.",
+    "references": [
+      {
+        "text": "Database",
+        "url": "https://doi.org/10.1002/mrc.5418"
+      },
+      {
+        "text": "PyLSD",
+        "url": "https://doi.org/10.1002/mrc.4612"
+      }
+    ]
   }
 ]
   </script>
   <script>
     "use strict";
     const providers = JSON.parse(document.getElementById("provider-data").textContent);
-    const tbody = document.getElementById("provider-rows");
+    const datasets = JSON.parse(document.getElementById("dataset-data").textContent);
+    const datasetById = new Map(datasets.map(dataset => [dataset.id, dataset]));
 
     function cell(row, value) {
       const td = document.createElement("td");
@@ -118,22 +356,58 @@
       return td;
     }
 
+    function link(text, url) {
+      const a = document.createElement("a");
+      a.textContent = text;
+      a.href = url;
+      return a;
+    }
+
+    function links(cell, entries) {
+      entries.forEach((entry, index) => {
+        if (index) cell.append(document.createTextNode(" · "));
+        cell.append(link(entry.text, entry.url));
+      });
+    }
+
     for (const provider of providers) {
       const row = document.createElement("tr");
       cell(row, provider.provider);
       cell(row, provider.year);
-      const links = document.createElement("td");
-      provider.publications.forEach((publication, index) => {
-        if (index) links.append(document.createTextNode(" · "));
-        const anchor = document.createElement("a");
-        anchor.href = publication.url;
-        anchor.textContent = publication.text;
-        links.append(anchor);
-      });
-      row.append(links);
+      const publications = document.createElement("td");
+      links(publications, provider.publications);
+      row.append(publications);
       cell(row, provider.method);
-      cell(row, provider.training);
-      tbody.append(row);
+      const uses = document.createElement("td");
+      provider.datasets.forEach((use, index) => {
+        if (index) uses.append(document.createTextNode(" · "));
+        uses.append(link(datasetById.get(use.id).name, "#dataset-" + use.id));
+        if (use.role !== "training") {
+          uses.append(document.createTextNode(" (" + use.role + ")"));
+        }
+      });
+      row.append(uses);
+      document.getElementById("provider-rows").append(row);
+    }
+
+    for (const dataset of datasets) {
+      const row = document.createElement("tr");
+      row.id = "dataset-" + dataset.id;
+      cell(row, dataset.name);
+      const size = (dataset.size.approximate ? "≈" : "") +
+        dataset.size.count.toLocaleString("en-US") + " " + dataset.size.unit +
+        (dataset.size.asOf ? " (" + dataset.size.asOf + ")" : "");
+      cell(row, size);
+      cell(row, dataset.kind);
+      const origin = cell(row, dataset.origin);
+      if (dataset.derivedFrom) {
+        origin.append(document.createTextNode(" Source: "));
+        origin.append(link(datasetById.get(dataset.derivedFrom).name, "#dataset-" + dataset.derivedFrom));
+      }
+      const references = document.createElement("td");
+      links(references, dataset.references);
+      row.append(references);
+      document.getElementById("dataset-rows").append(row);
     }
   </script>
 </body>
