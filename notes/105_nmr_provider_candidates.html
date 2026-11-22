@@ -466,6 +466,31 @@
     ]
   },
   {
+    "method": "DeepSPInN",
+    "integrated": false,
+    "year": "2024",
+    "publications": [
+      {
+        "text": "Digital Discovery",
+        "url": "https://doi.org/10.1039/D4DD00008K"
+      }
+    ],
+    "description": "Reinforcement-learning structure generator uses Monte Carlo tree search to assign bonds consistent with molecular formula, ¹³C shifts/splittings and an IR spectrum; learned graph-network policy and value functions guide the search.",
+    "datasets": [
+      {
+        "id": "deepspinn-qm9",
+        "role": "training / validation / test"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/devalab/DeepSPInN"
+      }
+    ],
+    "checkpoints": []
+  },
+  {
     "method": "NMRViT",
     "integrated": false,
     "year": "2026",
@@ -667,6 +692,40 @@
       {
         "text": "Additional adapter",
         "url": "https://huggingface.co/ccjh/widthIrplus_msg_qm9s_mb_msd"
+      }
+    ]
+  },
+  {
+    "method": "SpectroMol + MS-Mol2Mol",
+    "integrated": false,
+    "year": "2026",
+    "publications": [
+      {
+        "text": "Angew. Chem. Int. Ed.",
+        "url": "https://doi.org/10.1002/anie.9212238"
+      }
+    ],
+    "description": "SpectroMol generates SMILES from simulated multimodal spectra including 1D/2D NMR; MS-Mol2Mol subsequently refines candidate structures under molecular-formula, exact-mass and unsaturation constraints.",
+    "datasets": [
+      {
+        "id": "qm9spin",
+        "role": "spectral training / evaluation"
+      },
+      {
+        "id": "msmol2mol-400m",
+        "role": "refinement pretraining"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/YZY-stack/multi-spec-elucidation"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "SpectroMol checkpoint",
+        "url": "https://github.com/YZY-stack/multi-spec-elucidation/blob/main/spectromol/checkpoints/0806_ft.pth"
       }
     ]
   },
@@ -1743,6 +1802,65 @@
       {
         "text": "Multitask study",
         "url": "https://doi.org/10.26434/chemrxiv-2025-q80r9"
+      }
+    ]
+  },
+  {
+    "id": "deepspinn-qm9",
+    "name": "DeepSPInN QM9-derived IR/¹³C",
+    "size": {
+      "count": 50000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Computed IR and ¹³C NMR",
+    "origin": "Approximately 50,000 QM9 molecules after filtering charges and three-/four-membered rings, from 119,062 QM9 molecules with calculated spectra; 1D ¹³C chemical shifts are DFT-derived.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D4DD00008K"
+      },
+      {
+        "text": "Data preparation",
+        "url": "https://github.com/devalab/DeepSPInN/tree/main/data"
+      }
+    ]
+  },
+  {
+    "id": "qm9spin",
+    "name": "QM9SPIN",
+    "size": null,
+    "kind": "DFT-derived 1D/2D NMR and multimodal spectra",
+    "origin": "SpectroMol's QM9-derived spectroscopic data include ¹H/¹³C, J couplings, DEPT and other modalities. Public source files are provided; the exact eligible molecule count was not established from the paper/release.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.9212238"
+      },
+      {
+        "text": "Data",
+        "url": "https://huggingface.co/datasets/zhiyuanyan1/multi-spec-elucidation/tree/main/qm9_all_raw_spe"
+      }
+    ]
+  },
+  {
+    "id": "msmol2mol-400m",
+    "name": "MS-Mol2Mol molecular pretraining",
+    "size": {
+      "count": 400000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Structure-only SMILES pretraining",
+    "origin": "Approximately 400 million molecules used for mass-constrained molecular editing/refinement pretraining; these are structures, not NMR spectrum records.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.9212238"
+      },
+      {
+        "text": "Data",
+        "url": "https://huggingface.co/datasets/zhiyuanyan1/multi-spec-elucidation/tree/main/ms-mol2mol"
       }
     ]
   }
