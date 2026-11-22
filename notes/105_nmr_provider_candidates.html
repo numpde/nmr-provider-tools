@@ -34,7 +34,7 @@
     "integrated": true,
     "year": "2026",
     "publications": [],
-    "description": "Our learned inverse models E01/E02 generate molecular candidates from NMR input; G01 predicts atom-assigned shifts, multiplicities and J-coupling candidates from structures.",
+    "description": "Our E01/E02 models generate molecular candidates from ¹H and paired ¹H+¹³C peak inputs, respectively. G01 maps a molecular graph to atom-indexed ¹H/¹³C shift predictions, reported J-value candidates/counts and multiplicities, learned using unassigned experimental NMR peak sets; J-coupling partners are not identified.",
     "datasets": [
       {
         "id": "nmrexp",
@@ -3536,12 +3536,16 @@
     "name": "NMRexp · Magnet G01 training lineage",
     "derivedFrom": "nmrexp",
     "size": null,
-    "kind": "Experimental atom-assigned ¹H+¹³C",
-    "origin": "Deployed G01 forward predictor uses epoch-8 checkpoint trained on the full 80% NMRexp molecule partition, with graph limit of 160 atoms including explicit hydrogens. Exact final-epoch training population and earlier continuation history are not established here.",
+    "kind": "Experimental unassigned ¹H/¹³C peak sets",
+    "origin": "G01 uses an epoch-8 checkpoint trained on the full eligible 80% NMRexp molecule partition, limiting graphs to 160 atoms including explicit hydrogens. Each ¹H target is an unassigned peak-group shift/integral set; each ¹³C target is an unassigned shift list. Hydrogen shifts use integral-weighted Sinkhorn matching, carbon shifts use symmetric set loss, and reported J/multiplicity supervision is matched via shifts. Predicted values are indexed by molecular atoms, but training does not establish atom-to-peak assignments or J-coupling partners. Earlier G01 training stages and exact final-epoch population are not fully established.",
     "references": [
       {
         "text": "Checkpoint / training audit",
         "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      },
+      {
+        "text": "G01 scientific data/objective contract",
+        "url": "https://github.com/numpde/magnet/blob/main/src/magnet/stairway/g_01_nmr_forward/README.md"
       }
     ]
   },
