@@ -541,7 +541,13 @@
           "scope": "model",
           "source": "https://doi.org/10.1002/anie.7185622",
           "approximate": true
-        }
+        },
+        "releaseVerification": "unverified",
+        "releaseSource": "https://github.com/alhqlearn/PRISM#data--checkpoints",
+        "claimedDeposits": [
+          "https://doi.org/10.5281/zenodo.23600371",
+          "https://doi.org/10.5281/zenodo.20271514"
+        ]
       },
       {
         "text": "mol2spec ¹H",
@@ -558,7 +564,13 @@
           "scope": "model",
           "source": "https://doi.org/10.1002/anie.7185622",
           "approximate": false
-        }
+        },
+        "releaseVerification": "unverified",
+        "releaseSource": "https://github.com/alhqlearn/PRISM#data--checkpoints",
+        "claimedDeposits": [
+          "https://doi.org/10.5281/zenodo.23600371",
+          "https://doi.org/10.5281/zenodo.20271514"
+        ]
       },
       {
         "text": "mol2spec ¹³C",
@@ -575,7 +587,13 @@
           "scope": "model",
           "source": "https://doi.org/10.1002/anie.7185622",
           "approximate": false
-        }
+        },
+        "releaseVerification": "unverified",
+        "releaseSource": "https://github.com/alhqlearn/PRISM#data--checkpoints",
+        "claimedDeposits": [
+          "https://doi.org/10.5281/zenodo.23600371",
+          "https://doi.org/10.5281/zenodo.20271514"
+        ]
       }
     ],
     "authors": {
@@ -2588,8 +2606,16 @@
       row.append(uses);
       for (const entries of [method.code, method.checkpoints]) {
         const td = document.createElement("td");
-        if (entries.length) links(td, entries);
-        else td.textContent = "—";
+        if (entries.length) {
+          links(td, entries);
+          for (const anchor of td.children) {
+            const entry = entries.find(value => value.text === anchor.textContent);
+            if (entry && entry.releaseVerification === "unverified") {
+              anchor.textContent += " (unverified)";
+              anchor.title = "Upstream README cites two conflicting Zenodo deposit IDs";
+            }
+          }
+        } else td.textContent = "—";
         row.append(td);
       }
       for (const field of ["size", "parameters"]) {
