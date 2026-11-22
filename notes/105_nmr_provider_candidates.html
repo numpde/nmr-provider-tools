@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NMR provider candidates</title>
+  <title>NMR methods</title>
   <style>
     body { max-width: 1550px; margin: 2rem auto; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; color: #222; background: white; }
     main { overflow-x: auto; }
@@ -19,21 +19,22 @@
 <body>
   <main>
     <table>
-      <thead><tr><th scope="col">Provider</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Method</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th><th scope="col">Integrated</th></tr></thead>
-      <tbody id="provider-rows"></tbody>
+      <thead><tr><th scope="col">Method</th><th scope="col">Integrated</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Description</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th></tr></thead>
+      <tbody id="method-rows"></tbody>
     </table>
     <table>
       <thead><tr><th scope="col">Dataset</th><th scope="col">Size</th><th scope="col">Type</th><th scope="col">Origin / scope</th><th scope="col">References</th></tr></thead>
       <tbody id="dataset-rows"></tbody>
     </table>
   </main>
-  <script type="application/json" id="provider-data">
+  <script type="application/json" id="method-data">
 [
   {
-    "provider": "Magnet",
+    "method": "Magnet",
+    "integrated": true,
     "year": "2026",
     "publications": [],
-    "method": "Our learned inverse models E01/E02 generate molecular candidates from NMR input; G01 predicts atom-assigned shifts, multiplicities and J-coupling candidates from structures.",
+    "description": "Our learned inverse models E01/E02 generate molecular candidates from NMR input; G01 predicts atom-assigned shifts, multiplicities and J-coupling candidates from structures.",
     "datasets": [
       {
         "id": "nmrexp",
@@ -42,15 +43,15 @@
     ],
     "code": [
       {
-        "text": "Provider",
+        "text": "Method",
         "url": "https://github.com/numpde/magnet-deploy"
       }
     ],
-    "checkpoints": [],
-    "integrated": true
+    "checkpoints": []
   },
   {
-    "provider": "NMRPeak",
+    "method": "NMRPeak",
+    "integrated": true,
     "year": "2026",
     "publications": [
       {
@@ -58,7 +59,7 @@
         "url": "https://arxiv.org/abs/2602.08752"
       }
     ],
-    "method": "Unified peak-token models for spectrum prediction, molecular retrieval and SMILES generation; our provider offers formula + ¹H and formula + ¹H/¹³C generation.",
+    "description": "Unified peak-token models for spectrum prediction, molecular retrieval and SMILES generation; our implementation offers formula + ¹H and formula + ¹H/¹³C generation.",
     "datasets": [
       {
         "id": "nmrexp-nmrpeak",
@@ -71,7 +72,7 @@
     ],
     "code": [
       {
-        "text": "Provider",
+        "text": "Method",
         "url": "https://github.com/numpde/nmrpeak-repro"
       },
       {
@@ -84,11 +85,11 @@
         "text": "Zenodo",
         "url": "https://zenodo.org/records/19122815"
       }
-    ],
-    "integrated": true
+    ]
   },
   {
-    "provider": "NMRNet++",
+    "method": "NMRNet++",
+    "integrated": true,
     "year": "2026",
     "publications": [
       {
@@ -96,7 +97,7 @@
         "url": "https://proceedings.mlr.press/v306/jin26k.html"
       }
     ],
-    "method": "SE(3)-equivariant, 3D molecular chemical-shift predictor trained with atom-assigned labels and permutation-invariant matching to unassigned literature spectra; our provider serves ¹H/¹³C shifts.",
+    "description": "SE(3)-equivariant, 3D molecular chemical-shift predictor trained with atom-assigned labels and permutation-invariant matching to unassigned literature spectra; our implementation serves ¹H/¹³C shifts.",
     "datasets": [
       {
         "id": "nmrnet-assigned",
@@ -109,7 +110,7 @@
     ],
     "code": [
       {
-        "text": "Provider",
+        "text": "Method",
         "url": "https://github.com/numpde/nmrnet-repro"
       },
       {
@@ -122,11 +123,11 @@
         "text": "Zenodo",
         "url": "https://zenodo.org/records/18232165"
       }
-    ],
-    "integrated": true
+    ]
   },
   {
-    "provider": "SECS",
+    "method": "SECS",
+    "integrated": true,
     "year": "2026",
     "publications": [
       {
@@ -134,7 +135,7 @@
         "url": "https://doi.org/10.1038/s41467-026-73846-y"
       }
     ],
-    "method": "Contrastively aligns spectra and molecular embeddings, retrieves formula-compatible candidates and refines structures using graph-based evolutionary search; our provider uses dense ¹H spectra.",
+    "description": "Contrastively aligns spectra and molecular embeddings, retrieves formula-compatible candidates and refines structures using graph-based evolutionary search; our implementation uses dense ¹H spectra.",
     "datasets": [
       {
         "id": "msd",
@@ -147,7 +148,7 @@
     ],
     "code": [
       {
-        "text": "Provider",
+        "text": "Method",
         "url": "https://github.com/numpde/secs-repro"
       },
       {
@@ -160,11 +161,11 @@
         "text": "Zenodo",
         "url": "https://zenodo.org/records/14638782"
       }
-    ],
-    "integrated": true
+    ]
   },
   {
-    "provider": "NMRTrans",
+    "method": "NMRTrans",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -172,7 +173,7 @@
         "url": "https://doi.org/10.1145/3770855.3818935"
       }
     ],
-    "method": "Set Transformer encodes unordered ¹H/¹³C peak lists; a T5 decoder generates SMILES, optionally conditioned on molecular formula.",
+    "description": "Set Transformer encodes unordered ¹H/¹³C peak lists; a T5 decoder generates SMILES, optionally conditioned on molecular formula.",
     "datasets": [
       {
         "id": "nmrspec",
@@ -194,11 +195,11 @@
         "text": "All six",
         "url": "https://huggingface.co/collections/little1d/nmrtrans"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "PRISM",
+    "method": "PRISM",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -206,7 +207,7 @@
         "url": "https://doi.org/10.1002/anie.7185622"
       }
     ],
-    "method": "Bidirectional Transformer: ¹H/¹³C peak lists → SMILES and molecular structures → predicted spectra, with chemistry-aware spectral encoders.",
+    "description": "Bidirectional Transformer: ¹H/¹³C peak lists → SMILES and molecular structures → predicted spectra, with chemistry-aware spectral encoders.",
     "datasets": [
       {
         "id": "nmrexp-prism",
@@ -224,11 +225,11 @@
         "text": "Zenodo",
         "url": "https://doi.org/10.5281/zenodo.23600371"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "ChefNMR2",
+    "method": "ChefNMR2",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -236,7 +237,7 @@
         "url": "https://doi.org/10.64898/2026.10.29.762711"
       }
     ],
-    "method": "Atomic flow-matching generation predicts molecular structure from NMR peak lists and molecular formula; a separate agent can refine candidates.",
+    "description": "Atomic flow-matching generation predicts molecular structure from NMR peak lists and molecular formula; a separate agent can refine candidates.",
     "datasets": [
       {
         "id": "nmrexp-chefnmr2",
@@ -262,11 +263,11 @@
         "text": "Hugging Face",
         "url": "https://huggingface.co/ziyux123/chefnmr2"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "DiffNMR",
+    "method": "DiffNMR",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -274,7 +275,7 @@
         "url": "https://doi.org/10.1088/2752-5724/ae301f"
       }
     ],
-    "method": "Conditional discrete diffusion generates molecular graphs using spectral conditioning, contrastive pretraining and retrieval initialization.",
+    "description": "Conditional discrete diffusion generates molecular graphs using spectral conditioning, contrastive pretraining and retrieval initialization.",
     "datasets": [
       {
         "id": "msd",
@@ -296,11 +297,11 @@
         "text": "DiffNMR weights",
         "url": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_elucidation/diffnmr/DiffNMR_nless15_best.pdparams"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "NMR2Struct",
+    "method": "NMR2Struct",
+    "integrated": false,
     "year": "2024",
     "publications": [
       {
@@ -308,7 +309,7 @@
         "url": "https://doi.org/10.1021/acscentsci.4c01132"
       }
     ],
-    "method": "CNN encodes gridded ¹H/¹³C spectra; a multitask Transformer predicts substructures and full molecular structures without requiring a formula.",
+    "description": "CNN encodes gridded ¹H/¹³C spectra; a multitask Transformer predicts substructures and full molecular structures without requiring a formula.",
     "datasets": [
       {
         "id": "spectrabase-mnova",
@@ -338,11 +339,11 @@
         "text": "¹³C",
         "url": "https://github.com/MarklandGroup/NMR2Struct/blob/main/checkpoints/cnmr_only_checkpoint.pt"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "NMRElucidator",
+    "method": "NMRElucidator",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -350,7 +351,7 @@
         "url": "https://doi.org/10.1021/acs.jcim.6c00905"
       }
     ],
-    "method": "CNN spectral encoder and multitask Transformer generating SMILES and substructure predictions, pretrained on fingerprint-to-structure reconstruction; formula not required.",
+    "description": "CNN spectral encoder and multitask Transformer generating SMILES and substructure predictions, pretrained on fingerprint-to-structure reconstruction; formula not required.",
     "datasets": [
       {
         "id": "pubchem-nmre",
@@ -376,11 +377,11 @@
         "text": "Zenodo",
         "url": "https://zenodo.org/records/19240523"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "NMRElucidator+C",
+    "method": "NMRElucidator+C",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -388,7 +389,7 @@
         "url": "https://arxiv.org/abs/2611.07133"
       }
     ],
-    "method": "Context-aware extension of NMRElucidator: a Transformer cross-attends to SMILES prompts representing retrosynthetic precursors as well as ¹H/¹³C spectra.",
+    "description": "Context-aware extension of NMRElucidator: a Transformer cross-attends to SMILES prompts representing retrosynthetic precursors as well as ¹H/¹³C spectra.",
     "datasets": [
       {
         "id": "pubchem-nmre",
@@ -404,11 +405,11 @@
       }
     ],
     "code": [],
-    "checkpoints": [],
-    "integrated": false
+    "checkpoints": []
   },
   {
-    "provider": "NMR-Solver",
+    "method": "NMR-Solver",
+    "integrated": false,
     "year": "2026",
     "publications": [
       {
@@ -416,7 +417,7 @@
         "url": "https://doi.org/10.1038/s41467-026-71315-0"
       }
     ],
-    "method": "Spectral nearest-neighbor initialization from a large PubChem index, followed by fragment recombination guided by NMRNet-predicted chemical shifts.",
+    "description": "Spectral nearest-neighbor initialization from a large PubChem index, followed by fragment recombination guided by NMRNet-predicted chemical shifts.",
     "datasets": [
       {
         "id": "simnmr-pubchem",
@@ -434,11 +435,11 @@
         "text": "NMRNet weights",
         "url": "https://doi.org/10.5281/zenodo.16952024"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "CASCADE-2.0",
+    "method": "CASCADE-2.0",
+    "integrated": false,
     "year": "2025",
     "publications": [
       {
@@ -446,7 +447,7 @@
         "url": "https://doi.org/10.26434/chemrxiv-2025-r8m9m"
       }
     ],
-    "method": "Conformer-aware molecular graph networks predict ¹³C shifts, with trained experimental-shift corrections; the associated site also offers a separately trained ¹H model.",
+    "description": "Conformer-aware molecular graph networks predict ¹³C shifts, with trained experimental-shift corrections; the associated site also offers a separately trained ¹H model.",
     "datasets": [
       {
         "id": "cascade-exp22k",
@@ -468,11 +469,11 @@
         "text": "Repository models",
         "url": "https://github.com/asbhd/CASCADE-2.0/tree/main/models"
       }
-    ],
-    "integrated": false
+    ]
   },
   {
-    "provider": "DP4-AI",
+    "method": "DP4-AI",
+    "integrated": false,
     "year": "2020",
     "publications": [
       {
@@ -480,7 +481,7 @@
         "url": "https://doi.org/10.1039/D0SC00442A"
       }
     ],
-    "method": "Automatically processes and assigns raw ¹H/¹³C NMR spectra, then ranks supplied stereoisomer or structural candidates via DFT chemical shifts and DP4 probabilities.",
+    "description": "Automatically processes and assigns raw ¹H/¹³C NMR spectra, then ranks supplied stereoisomer or structural candidates via DFT chemical shifts and DP4 probabilities.",
     "datasets": [],
     "code": [
       {
@@ -488,11 +489,11 @@
         "url": "https://github.com/KristapsE/DP4-AI"
       }
     ],
-    "checkpoints": [],
-    "integrated": false
+    "checkpoints": []
   },
   {
-    "provider": "LSD / PyLSD",
+    "method": "LSD / PyLSD",
+    "integrated": false,
     "year": "1991 / 2017",
     "publications": [
       {
@@ -504,7 +505,7 @@
         "url": "https://doi.org/10.1002/mrc.4612"
       }
     ],
-    "method": "Constraint-based enumeration from atom properties and 2D NMR correlations (COSY, HSQC, HMBC); optional candidate ranking by predicted ¹³C shifts.",
+    "description": "Constraint-based enumeration from atom properties and 2D NMR correlations (COSY, HSQC, HMBC); optional candidate ranking by predicted ¹³C shifts.",
     "datasets": [
       {
         "id": "nmrshiftdb2",
@@ -517,8 +518,7 @@
         "url": "https://github.com/nuzillard/PyLSD"
       }
     ],
-    "checkpoints": [],
-    "integrated": false
+    "checkpoints": []
   }
 ]
   </script>
@@ -921,7 +921,7 @@
   </script>
   <script>
     "use strict";
-    const providers = JSON.parse(document.getElementById("provider-data").textContent);
+    const methods = JSON.parse(document.getElementById("method-data").textContent);
     const datasets = JSON.parse(document.getElementById("dataset-data").textContent);
     const datasetById = new Map(datasets.map(dataset => [dataset.id, dataset]));
 
@@ -946,32 +946,32 @@
       });
     }
 
-    for (const provider of providers) {
+    for (const method of methods) {
       const row = document.createElement("tr");
-      cell(row, provider.provider);
-      cell(row, provider.year);
+      cell(row, method.method);
+      cell(row, method.integrated ? "✓" : "");
+      cell(row, method.year);
       const publications = document.createElement("td");
-      links(publications, provider.publications);
+      links(publications, method.publications);
       row.append(publications);
-      cell(row, provider.method);
+      cell(row, method.description);
       const uses = document.createElement("td");
-      provider.datasets.forEach((use, index) => {
+      method.datasets.forEach((use, index) => {
         if (index) uses.append(document.createTextNode(" · "));
         uses.append(link(datasetById.get(use.id).name, "#dataset-" + use.id));
         if (use.role !== "training") {
           uses.append(document.createTextNode(" (" + use.role + ")"));
         }
       });
-      if (!provider.datasets.length) uses.textContent = "—";
+      if (!method.datasets.length) uses.textContent = "—";
       row.append(uses);
-      for (const entries of [provider.code, provider.checkpoints]) {
+      for (const entries of [method.code, method.checkpoints]) {
         const td = document.createElement("td");
         if (entries.length) links(td, entries);
         else td.textContent = "—";
         row.append(td);
       }
-      cell(row, provider.integrated ? "✓" : "");
-      document.getElementById("provider-rows").append(row);
+      document.getElementById("method-rows").append(row);
     }
 
     for (const dataset of datasets) {
