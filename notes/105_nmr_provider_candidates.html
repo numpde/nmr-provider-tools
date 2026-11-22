@@ -63,11 +63,11 @@
     "datasets": [
       {
         "id": "nmrexp-nmrpeak",
-        "role": "training"
+        "role": "training / validation / test"
       },
       {
         "id": "mst-nmr-nmrpeak",
-        "role": "training / benchmark"
+        "role": "training / validation / test"
       }
     ],
     "code": [
@@ -104,8 +104,8 @@
         "role": "supervised training"
       },
       {
-        "id": "nmrexp",
-        "role": "weakly supervised training"
+        "id": "nmrexp-nmrnet",
+        "role": "weakly supervised H/C training subset"
       }
     ],
     "code": [
@@ -177,7 +177,7 @@
     "datasets": [
       {
         "id": "nmrspec",
-        "role": "training"
+        "role": "training / validation / test"
       }
     ],
     "code": [
@@ -211,11 +211,11 @@
     "datasets": [
       {
         "id": "ll-nmr-pistachio-h",
-        "role": "simulated ¹H training"
+        "role": "training / validation / test"
       },
       {
         "id": "ll-nmr-pistachio-c",
-        "role": "simulated ¹³C training"
+        "role": "training / validation / test"
       }
     ],
     "code": [
@@ -269,7 +269,7 @@
     "datasets": [
       {
         "id": "nmrexp-prism",
-        "role": "training"
+        "role": "training / validation / test"
       }
     ],
     "code": [
@@ -337,7 +337,7 @@
     "datasets": [
       {
         "id": "msd",
-        "role": "training"
+        "role": "training / validation / test"
       },
       {
         "id": "nmrexp",
@@ -433,7 +433,7 @@
     "datasets": [
       {
         "id": "msd",
-        "role": "simulated training"
+        "role": "training / validation / test"
       },
       {
         "id": "nmrvit-chem-edu",
@@ -804,7 +804,7 @@
     "datasets": [
       {
         "id": "deepsat-hsqc",
-        "role": "training / reference"
+        "role": "training / evaluation"
       }
     ],
     "code": [
@@ -1414,7 +1414,7 @@
       "unit": "molecules"
     },
     "kind": "Experimental / predicted ¹H, ¹³C and HSQC NMR",
-    "origin": "173,422 training, 4,056 validation and 4,056 test molecules. Includes 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H records. Calculated HSQC used for training was excluded from the public archive owing to ACD/Labs redistribution restrictions.",
+    "origin": "173,422 training, 4,056 validation and 4,056 test molecules; 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H entries. Most simulated HSQC data used for training cannot be redistributed and are absent from the public dataset.",
     "references": [
       {
         "text": "Study",
@@ -1422,7 +1422,7 @@
       },
       {
         "text": "Public data",
-        "url": "https://github.com/xwd0418/Spectre"
+        "url": "https://drive.google.com/file/d/16eKPJz2hwsfnPIKweJyKrfi9cZiGVErD/view"
       }
     ]
   },
@@ -1536,6 +1536,24 @@
       {
         "text": "Data + source",
         "url": "https://github.com/mwang87/DeepSAT"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-nmrnet",
+    "name": "NMRexp · NMRNet++ weak supervision",
+    "derivedFrom": "nmrexp",
+    "size": null,
+    "kind": "Experimental unassigned ¹H/¹³C",
+    "origin": "Selected literature-derived unassigned ¹H and ¹³C spectra used for semi-supervised chemical-shift prediction. This entry does not assume that every NMRexp record (including other nuclei) was used; the exact count for the selected training subset is not established.",
+    "references": [
+      {
+        "text": "ICML study",
+        "url": "https://proceedings.mlr.press/v306/jin26k.html"
+      },
+      {
+        "text": "Source dataset",
+        "url": "https://doi.org/10.5281/zenodo.17296666"
       }
     ]
   }
