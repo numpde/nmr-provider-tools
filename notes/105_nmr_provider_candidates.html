@@ -916,7 +916,7 @@
         "url": "https://doi.org/10.1002/anie.7185622"
       }
     ],
-    "description": "Two transformer models: experimental ¹H/¹³C peak lists to SMILES (spect2mol), and SMILES to predicted peak lists (mol2spec), with chemistry-aware spectral conditioning.",
+    "description": "Two Transformer models: spect2mol generates SMILES from ¹H and/or ¹³C peak lists, with optional formula and solvent conditioning; mol2spec predicts separate ¹H and ¹³C peak lists from SMILES.",
     "datasets": [
       {
         "id": "nmrexp-prism",
@@ -1016,7 +1016,19 @@
     },
     "inverseCodePath": "spect2mol/inference.py",
     "inverseCheckpointAdvertisedName": "spec2mol_best.pt",
-    "inverseReleaseNamingSource": "https://github.com/alhqlearn/PRISM/blob/main/README.md"
+    "inverseReleaseNamingSource": "https://github.com/alhqlearn/PRISM/blob/main/README.md",
+    "inputModes": {
+      "inverse": [
+        "1H only",
+        "13C only",
+        "1H + 13C"
+      ],
+      "optionalContext": [
+        "molecular formula",
+        "solvent"
+      ],
+      "source": "https://github.com/alhqlearn/PRISM/blob/main/README.md"
+    }
   },
   {
     "method": "ChefNMR2",
