@@ -108,12 +108,13 @@ class ScientificCall[InputT, OutputT]:
         self.operation_policy = operation_policy
         self.error_policy = error_policy
 
-    # silent-defaults: allow-contract -- NoInput denotes absent payload; an omitted receiver requests only the typed return value
+    # silent-defaults: allow-contract -- NoInput denotes absent payload; absent receiver requests a typed result; absent permission callback is for calls outside an API Attempt
     async def __call__(
         self,
         *,
         scientific_input: InputT | NoInput = NoInput(),
         receive: Callable[[bytes], Awaitable[None]] | None = None,
+        require_execution: Callable[[], None] | None = None,
     ) -> OutputT:
         """Return one decoded result after cleanup, or raise the original failures.
 
@@ -121,7 +122,8 @@ class ScientificCall[InputT, OutputT]:
         after successful cleanup; cancellation also waits for cleanup before
         propagating. An optional receiver accepts the encoded result once; its
         failure never authorizes resend, and cancellation joins its original work.
-        Cleanup allowances flag overdue work rather than abandon it.
+        Cleanup allowances flag overdue work rather than abandon it. An optional
+        permission check runs before acquiring each analysis, including retries.
         """
         payload = self.binding.encode_input(value=scientific_input)
         delay = self.error_policy.backoff_initial_seconds
@@ -133,6 +135,13 @@ class ScientificCall[InputT, OutputT]:
             cleanup_succeeded = False
 
             with failures.capture():
+                # An API job can be cancelled while this call waits to retry.
+                # Its Attempt owner supplies this check, so every attempt confirms
+                # permission before acquiring resources or submitting science.
+                # A refused check propagates without another retry
+                if require_execution is not None:
+                    require_execution()
+
                 try:
                     analysis = self.host.open_analysis(allocations=frozenset({self.allocation}), retain_results=False)
                 except CapacityUnavailable as error:

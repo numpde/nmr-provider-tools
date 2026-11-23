@@ -197,6 +197,32 @@ class ScientificCallTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=4, second=acquire.call_count)
         self.assertEqual(first=[0.1, 0.2, 0.25], second=[call.args[0] for call in backoff.await_args_list])
 
+    async def test_permission_withdrawn_during_backoff_prevents_the_next_attempt(self):
+        calculate = self.call(error_policy={"max_attempts": 3}, method=Calculator.calculate)
+        refusal = PermissionError("The API job was cancelled")
+        permitted = True
+
+        def require_execution():
+            if not permitted:
+                raise refusal
+
+        async def revoke_during_backoff(seconds):
+            nonlocal permitted
+
+            permitted = False
+
+        with (
+            patch.object(target=self.host, attribute="open_analysis", side_effect=CapacityUnavailable("Busy")) as acquire,
+            patch(target="provider_core.scientific_call.sleep", side_effect=revoke_during_backoff),
+            self.assertLogs(logger="provider_core.scientific_call", level="WARNING"),
+            self.assertRaises(expected_exception=PermissionError) as raised,
+        ):
+            await calculate(scientific_input=Sample(count=1), require_execution=require_execution)
+
+        self.assertIs(expr1=refusal, expr2=raised.exception)
+        self.assertEqual(first=1, second=acquire.call_count)
+        self.assertEqual(first=[], second=self.science.inputs)
+
     async def test_scientific_retry_requires_explicit_authorization(self):
         self.science.failures_remaining = 1
         calculate = self.call(error_policy={"max_attempts": 3}, method=Calculator.calculate)

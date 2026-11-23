@@ -1133,3 +1133,23 @@ Its manifest SHA-256 is
 The manifest's declared source revision is excluded from that release digest;
 content matching does not authenticate the publisher or prove live support.
 No separate fixture redistribution-rights verification is claimed here.
+
+### Serial API job services
+
+`JobService` runs API discovery, availability announcements, AttemptController
+execution, result handoff, and shutdown around a loaded scientific host. Supply
+an `AnalysisSession` factory for scientific input and result handling, independent
+API-client factories, a shared-delivery factory, and an `asyncio.Event` for stop.
+`JobServicePolicy` makes polling, recovery, and settlement intervals explicit.
+
+The service selects jobs with no previous Attempt for this provider. Unknown
+scientific outcomes stop the service without fabricating a public failure.
+Shutdown retains an acquired Attempt and its selected result until the original
+work settles and delivery is confirmed; persistent delivery failure can therefore
+keep shutdown pending. Availability withdrawal is attempted even when the initial
+announcement reply was lost. An unavailable API can prevent confirmed withdrawal.
+
+Pass `report_condition.require_execution` to `ScientificCall(require_execution=...)`
+from an API session. The SDK checks it before each attempt, including after retry
+backoff; refusal propagates without another retry. The session continues to own
+cancellation and cleanup of the original scientific call.
