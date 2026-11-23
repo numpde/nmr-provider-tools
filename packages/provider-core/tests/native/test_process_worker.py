@@ -184,7 +184,7 @@ class ProcessWorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
             await self.start_worker(fail_initialization=True)
 
         with self.assertRaises(expected_exception=RuntimeError):
-            await self.worker.command({"action": "open_analysis", "analysis": "unready"})
+            await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "unready"})
 
         observed = await self.worker.command({"action": "retire"})
 
@@ -207,7 +207,7 @@ class ProcessWorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=refused["refusal"].code)
 
-        opened = await self.worker.command({"action": "open_analysis", "analysis": "original"})
+        opened = await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "original"})
 
         self.assertEqual(first=reservation, second=opened)
 
@@ -257,13 +257,13 @@ class ProcessWorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 {"action": "observe", "analysis": "original", "operation": invocation.operation_id}
             )
 
-        await self.worker.command({"action": "open_analysis", "analysis": "replacement"})
+        await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "replacement"})
         await self.cleaned({"action": "close_analysis", "analysis": "replacement"})
 
     async def test_closed_analysis_keeps_evidence_until_ack_and_result_until_release(self):
         await self.start_worker(fail_initialization=False)
 
-        reservation = await self.worker.command({"action": "open_analysis", "analysis": "original"})
+        reservation = await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "original"})
         invocation = self.invocation(reservation=reservation)
         admitted = await self.worker.command({"action": "submit", "invocation": invocation})
         observed = await self.completed(operation=admitted["operation"])
@@ -284,11 +284,12 @@ class ProcessWorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(expected_exception=CapacityUnavailable):
-            await self.worker.command({"action": "open_analysis", "analysis": "premature"})
+            await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "premature"})
 
         # Acknowledge transferred evidence before admitting another analysis.
         await self.worker.command({"action": "forget_analysis", "analysis": "original"})
-        await self.worker.command({"action": "open_analysis", "analysis": "replacement"})
+
+        await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "replacement"})
 
         result_request_fields = {
             "analysis": "original",
@@ -309,7 +310,7 @@ class ProcessWorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_forgetting_evidence_requires_successful_requested_cleanup(self):
         await self.start_worker(fail_initialization=False)
-        await self.worker.command({"action": "open_analysis", "analysis": "original"})
+        await self.worker.command({"action": "open_analysis", "retain_results": True, "analysis": "original"})
 
         with self.assertRaises(expected_exception=RuntimeError):
             await self.worker.command({"action": "forget_analysis", "analysis": "original"})

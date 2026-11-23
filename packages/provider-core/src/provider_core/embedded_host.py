@@ -317,24 +317,28 @@ class InProcessExecutionHost:
         else:
             resident.initialization_abandoned = False
 
+    # silent-defaults: allow-contract -- Low-level callers may retain results beyond analysis closure
     def open_analysis(
         self,
         *,
         allocations: frozenset[AllocationRef],
+        retain_results: bool = True,
     ) -> InProcessAnalysisExecutor:
         """Reserve exact allocation handles under a new analysis identity."""
 
-        return self._open_analysis(allocations=allocations, analysis_id=uuid4().hex)
+        return self._open_analysis(allocations=allocations, analysis_id=uuid4().hex, retain_results=retain_results)
 
     def _open_analysis(
         self,
         *,
         allocations: frozenset[AllocationRef],
         analysis_id: str,
+        retain_results: bool,
     ) -> InProcessAnalysisExecutor:
         """Reserve exact handles under the caller's supplied analysis identity."""
         require_running_loop(self.loop)
 
+        require_type(retain_results, bool)
         require_type(allocations, frozenset)
 
         for reference in allocations:
@@ -393,6 +397,7 @@ class InProcessExecutionHost:
             execution_host=self,
             analysis_id=analysis_id,
             residents=selected_residents,
+            retain_results=retain_results,
         )
 
         self.analyses[analysis_id] = analysis_executor
@@ -515,9 +520,10 @@ class InProcessAnalysisExecutor:
     invocation submission use the same admission and operation owners.
     """
 
-    def __init__(self, *, execution_host, analysis_id, residents):
+    def __init__(self, *, execution_host, analysis_id, residents, retain_results):
         self.host = execution_host
         self.identity = analysis_id
+        self.retain_results = retain_results
 
         self.science = {
             resident.name: _ScientificAnalysis(resident)
@@ -924,9 +930,14 @@ class InProcessAnalysisExecutor:
         if cleanup_failures:
             raise BaseExceptionGroup(f"{self.identity=} reported scientific analysis cleanup failures", cleanup_failures)
 
+        if not self.retain_results:
+            for operation in list(self.operations.values()):
+                if operation.result_ref is not None:
+                    await settle_cleanup(control=operation.release_result(operation.result_ref))
+
         # Portable request deduplication lasts only while this analysis is open.
-        # Result handles keep their payloads; the host separately retains any
-        # unreleased result or failed cleanup obligation.
+        # Retained handles keep their payloads; scoped calls have released them.
+        # The host separately retains any failed cleanup obligation.
         for operation in list(self.operations.values()):
             operation._forget_settled()
 

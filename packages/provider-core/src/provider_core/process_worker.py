@@ -157,6 +157,7 @@ class _Worker:
             self.analysis = self.host._open_analysis(
                 analysis_id=message["analysis"],
                 allocations=frozenset({self.hosted.allocation}),
+                retain_results=message["retain_results"],
             )
 
             return self.analysis.reservation(allocation=self.hosted.allocation)

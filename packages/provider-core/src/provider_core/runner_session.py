@@ -4,7 +4,10 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+from collections.abc import Mapping
+import os
 import socket
+import stat
 import signal
 import time
 import errno
@@ -85,6 +88,32 @@ class RunnerSession:
         self._connected = False
         self._observation_failure = None
         self._connect_started = False
+
+    @classmethod
+    def from_config(cls, configuration: Mapping) -> "RunnerSession":
+        """Bind a session to the configured runner's private lease identity."""
+        lease_path = configuration["lease_file"]
+        lease_fd = os.open(lease_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+
+        try:
+            lease = os.fstat(lease_fd)
+
+            if not (
+                stat.S_ISREG(lease.st_mode) and
+                (lease.st_uid == os.geteuid()) and
+                (stat.S_IMODE(lease.st_mode) == 0o600)
+            ):
+                raise PermissionError(f"Runner lease should be an owner-only regular file; {lease_path=}, {lease=}")
+        finally:
+            os.close(lease_fd)
+
+        return cls(
+            configuration["socket"],
+            role=configuration["role"],
+            expected_lock_identity=(lease.st_dev, lease.st_ino),
+            startup_seconds=configuration["startup_seconds"],
+            retirement_seconds=configuration["retirement_seconds"],
+        )
 
     @property
     def retirement_seconds(self):

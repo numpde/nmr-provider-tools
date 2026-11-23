@@ -935,8 +935,10 @@ class ProcessExecutionHost:
 
         return await asyncio.shield(task)
 
-    def open_analysis(self, *, allocations: frozenset[AllocationRef]):
+    # silent-defaults: allow-contract -- Ordinary analyses retain result handles after closure; typed calls release them
+    def open_analysis(self, *, allocations: frozenset[AllocationRef], retain_results: bool = True):
         require_running_loop(self.loop)
+        require_type(retain_results, bool)
 
         if not (not self.retiring):
             raise CapacityUnavailable(f"{self.retiring=} prevents opening another analysis")
@@ -972,7 +974,7 @@ class ProcessExecutionHost:
             return reservation
 
         try:
-            self._exchange({"action": "open_analysis", "analysis": analysis.identity}, accept=accept)
+            self._exchange({"action": "open_analysis", "analysis": analysis.identity, "retain_results": retain_results}, accept=accept)
         except BaseException as cause:
             # A possibly acquired remote reservation remains host-owned even
             # though the caller has not received its analysis handle.

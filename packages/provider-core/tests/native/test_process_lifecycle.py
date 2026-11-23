@@ -23,6 +23,7 @@ import unittest
 from unittest.mock import patch
 
 from provider_core.contribution import ref
+from provider_core.execution_setup import ExecutionSettings
 from provider_core.hosting import (
     AcceptanceState,
     AdmissionCode,
@@ -38,10 +39,11 @@ from provider_core.hosting import (
     observe_completion,
 )
 from provider_core.process_host import ProcessExecutionHost
+from provider_core.scientific_call import ErrorPolicy, ScientificCall
 from provider_core.runner import LOCK_NAME
 from provider_core.runner_session import RunnerStartupUnavailable
 from tests.fakes.runner import RunningSupervisor
-from tests.fakes.scientific_process import Number, WitnessedScience, wait_for_event, witness_events
+from tests.fakes.scientific_process import Number, WitnessedScience, construct_science, wait_for_event, witness_events
 
 
 class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -53,8 +55,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
         self.enterContext(patch.dict(os.environ, {"SCIENTIFIC_PROCESS_UNRELATED": "parent-only"}))
 
-    # silent-defaults: allow-contract -- Ordinary proofs use five seconds; specific lifetime witnesses shorten the scientific or native allowance
-    def make_host(self, *, scientific_retirement_seconds=5, native_retirement_seconds=5, startup_not_after=None):
+    def make_runner(self):
         worker = Path(__file__).parent.parent / "fakes/scientific_process_worker.py"
 
         runner = RunningSupervisor(
@@ -68,6 +69,12 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addCleanup(runner.close)
+
+        return runner
+
+    # silent-defaults: allow-contract -- Ordinary proofs use five seconds; specific lifetime witnesses shorten the scientific or native allowance
+    def make_host(self, *, scientific_retirement_seconds=5, native_retirement_seconds=5, startup_not_after=None):
+        runner = self.make_runner()
         session = runner.session(startup_seconds=5, retirement_seconds=native_retirement_seconds, startup_not_after=startup_not_after)
 
         host = ProcessExecutionHost(
@@ -97,6 +104,132 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
             },
             requirements=frozenset(),
         )
+
+    def managed_call(self, *, host, hosted):
+        return ScientificCall(
+            host=host,
+            allocation=hosted.allocation,
+            binding=hosted.call(method=WitnessedScience.calculate),
+            operation_policy=OperationPolicy(
+                queue_stop_request_seconds=5,
+                execution_stop_request_seconds=10,
+                cleanup_overdue_flag_seconds=5,
+                reject_encoded_input_over_bytes=1024,
+                reject_encoded_result_over_bytes=1024,
+            ),
+            error_policy=ErrorPolicy(max_attempts=3),
+        )
+
+    async def test_managed_calls_release_scopes_and_reuse_the_loaded_model(self):
+        (host, _, _) = self.make_host()
+        hosted = await self.start(host, scenario="healthy")
+        calculate = self.managed_call(host=host, hosted=hosted)
+
+        for expected_calls in range(1, 4):
+            prediction = await calculate(scientific_input=Number(value=10))
+
+            self.assertEqual(first=10 + expected_calls, second=prediction.value)
+            self.assertEqual(first=expected_calls, second=prediction.calls)
+            self.assertEqual(first=host.process_id, second=prediction.process_id)
+            self.assertIsNone(obj=host.active_analysis)
+
+        self.assertEqual(first=1, second=self.counts()["initialized"])
+
+    async def test_managed_cancellation_finishes_cleanup_before_the_next_call(self):
+        (host, _, _) = self.make_host()
+        hosted = await self.start(host, scenario="active-kill")
+        calculate = self.managed_call(host=host, hosted=hosted)
+        invocation_task = asyncio.create_task(coro=calculate(scientific_input=Number(value=10)))
+
+        try:
+            await asyncio.to_thread(wait_for_event, self.root, "calculation_started")
+            invocation_task.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(expr=invocation_task.done())
+        finally:
+            (self.root / "release-calculation").touch()
+
+        with self.assertRaises(expected_exception=asyncio.CancelledError):
+            await invocation_task
+
+        self.assertIsNone(obj=host.active_analysis)
+        prediction = await calculate(scientific_input=Number(value=20))
+
+        self.assertEqual(first=22, second=prediction.value)
+        self.assertEqual(first=2, second=self.counts()["calculation_started"])
+
+    def configured_call(self, *, runner, scenario):
+        settings = ExecutionSettings(
+            {
+                "backend": "process",
+                "host": {
+                    "input_bytes": 4096,
+                    "result_bytes": 4096,
+                    "state_values": 1,
+                    "progress_records": 1,
+                    "initialization_seconds": 5,
+                    "retirement_seconds": 5,
+                },
+                "operation_policy": {
+                    "queue_stop_request_seconds": 5,
+                    "execution_stop_request_seconds": 5,
+                    "cleanup_overdue_flag_seconds": 5,
+                    "reject_encoded_input_over_bytes": 1024,
+                    "reject_encoded_result_over_bytes": 1024,
+                },
+                "resource_requirement": [],
+            },
+        )
+
+        unrelated = os.fstat(self.unrelated.fileno())
+
+        return settings.open_process_call(
+            runner={
+                "socket": str(runner.socket_path),
+                "lease_file": str(runner.endpoint / LOCK_NAME),
+                "role": "science",
+                "startup_seconds": 5,
+                "retirement_seconds": 5,
+            },
+            contribution_type=WitnessedScience,
+            constructor=construct_science,
+            startup={
+                "witness_directory": str(self.root),
+                "scenario": scenario,
+                "unrelated_identity": (unrelated.st_dev, unrelated.st_ino),
+            },
+            method=WitnessedScience.calculate,
+        )
+
+    async def test_configured_call_owns_startup_and_retirement_after_caller_failure(self):
+        runner = self.make_runner()
+        caller_failure = OSError("Provider request handling failed")
+
+        with self.assertRaises(expected_exception=OSError) as raised:
+            async with self.configured_call(runner=runner, scenario="healthy") as calculate:
+                prediction = await calculate(scientific_input=Number(value=10))
+
+                self.assertEqual(first=11, second=prediction.value)
+
+                raise caller_failure
+
+        self.assertIs(expr1=caller_failure, expr2=raised.exception)
+        self.assert_native_retirement(calculate.host, runner, calculate.host.session)
+        self.assertEqual(first=1, second=self.counts()["closed"])
+
+    async def test_configured_call_cleans_up_partial_model_initialization(self):
+        runner = self.make_runner()
+
+        with self.assertRaises(expected_exception=ExceptionGroup) as raised:
+            async with self.configured_call(runner=runner, scenario="independent-failures"):
+                self.fail(msg="Partial model initialization must not yield a callable")
+
+        report = "".join(traceback.format_exception(raised.exception))
+
+        self.assertIn(member="Witnessed partial model initialization failed", container=report)
+        self.assertIn(member="Witnessed partial resource close failed", container=report)
+        self.assertEqual(first=[], second=list(runner.scratch.iterdir()))
+        self.assertFalse(expr=(self.root / "partial-resource").exists())
 
     async def test_deferred_start_cannot_renew_the_native_setup_cap(self):
         (host, _, session) = self.make_host(startup_not_after=time.monotonic() - 1)

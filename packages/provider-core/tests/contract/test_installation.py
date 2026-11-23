@@ -107,6 +107,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/preparation_tool.py",
                 "provider_core/state_slots.py",
                 "provider_core/scientific.py",
+                "provider_core/scientific_call.py",
                 "provider_core/submission.py",
                 "provider_core/verified_file.py",
                 "provider_core/embedded_host.py",
