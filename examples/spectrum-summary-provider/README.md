@@ -2,20 +2,21 @@
 
 Startup uses SDK `ExecutionSettings.open_contribution()` to own host creation,
 model initialization and retirement. The provider keeps its scientific settings,
-model/stage inventory and capacity shares. For a single typed result, use the
-managed-call pattern in [Reference Match](../reference-match-provider/); this
-example retains explicit workflow control where state or multiple stages require it.
+model/stage inventory and capacity shares. Both stages use the typed-call pattern in
+[Reference Match](../reference-match-provider/). The scientific sequence is two
+ordinary awaits; an SDK invocation scope retains that sequence when an observer
+stops waiting.
 
 This installed example composes two independent scientific stages: baseline
 subtraction followed by peak detection. `science.py` owns scientific values and
 calculations, `binding.py` declares the operations, and `provider.py` selects the
-backend and owns the stage lifetimes. `application.py` owns the scientific sequence.
+backend, owns the stage lifetimes and defines the two-call scientific sequence.
 `process_factory.py` constructs each stage inside its installed worker.
 
 `open_provider()` reads `config/deployments/localhost/provider.toml` from the
 application's working directory. `execution.backend` explicitly selects `thread`
 or `process`. Both modes open two independent SDK hosts and run the same
-`PeakWorkflow`. Class-bound call declarations supply codecs and references;
+`summarize()` sequence. Class-bound call declarations supply codecs;
 process execution constructs no scientific contribution in the parent.
 
 For process execution, deployment supplies
@@ -48,30 +49,36 @@ science and do not allocate hardware.
 
 ## Request and delivery ownership
 
-`Provider.create_workflow(spectrum=...)` encodes input before opening two stage
-analyses. The caller owns both `baseline_analysis_executor` and
-`peak_analysis_executor`: request stop and observe their cleanup before provider
-exit. If opening peak execution fails, the original baseline host retains its
-requested analysis cleanup. Both scientific stages keep independent lifetimes;
-retiring one does not retire the other.
+`Provider.summarize(spectrum=...)` awaits baseline correction and passes the
+returned typed spectrum to peak detection. Each `ScientificCall` owns admission,
+result decoding and analysis cleanup. It returns only after cleanup; no live
+scientific handles or result references cross stages. A baseline encoding or
+cleanup failure stops the sequence before peak detection. Peak admission retries,
+when enabled by `execution.error_policy`, retain the corrected input and do not
+repeat baseline correction. Once those attempts are exhausted, the invocation
+retains the failure; another wait does not replenish its budget. This replaces
+the old caller-driven resubmission after each refusal. An uncertain submission
+outcome never authorizes replay. Baseline cleanup must now succeed before peak
+detection starts, replacing the old independent intermediate-release handling.
 
-`start()` submits the retained baseline invocation. `finish()` observes that
-original work, reads its retained result, and submits those exact portable bytes
-to peak detection. It releases the intermediate only after downstream admission,
-or after downstream execution closes. A capacity refusal retains the baseline
-result for a later admission attempt. Scientific success and result encoding are
-separate outcomes, so failed encoding never repeats science. Intermediate release
-failure cannot hide an accepted peak operation or final report.
+`open_invocation(partial(provider.summarize, spectrum=...))` starts this complete
+sequence once. `invocation.wait()` observes its retained result or failure;
+interrupting that wait leaves the original sequence running. A later wait rejoins
+it, even if the first or second stage completed in the meantime. This scope must
+remain inside `open_provider()` so both hosts outlive the sequence.
 
-Cancelling a wait leaves the original submission and operation owned by the
-workflow. The final result remains readable after analysis cleanup until release.
-SDK `ResultConsumption` retains one receiver attempt across cancelled waits,
-releases only after acceptance, and preserves the result if the receiver fails.
-A caller must reconcile uncertain external acceptance before authorizing another
-attempt. `__main__.py` demonstrates local flushed stdout consumption and joins the
-receiver before closing both analyses and retiring the hosts. It also observes
-intermediate-result cleanup independently. These owners are in memory; this
-example makes no crash-recovery or durable-delivery claim.
+Leaving the invocation scope, or calling `invocation.close()`, cancels unfinished
+work and joins the active call's cleanup. Repeated shutdown cancellation cannot
+abandon that cleanup or retire the hosts early. Closing prevents the next stage
+from starting; it does not undo a calculation already dispatched. The SDK retains
+independent execution and cleanup failures. An overdue cleanup flag is not proof
+that execution stopped.
+
+The final report is an ordinary in-memory value, retained by the invocation and
+its caller after scientific resources are released. Publishing it is a separate
+application action: publication failure cannot restart either stage. The demo
+writes it to flushed stdout once. This is neither durable delivery nor restart
+recovery. Starting a new invocation explicitly starts new science.
 
 ## Run and check
 

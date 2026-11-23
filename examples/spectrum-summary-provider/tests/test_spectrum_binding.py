@@ -19,10 +19,12 @@ from spectrum_provider import provider as provider_setup
 
 class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.configuration = self.enterContext(staged_configuration(
-            provider=provider_setup,
-            source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
-        ))
+        self.configuration = self.enterContext(
+            staged_configuration(
+                provider=provider_setup,
+                source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            ),
+        )
 
     async def provider(self):
         return await self.enterAsyncContext(provider_setup.open_provider())
@@ -41,14 +43,12 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
         provider = await self.provider()
-        baseline_corrector = provider.baseline_corrector
-        peak_detector = provider.peak_detector
-        baseline_call_binding = baseline_corrector.call(method=BaselineCorrector.run)
-        peak_detection_call_binding = peak_detector.call(method=PeakDetector.run)
+        baseline_call_binding = provider.baseline.binding
+        peak_detection_call_binding = provider.peaks.binding
 
-        self.assertNotEqual(baseline_corrector.description.binding_id, peak_detector.description.binding_id)
-        self.assertRegex(baseline_corrector.description.binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
-        self.assertRegex(peak_detector.description.binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
+        self.assertNotEqual(contribution.ref(baseline_call_binding).binding_id, contribution.ref(peak_detection_call_binding).binding_id)
+        self.assertRegex(contribution.ref(baseline_call_binding).binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(contribution.ref(peak_detection_call_binding).binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("run", baseline_call_binding.description.name)
         self.assertEqual("run", peak_detection_call_binding.description.name)
         self.assertIs(science.Spectrum, baseline_call_binding.input_codec.value_type)
@@ -75,16 +75,17 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
 
         provider = await self.provider()
 
-        for binding in (provider.baseline_corrector, provider.peak_detector):
-            with self.subTest(binding=binding.description.binding_id):
-                self.assertIs(type(binding.contribution).initialize, sdk.Contribution.initialize)
-                self.assertIsNone(binding.contribution.analysis_type)
-                self.assertEqual(frozenset(), binding.description.resident_resources)
-                call = binding.call(method=binding.contribution.run)
+        for scientific_call in (provider.baseline, provider.peaks):
+            call = scientific_call.binding
 
+            with self.subTest(binding=contribution.ref(call).binding_id):
                 self.assertEqual(frozenset({expected}), call.description.resources)
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
+
+        for contribution_type in (BaselineCorrector, PeakDetector):
+            self.assertIs(contribution_type.initialize, sdk.Contribution.initialize)
+            self.assertIsNone(contribution_type.analysis_type)
 
     async def test_provider_settings_remain_local_to_each_implementation(self) -> None:
         original = await self.provider()
@@ -99,19 +100,21 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         self.configuration.write_text(data=configured.replace("minimum_height = 2.0", "minimum_height = 4.0"), encoding="utf-8")
         changed_peak_settings = await self.provider()
 
-        self.assertNotEqual(original.baseline_corrector.contribution.configuration, changed.baseline_corrector.contribution.configuration)
-        self.assertEqual(original.peak_detector.description.binding_revision, changed.peak_detector.description.binding_revision)
-        self.assertEqual(changed.baseline_corrector.description.binding_revision, reformatted.baseline_corrector.description.binding_revision)
-        self.assertEqual(changed.peak_detector.description.binding_revision, reformatted.peak_detector.description.binding_revision)
-        self.assertEqual(changed.baseline_corrector.description.binding_revision, changed_peak_settings.baseline_corrector.description.binding_revision)
-        self.assertNotEqual(changed.peak_detector.contribution.configuration, changed_peak_settings.peak_detector.contribution.configuration)
+        self.assertEqual(contribution.ref(original.peaks.binding).binding_revision, contribution.ref(changed.peaks.binding).binding_revision)
+        self.assertEqual(contribution.ref(changed.baseline.binding).binding_revision, contribution.ref(reformatted.baseline.binding).binding_revision)
+        self.assertEqual(contribution.ref(changed.peaks.binding).binding_revision, contribution.ref(reformatted.peaks.binding).binding_revision)
+        self.assertEqual(contribution.ref(changed.baseline.binding).binding_revision, contribution.ref(changed_peak_settings.baseline.binding).binding_revision)
 
         sample = science.Spectrum(positions=(0, 1, 2), intensities=(1, 4, 1))
-        original_instance = original.baseline_corrector.contribution
-        changed_instance = changed.baseline_corrector.contribution
+        original_corrected = await original.baseline(scientific_input=sample)
+        changed_corrected = await changed.baseline(scientific_input=sample)
+        original_peaks = await original.peaks(scientific_input=original_corrected)
+        changed_peaks = await changed_peak_settings.peaks(scientific_input=original_corrected)
 
-        self.assertEqual((0, 3, 0), original_instance.run(spectrum=sample).intensities)
-        self.assertEqual((-1, 2, -1), changed_instance.run(spectrum=sample).intensities)
+        self.assertEqual((0, 3, 0), original_corrected.intensities)
+        self.assertEqual((-1, 2, -1), changed_corrected.intensities)
+        self.assertEqual(1, len(original_peaks.peaks))
+        self.assertEqual((), changed_peaks.peaks)
 
 
 if __name__ == "__main__":
