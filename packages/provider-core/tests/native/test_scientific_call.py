@@ -6,6 +6,7 @@ import asyncio
 import os
 import pathlib
 import tempfile
+import time
 from dataclasses import dataclass
 from threading import Event
 import unittest
@@ -400,8 +401,87 @@ class ScientificCallTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first=1, second=acquire.call_count)
 
+    async def test_synchronous_admission_cannot_dispatch_after_the_deadline(self):
+        calculate = self.call(error_policy={"total_seconds": 0.02}, method=Calculator.calculate)
+        original_open = self.host.open_analysis
+        analyses = []
+
+        def slow_open(**options):
+            analysis = original_open(**options)
+
+            analyses.append(analysis)
+            time.sleep(0.03)
+
+            return analysis
+
+        with (
+            patch.object(target=self.host, attribute="open_analysis", side_effect=slow_open),
+            patch(target="provider_core.scientific_call.Submission.submit") as submit,
+            self.assertRaises(expected_exception=TimeoutError),
+        ):
+            await calculate(scientific_input=Sample(count=1))
+
+        submit.assert_not_called()
+        self.assertEqual(first=1, second=len(analyses))
+        self.assertEqual(first={}, second=self.host.analyses)
+        self.assertEqual(first=[], second=self.science.inputs)
+
+    async def test_budget_spans_backoffs_instead_of_restarting_for_each_attempt(self):
+        calculate = self.call(
+            error_policy={"max_attempts": 4, "total_seconds": 0.3},
+            method=Calculator.calculate,
+        )
+        delays = []
+
+        async def backoff(seconds):
+            delays.append(seconds)
+
+            await asyncio.sleep(0.2)
+
+        with (
+            patch.object(target=self.host, attribute="open_analysis", side_effect=CapacityUnavailable("Occupied")) as acquire,
+            patch(target="provider_core.scientific_call.sleep", side_effect=backoff),
+            self.assertLogs(logger="provider_core.scientific_call", level="WARNING"),
+            self.assertRaises(expected_exception=TimeoutError),
+        ):
+            await calculate(scientific_input=Sample(count=1))
+
+        self.assertEqual(first=2, second=acquire.call_count)
+        self.assertEqual(first=[0.1, 0.2], second=delays)
+        self.assertEqual(first=[], second=self.science.inputs)
+
+    async def test_expiration_waits_for_running_science_and_cleanup_without_retry(self):
+        calculate = self.call(
+            error_policy={"max_attempts": 3, "retry_scientific_failures": True, "total_seconds": 0.1},
+            method=Calculator.calculate,
+        )
+
+        self.science.release.clear()
+
+        invocation = asyncio.create_task(coro=calculate(scientific_input=Sample(count=1)))
+
+        try:
+            self.assertTrue(expr=await asyncio.to_thread(self.science.entered.wait, 2))
+
+            await asyncio.sleep(0.15)
+
+            self.assertFalse(expr=invocation.done())
+            self.assertEqual(first=0, second=self.science.closed_analyses)
+        finally:
+            self.science.release.set()
+
+        with self.assertRaises(expected_exception=TimeoutError):
+            await invocation
+
+        self.assertEqual(first=1, second=self.science.closed_analyses)
+        self.assertEqual(first=1, second=len(self.science.inputs))
+        self.assertEqual(first=0, second=self.host.result_reserved)
+
     def test_invalid_recovery_settings_fail_before_scientific_work(self):
         for settings in (
+            {"total_seconds": 0},
+            {"total_seconds": float("inf")},
+            {"total_seconds": True},
             {"max_attempts": 0},
             {"max_attempts": True},
             {"backoff_initial_seconds": 0},

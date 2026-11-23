@@ -6,7 +6,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from asyncio import sleep
+from asyncio import get_running_loop, sleep, timeout_at
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 import logging
@@ -53,7 +53,9 @@ class ErrorPolicy:
     repeating a declared retryable calculation after its analysis has closed
     successfully. The operation declaration selects exact eligible failures.
     Transport uncertainty, invalid input, decoding errors, cancellation and
-    cleanup failures never authorize another calculation.
+    cleanup failures never authorize another calculation. total_seconds bounds
+    the whole invocation, including recovery and backoff. Expiration prevents
+    further work but still waits for owned cleanup to settle.
     """
 
     max_attempts: int = 1
@@ -61,6 +63,7 @@ class ErrorPolicy:
     backoff_max_seconds: float = 5
     retry_admission_codes: frozenset[AdmissionCode] = frozenset({AdmissionCode.CAPACITY, AdmissionCode.UNAVAILABLE})
     retry_scientific_failures: bool = False
+    total_seconds: float | None = None
 
     def __post_init__(self) -> None:
         require_type(self.max_attempts, int)
@@ -80,6 +83,9 @@ class ErrorPolicy:
             require_type(code, AdmissionCode)
 
         require_type(self.retry_scientific_failures, bool)
+
+        if self.total_seconds is not None:
+            require_positive_number(self.total_seconds)
 
 
 class ScientificCall[InputT, OutputT]:
@@ -126,8 +132,13 @@ class ScientificCall[InputT, OutputT]:
         Cleanup allowances flag overdue work rather than abandon it. An optional
         permission check runs before acquiring each analysis, including retries.
         """
-        payload = self.binding.encode_input(value=scientific_input)
         delay = self.error_policy.backoff_initial_seconds
+        deadline = None
+
+        if self.error_policy.total_seconds is not None:
+            deadline = get_running_loop().time() + self.error_policy.total_seconds
+
+        payload = self.binding.encode_input(value=scientific_input)
 
         for attempt in range(1, self.error_policy.max_attempts + 1):
             failures = FailureCollector(message="Scientific call and cleanup failed")
@@ -136,71 +147,77 @@ class ScientificCall[InputT, OutputT]:
             cleanup_succeeded = False
 
             with failures.capture():
-                # An API job can be cancelled while this call waits to retry.
-                # Its Attempt owner supplies this check, so every attempt confirms
-                # permission before acquiring resources or submitting science.
-                # A refused check propagates without another retry
-                if require_execution is not None:
-                    require_execution()
+                async with timeout_at(deadline):
+                    self._require_budget(deadline=deadline)
+                    # An API job can be cancelled while this call waits to retry.
+                    # Its Attempt owner supplies this check, so every attempt confirms
+                    # permission before acquiring resources or submitting science.
+                    # A refused check propagates without another retry
+                    if require_execution is not None:
+                        require_execution()
 
-                try:
-                    analysis = self.host.open_analysis(allocations=frozenset({self.allocation}), retain_results=False)
-                except CapacityUnavailable as error:
-                    if AdmissionCode.CAPACITY in self.error_policy.retry_admission_codes:
-                        retry_failure = error
+                    self._require_budget(deadline=deadline)
 
-                    raise
+                    try:
+                        analysis = self.host.open_analysis(allocations=frozenset({self.allocation}), retain_results=False)
+                    except CapacityUnavailable as error:
+                        if AdmissionCode.CAPACITY in self.error_policy.retry_admission_codes:
+                            retry_failure = error
 
-                submission = Submission(
-                    analysis_executor=analysis,
-                    invocation=Invocation(
-                        target=ref(call=self.binding),
-                        payload=payload,
-                        states={},
-                        reservation=analysis.reservation(allocation=self.allocation),
-                        policy=self.operation_policy,
-                    ),
-                )
+                        raise
 
-                operation = submission.submit()
+                    submission = Submission(
+                        analysis_executor=analysis,
+                        invocation=Invocation(
+                            target=ref(call=self.binding),
+                            payload=payload,
+                            states={},
+                            reservation=analysis.reservation(allocation=self.allocation),
+                            policy=self.operation_policy,
+                        ),
+                    )
 
-                match operation:
-                    case NotAdmitted() as refusal:
-                        rejection = AdmissionRejected(refusal)
+                    self._require_budget(deadline=deadline)
 
-                        if refusal.code in self.error_policy.retry_admission_codes:
-                            retry_failure = rejection
+                    operation = submission.submit()
 
-                        raise rejection
+                    match operation:
+                        case NotAdmitted() as refusal:
+                            rejection = AdmissionRejected(refusal)
 
-                observation = await submission.wait()
+                            if refusal.code in self.error_policy.retry_admission_codes:
+                                retry_failure = rejection
 
-                try:
-                    result_ref = observation.require_result()
-                except Exception as error:
-                    if (
-                        self.error_policy.retry_scientific_failures and
-                        (observation.outcome is Outcome.FAILED) and
-                        observation.failures and
-                        all(((failure.phase == "calculation") and failure.retryable) for failure in observation.failures)
-                    ):
-                        retry_failure = error
+                            raise rejection
 
-                    raise
+                    observation = await submission.wait()
 
-                if receive is None:
-                    encoded = await operation.read_result(result_ref)
-                    decoded = self.binding.result_codec.decode(encoded)
-                else:
-                    async def accept(encoded: bytes) -> None:
-                        nonlocal decoded
+                    try:
+                        result_ref = observation.require_result()
+                    except Exception as error:
+                        if (
+                            self.error_policy.retry_scientific_failures and
+                            (observation.outcome is Outcome.FAILED) and
+                            observation.failures and
+                            all(((failure.phase == "calculation") and failure.retryable) for failure in observation.failures)
+                        ):
+                            retry_failure = error
 
+                        raise
+
+                    if receive is None:
+                        encoded = await operation.read_result(result_ref)
                         decoded = self.binding.result_codec.decode(encoded)
+                    else:
+                        async def accept(encoded: bytes) -> None:
+                            nonlocal decoded
 
-                        await receive(encoded)
+                            decoded = self.binding.result_codec.decode(encoded)
 
-                    async with ResultConsumption(operation=operation, result=result_ref, receive=accept) as consumption:
-                        await consumption.consume()
+                            await receive(encoded)
+
+                        async with ResultConsumption(operation=operation, result=result_ref, receive=accept) as consumption:
+                            await consumption.consume()
 
             with failures.capture():
                 if analysis is not None:
@@ -223,7 +240,18 @@ class ScientificCall[InputT, OutputT]:
                     f"{attempt=}, {self.error_policy.max_attempts=}, {delay=}; {error=}"
                 )
 
-                await sleep(delay)
+                async with timeout_at(deadline):
+                    self._require_budget(deadline=deadline)
+
+                    await sleep(delay)
+
                 delay = min(delay * 2, self.error_policy.backoff_max_seconds)
             else:
                 return decoded
+
+    @staticmethod
+    def _require_budget(*, deadline: float | None) -> None:
+        # An expired asyncio timeout cancels only at the next suspension; check
+        # before synchronous admission can start another scientific operation
+        if (deadline is not None) and ((now := get_running_loop().time()) >= deadline):
+            raise TimeoutError(f"Scientific call budget expired: {now=}, {deadline=}")
