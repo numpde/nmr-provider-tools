@@ -380,13 +380,15 @@ writing a second input schema. Install `provider-core[api]`; scientific records
 can be ordinary dataclasses; `frozen=True` and `slots=True` are optional. The default
 JSON codec delegates type interpretation, strict input validation, serialization,
 and schemas to the pinned Pydantic `TypeAdapter`. This includes unions, typed
-dictionaries, nested dataclasses, and JSON metadata. Input records reject unknown
-fields; JSON rejects duplicate keys and nonfinite numbers. Output follows
-Pydantic serialization rules, with serializer warnings treated as errors. SDK
-rejection categories remain stable; field diagnostics include Pydantic locations
-and error types without echoing offending field values. Locations can include
-submitted mapping keys.
-For multiple violations, the rejection code follows Pydantic's first reported error.
+dictionaries, nested dataclasses, and JSON metadata. Schemas, encoding, and
+decoding use declared field names rather than Pydantic aliases. Input records
+reject unknown fields; JSON rejects duplicate keys and nonfinite numbers.
+Output follows Pydantic serialization rules, with serializer warnings treated
+as errors. Field validation failures use
+`PayloadRejected.Code.INVALID_VALUE`, with Pydantic's JSON diagnostics as the
+message and the original exception as the cause. The SDK does not translate
+Pydantic's individual error types. That JSON message omits input values and context;
+locations can include submitted mapping keys.
 
 ```python
 from provider_core.preparation_tool import PreparationTool

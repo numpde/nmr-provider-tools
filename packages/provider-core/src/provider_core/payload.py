@@ -26,7 +26,6 @@ from typing import (
 )
 
 from pydantic import ValidationError
-from pydantic_core import PydanticSerializationError
 
 from provider_core._json_schema import _adapter, dataclass_json_schema
 from provider_core.contribution_errors import CallRejected, ErrorCode
@@ -40,11 +39,7 @@ class PayloadRejected(CallRejected):
     class Code(ErrorCode):
         INVALID_JSON = auto()
         DUPLICATE_FIELD = auto()
-        INVALID_TYPE = auto()
         INVALID_VALUE = auto()
-        INVALID_LENGTH = auto()
-        UNEXPECTED_FIELD = auto()
-        MISSING_FIELD = auto()
 
     def __init__(self, message: str, *, code: PayloadRejected.Code) -> None:
         require_instance(code, self.Code)
@@ -181,10 +176,10 @@ class JsonDataclassCodec[T]:
 
     def decode(self, payload: bytes) -> T:
         # Retain lexical JSON checks that are independent of the scientific type
-        document = _read_json(payload)
+        payload_fields = _read_json(payload)
 
         try:
-            encoded = json.dumps(document, allow_nan=False)
+            encoded = json.dumps(payload_fields, allow_nan=False)
         except ValueError as error:
             raise PayloadRejected(
                 "Payload JSON contains a nonfinite number",
@@ -192,41 +187,25 @@ class JsonDataclassCodec[T]:
             ) from error
 
         try:
-            return _adapter(value_type=self.value_type).validate_json(encoded, strict=True, extra="forbid")
-        except ValidationError as error:
-            details = error.errors(include_input=False, include_url=False)
-            first = details[0]
-            error_type = first["type"]
-            # Preserve SDK rejection categories; Pydantic owns the validation
-            if error_type in {"extra_forbidden", "unexpected_keyword_argument"}:
-                code = PayloadRejected.Code.UNEXPECTED_FIELD
-            elif error_type == "missing":
-                code = (
-                    PayloadRejected.Code.INVALID_LENGTH
-                    if first["loc"] and isinstance(first["loc"][-1], int)
-                    else PayloadRejected.Code.MISSING_FIELD
-                )
-            elif error_type in {"too_long", "too_short"}:
-                code = PayloadRejected.Code.INVALID_LENGTH
-            elif error_type.endswith("_type") or error_type == "is_instance_of":
-                code = PayloadRejected.Code.INVALID_TYPE
-            else:
-                code = PayloadRejected.Code.INVALID_VALUE
-            message = "; ".join(
-                f"{detail['loc']!r}: {detail['msg']} ({detail['type']})"
-                for detail in details
+            return _adapter(value_type=self.value_type).validate_json(
+                encoded,
+                strict=True,
+                extra="forbid",
+                by_alias=False,
+                by_name=True,
             )
-            raise PayloadRejected(message, code=code) from error
+        except ValidationError as error:
+            raise PayloadRejected(
+                error.json(include_input=False, include_url=False, include_context=False),
+                code=PayloadRejected.Code.INVALID_VALUE,
+            ) from error
 
     def encode(self, value: T) -> bytes:
         require_type(value, self.value_type)
 
-        try:
-            document = _adapter(value_type=self.value_type).dump_python(value, mode="json", warnings="error")
-        except PydanticSerializationError as error:
-            raise TypeError(str(error)) from error
+        payload_fields = _adapter(value_type=self.value_type).dump_python(value, mode="json", warnings="error")
 
-        return json.dumps(document, allow_nan=False, sort_keys=True, separators=(",", ":")).encode("ascii")
+        return json.dumps(payload_fields, allow_nan=False, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

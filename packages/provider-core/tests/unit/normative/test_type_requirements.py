@@ -174,7 +174,7 @@ class TypeRequirementsTests(unittest.TestCase):
         self.assertIn("produce_text()", str(raised.exception))
 
     def test_exception_factory_preserves_domain_code_and_source_expression(self):
-        reject = partial(PayloadRejected, code=PayloadRejected.Code.INVALID_TYPE)
+        reject = partial(PayloadRejected, code=PayloadRejected.Code.INVALID_VALUE)
 
         cases = [
             (require_type, True),
@@ -188,7 +188,7 @@ class TypeRequirementsTests(unittest.TestCase):
                 with self.assertRaises(PayloadRejected) as raised:
                     requirement(rejected_operand, int, error_factory=reject)
 
-                self.assertIs(PayloadRejected.Code.INVALID_TYPE, raised.exception.code)
+                self.assertIs(PayloadRejected.Code.INVALID_VALUE, raised.exception.code)
                 self.assertIn("rejected_operand", str(raised.exception))
 
     def test_factory_is_unused_for_matches_and_invalid_expected_types(self):

@@ -12,6 +12,9 @@ import json
 from typing import Literal
 import unittest
 
+from pydantic import Field
+from pydantic_core import PydanticSerializationError
+
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import observe_cleanup
@@ -54,6 +57,11 @@ class SampleGroups:
     groups: dict[str, list[Peak]]
 
 
+@dataclass
+class AliasedMeasurement:
+    value: int = Field(alias="wire_value")
+
+
 class Spectra(Contribution):
     @operation()
     def prepare(self, *, spectrum: Spectrum) -> Peak:
@@ -63,6 +71,17 @@ class Spectra(Contribution):
 class SchemaTests(unittest.TestCase):
     def setUp(self):
         self.codec = JsonDataclassCodec(format="spectrum.v1", value_type=Spectrum)
+
+    def test_schema_encoding_and_decoding_use_declared_field_names(self):
+        codec = JsonDataclassCodec(format="measurement.v1", value_type=AliasedMeasurement)
+        measurement = AliasedMeasurement(value=7)
+
+        self.assertEqual(first={"value"}, second=set(codec.json_schema()["properties"]))
+        self.assertEqual(first=b'{"value":7}', second=codec.encode(measurement))
+        self.assertEqual(first=measurement, second=codec.decode(b'{"value":7}'))
+
+        with self.assertRaises(expected_exception=PayloadRejected):
+            codec.decode(b'{"wire_value":7}')
 
     def test_nested_dataclass_objects_are_closed(self):
         schema = self.codec.json_schema()
@@ -144,7 +163,7 @@ class SchemaTests(unittest.TestCase):
 
         self.assertEqual(first=str, second=type(peak.integral))
 
-        with self.assertRaises(expected_exception=TypeError):
+        with self.assertRaises(expected_exception=PydanticSerializationError):
             JsonDataclassCodec(format="peak.v1", value_type=Peak).encode(value=peak)
 
     def test_runtime_rejects_lexical_and_unknown_field_cases_schema_cannot_admit_for_it(self):
@@ -209,7 +228,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=PayloadRejected) as raised:
             self.tool_definition.decode(name=self.tool_definition.name, arguments={"value": {}})
 
-        self.assertIs(PayloadRejected.Code.MISSING_FIELD, raised.exception.code)
+        self.assertIs(PayloadRejected.Code.INVALID_VALUE, raised.exception.code)
 
     def test_custom_codec_does_not_acquire_guessed_json_semantics(self):
         original = self.call_binding.input_codec

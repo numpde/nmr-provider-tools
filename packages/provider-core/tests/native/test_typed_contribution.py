@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, replace
 from typing import Literal
 from typing_extensions import NotRequired, TypedDict
 from pydantic import JsonValue
+from pydantic_core import PydanticSerializationError
 
 import provider_core.contribution as contribution
 
@@ -401,7 +402,7 @@ class TypedContributionTests(unittest.TestCase):
             Measurements(counts=[]),
             Measurements(counts={1: 8}),
         ):
-            with self.subTest(measurements=measurements), self.assertRaises(expected_exception=TypeError):
+            with self.subTest(measurements=measurements), self.assertRaises(expected_exception=PydanticSerializationError):
                 codec.encode(measurements)
 
     def test_sampling_records_preserve_union_typed_dictionary_and_json_metadata(self):
