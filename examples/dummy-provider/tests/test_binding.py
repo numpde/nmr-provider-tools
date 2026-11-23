@@ -116,7 +116,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         (prepare_call, calculate_call) = (weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate))
         sum_call = self.sum_binding().call(method=Sum.run)
 
-        self.assertRegex(weighted_binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(weighted_binding.description.binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
         self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
         self.assertIs(science.PreparedSamples, calculate_call.state_binding.input_types["candidate"])
         self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)

@@ -10,30 +10,28 @@ modules inside the shared runtime package.
 - [`spectrum-summary-provider`](spectrum-summary-provider/) demonstrates two
   configured scientific contributions, a provider-owned scientific sequence,
   retained result transfer and a runnable local execution composition.
-- [`reference-match-provider`](reference-match-provider/) demonstrates a real
-  reference index reused across sequential analyses, with independent result
-  retention and allocation retirement.
+- [`reference-match-provider`](reference-match-provider/) demonstrates the managed
+  typed-call API: reuse a reference index, deliver each report, and let the SDK
+  handle retries, result release and analysis cleanup.
 - [`nmrpeak-mock-provider`](nmrpeak-mock-provider/) demonstrates HF/CHF interpretation,
   checkpoint loading, tokenizer validation, consumed preparation and candidate
   delivery, using real SDK owners with lightweight model and service stand-ins.
   Startup can select independent persistent processes for its configured models;
   thread execution remains the default.
 
-Thread setup constructs ordinary scientific objects and gives each one directly
-to `host.adopt`. Process setup supplies class metadata, an installed factory and
-startup data to `ProcessExecutionHost.start`; the model is constructed and retained
-in the child. Both paths select portable call bindings for the same request
-workflow. The SDK owns validation, custody, execution and retirement;
-provider-specific TOML parsing and scientific class selection stay in the provider.
-All four examples select their execution backend during startup. Reference and
-Dummy own one allocation; Spectrum composes separate baseline and peak hosts;
-NMRPeak composes one process host per configured model. Process deployment supplies
-fresh native sessions. Spectrum and NMRPeak validate explicit static shares of
-aggregate SDK capacities rather than multiplying the enclosing allowance. Hardware
-grants remain the enclosing deployment's responsibility. See the
-[current process-host guide](../packages/provider-core/README.md#scientific-process-hosting)
-for startup/request usage, deployment grants, payload and control-call limits,
-cleanup semantics and recorded installed qualification.
+Common startup lives in SDK `ExecutionSettings.open_contribution()`: construct
+the selected host, initialize science and retire it on exit. Process factories
+run in the child; thread factories supply ordinary scientific objects. Dummy and
+Reference own one host; Spectrum selects separate stage hosts; NMRPeak selects
+one process host per model or a shared thread host. Providers retain scientific
+configuration, inventory and capacity partitioning.
+
+Reference binds `ScientificCall` through `ExecutionSettings.bind_call()`. Its
+application only sequences queries; the SDK owns each request's analysis, result,
+optional receiver and configured retries. An ordinary deployment can instead use
+`ExecutionSettings.open_process_call()` to include runner lease validation and
+session construction from configuration. See the
+[managed-call guide](../packages/provider-core/README.md#managed-typed-calls).
 
 Spectrum retains the baseline and peaks roles required by its fixed scientific
 sequence. An unordered collection should not erase those roles.
@@ -45,8 +43,9 @@ same configuration layout and invoke the production setup paths.
 
 All four examples decode the common execution section with SDK
 `ExecutionSettings`: explicit `backend`, `host`, `operation_policy` and
-`resource_requirement`. `create_host()` constructs the selected host; provider
-assembly enters its lifetime and adopts or starts its science. Multi-host
+`resource_requirement`, plus optional `error_policy` for managed calls.
+`open_contribution()` owns a selected host and initialized contribution. NMRPeak
+thread mode instead assembles and initializes its shared host explicitly. Multi-host
 providers keep their session inventories and capacity shares local, checking
 aggregate shares with `require_capacity_partition` before taking any session.
 Public host constructors remain independently usable and validate their options.
@@ -80,9 +79,9 @@ to the next scientific stage.
 that same attempt before outer resources close, preserving independent errors.
 It does not resend a failed receiver or decide when scientific execution stops.
 
-All four examples use the SDK host context for original retirement and error
-propagation. Reference deliberately keeps analysis cleanup explicit: an earlier
-usable report must be delivered before waiting for a later failed query's
-cleanup. Receiver/request tasks must finish inside the host context. SDK
+All four examples use SDK contexts for original retirement and error propagation.
+Reference delivers each report through the managed call before starting the next
+query. Stateful multi-stage workflows retain their explicit request lifetimes;
+receiver/request tasks finish inside the host context. SDK
 `settle_cleanup` defers cancellation while observing pending cleanup; the existing
 `observe_cleanup` remains an interruptible wait.

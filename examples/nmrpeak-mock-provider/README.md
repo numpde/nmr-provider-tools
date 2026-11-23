@@ -1,5 +1,12 @@
 # NMRPeak provider example
 
+Process startup uses SDK `ExecutionSettings.open_contribution()` to own host creation,
+model initialization and retirement. Thread offerings share one explicitly owned
+host. The provider keeps its scientific settings,
+model/stage inventory and capacity shares. For a single typed result, use the
+managed-call pattern in [Reference Match](../reference-match-provider/); this
+example retains explicit workflow control where state or multiple stages require it.
+
 `science.py` owns scientific values and calculations. `binding.py` declares the
 HF/CHF operations and model/state cleanup. `provider.py` reads configuration,
 selects the backend and interpretation prompt, and owns prediction lifetimes.

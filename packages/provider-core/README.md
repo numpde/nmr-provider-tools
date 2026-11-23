@@ -47,8 +47,8 @@ schemas. Settings, model provenance and installed code identity remain provider
 and deployment responsibilities. The SDK owns serialization and lifecycle;
 providers own scientific meaning and operation ordering. See the
 [implemented interface](../../notes/086_configured_science_boundary.md) and the
-[standalone examples](../../examples/README--to-be-revised-after-process-refac.md). This authoring API adds no
-automatic retries, worker pool, Jobs service or deployment authority.
+[standalone examples](../../examples/README.md). Managed calls retry only when configured. This authoring API adds no
+worker pool, Jobs service or deployment authority.
 
 After `observe_completion(operation=operation)`, use
 `observation.require_result()` to obtain the usable result handle or raise the
@@ -314,6 +314,91 @@ async with open_offerings(
 The provider owns receiver, analysis and interpreter settlement in that order.
 Further predictions can use the same offering sequentially. Thread mode accepts
 the existing injected constructors and rejects unused `process_sessions`.
+
+## Managed typed calls
+
+For a model hosted by an SDK runner, let the SDK own setup and retirement too:
+
+```python
+execution = ExecutionSettings(deployment["execution"])
+async with execution.open_process_call(
+    runner=deployment["runner"],
+    contribution_type=Predictor,
+    constructor=construct_predictor,
+    startup=deployment["model"],
+    method=Predictor.calculate,
+) as calculate:
+    result = await calculate(scientific_input=request)
+```
+
+The runner table supplies `socket`, `lease_file`, `role`, `startup_seconds` and
+`retirement_seconds`. The SDK checks the private lease, creates and owns the
+session, starts the model in the worker, and retires it on context exit, including
+after startup failure or cancellation. The factory is an importable callable
+accepting `startup=`; it executes only in the model process. This context requires
+`backend = "process"`.
+
+Examples with injected runner sessions or thread execution use
+`execution.open_contribution(contribution_type=..., constructor=..., startup=...,
+process_session=...)`. It yields the owned host and initialized contribution;
+`execution.start_contribution()` initializes additional science inside an already
+owned host. Multi-model providers retain their own inventory and capacity partition.
+
+For an already owned thread or process host, bind a single-result method directly:
+
+```python
+calculate = execution.bind_call(
+    host=host,
+    contribution=hosted,
+    method=Predictor.calculate,
+)
+result = await calculate(scientific_input=request)
+```
+
+An optional `receive=async_receiver` accepts the encoded result once before the
+call returns. The SDK joins a started receiver even after caller cancellation;
+receiver failure propagates without resend, regardless of scientific retry policy.
+This acceptance is only the receiver's contract, not a durability guarantee.
+
+The callable owns admission, completion, result decoding, result release and
+analysis cleanup. Each invocation opens a fresh analysis; the loaded model stays
+in its host. Cleanup finishes before returning, raising, or retrying. Cancellation
+requests stop and waits for cleanup; an overdue cleanup flag does not abandon
+running science. Calls with live state ports still need an explicitly shared
+analysis and the lower-level interfaces below.
+
+Configure recovery in the deployment's execution section. Omit `error_policy`
+or set `max_attempts = 1` to raise after one attempt:
+
+```toml
+[execution.error_policy]
+max_attempts = 3
+backoff_initial_seconds = 0.1
+backoff_max_seconds = 1
+retry_admission_codes = ["capacity", "unavailable"]
+retry_scientific_failures = false
+```
+
+`max_attempts` includes the initial attempt. Delays double up to the configured
+cap; the last failed attempt raises without another sleep. The SDK logs each
+retry. Allocation acquisition failures (`CapacityUnavailable`) use the
+`capacity` selection. A confirmed refusal raises
+`provider_core.scientific_call.AdmissionRejected`, whose `refusal` attribute
+retains the original `NotAdmitted` with its code and message.
+
+Set `retry_scientific_failures = true` only when repeating a failed calculation
+is acceptable for that contribution. This authorizes retry of a completed failed
+calculation, after successful analysis cleanup, using the same encoded input
+snapshot. It does not retry scientific input rejections, model initialization
+failures, result encoding/decoding errors, uncertain transport failures,
+cancellation, or cleanup failures. The SDK preserves the last original failure
+and groups independent call/cleanup failures; it never converts them into a
+successful result. Bounded attempts do not impose a hard deadline on cleanup.
+
+Managed calls open analyses with `retain_results=False`. Closure then discards
+all results, including a result produced after cancellation or a lost admission
+reply. Ordinary `open_analysis()` retains results by default, so lower-level
+callers can keep result handles beyond analysis closure.
 
 ## Retained scientific submissions
 

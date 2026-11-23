@@ -12,45 +12,30 @@ src/reference_provider/
 ├── binding.py          operation declaration and index initialization/cleanup
 ├── provider.py         deployment selection and SDK host lifetime
 ├── process_factory.py  installed construction from settings and references
-├── application.py      sequential queries and retained report delivery
+├── application.py      sequential typed calls and report delivery
 └── __main__.py         two-query demo with flushed stdout consumption
 ```
 
-`open_provider()` reads the external deployment document once. Thread startup
-adopts the configured matcher and builds its index lazily on first use. Process
-startup calls the installed `reference_provider.process_factory:construct`
-with explicit settings and reference records, then initializes the child before
-yielding. This readiness difference follows the two SDK startup contracts.
-`ReferenceMatcher.initialize()` builds the index once and `close()` releases it.
-The same installed constructor assembles the scientific configuration for both
-backends; scientific records remain provider-owned.
+`open_provider()` reads the external deployment document once and enters
+`ExecutionSettings.open_contribution()`. The SDK constructs the selected host,
+initializes the reference index, and retires it on exit on either backend.
+The example supplies the scientific class, its installed constructor and its
+configuration. A process deployment injects a fresh `RunnerSession`; the common
+SDK context takes custody on successful host construction.
 
-Process deployment calls `open_provider(process_session=session)` with an
-existing deployment-owned `RunnerSession` for the SDK scientific worker
-(`python -I -B -m provider_core.process_worker`). Creating `ProcessExecutionHost`
-transfers session ownership to the SDK; the host joins retirement on context
-exit. Reference does not create a supervisor or infer its socket and lock
-identity. Thread startup refuses an unrelated process session; process startup
-requires one. Each provider context owns exactly one allocation and one host.
-Declared CPU requirements record the environment's obligation; they do not
-allocate hardware or prove availability.
+`run_queries(provider=..., candidates=..., receive=...)` is a loop over
+`await provider.match(scientific_input=candidate, receive=receive)`. The SDK
+owns admission, waiting, decoding, receiver settlement, result release and analysis
+cleanup. Each report reaches the receiver before the next query starts, so a later
+failure cannot suppress it. The loaded reference index is reused between calls.
+Cancellation joins an already started receiver before cleanup. Receiver failures
+are never retried automatically; this demo provides no durable delivery after exit.
 
-`run_queries(provider=..., candidates=..., receive=...)` sequences independent
-analyses through typed call bindings and the SDK `Submission`. It closes the
-first analysis before opening the second on the same allocation. Completed
-reports remain independently owned and readable while later queries run.
-A cancelled `Submission.wait()` can observe its original operation again;
-submitting that retained owner returns the acquired operation. An uncertain
-reply does not authorize a fresh request. No backend branch appears in the
-request workflow.
-
-A later scientific failure still allows earlier reports to reach the receiver
-before waiting for the failed analysis's cleanup. SDK `ResultConsumption` owns
-each receiver attempt and releases the exact result after success. Receiver
-failures are not retried automatically. Query and analysis-cleanup observation
-waits have 15-second caller caps; host exit joins original retirement even when
-settlement takes longer. Cancelled waits do not force science to stop. There is
-no restart recovery or durable delivery owner after this demo exits.
+The deployment's `[execution.error_policy]` selects bounded backoff retries for
+confirmed capacity/unavailability refusals. Set `max_attempts = 1` to raise after
+one attempt. Scientific calculations and receiver effects are not replayed by
+this deployment. The SDK's lower-level interfaces remain demonstrated by the
+backend tests, where result handles deliberately outlive their analyses.
 
 `build_index(reference_set)` normalizes references and builds weighted channel
 postings. `match(index, settings, candidate)` computes cosine scores. Vector
@@ -79,6 +64,6 @@ make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/
 The integration fixture supplies the existing native supervisor and exercises
 the actual installed process factory, sequential queries, retained results,
 scientific rejection, cancelled observation and worker retirement. Existing
-binding and workflow tests additionally prove lazy initialization, index
+binding and workflow tests additionally prove initialization, index
 identity reuse and earlier delivery before failed-query cleanup. Real-model,
 GPU and deployment qualification remain separate gates.

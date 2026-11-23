@@ -18,6 +18,13 @@ cleanup_overdue_flag_seconds = 5
 reject_encoded_input_over_bytes = 4096
 reject_encoded_result_over_bytes = 4096
 
+# Confirmed capacity refusals may be retried; scientific and receiver failures raise.
+[execution.error_policy]
+max_attempts = 3
+backoff_initial_seconds = 0.1
+backoff_max_seconds = 1
+retry_scientific_failures = false
+
 # Declared CPU needs; the operator must make this capacity available.
 [[execution.resource_requirement]]
 kind = "cpu"

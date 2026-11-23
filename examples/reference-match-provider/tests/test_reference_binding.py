@@ -43,7 +43,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         binding = await self.binding()
         call = binding.call(method=ReferenceMatcher.match)
 
-        self.assertRegex(binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(binding.description.binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("match", call.description.name)
         self.assertIs(science.VectorInput, call.input_codec.value_type)
         self.assertIs(science.MatchReport, call.result_codec.value_type)
@@ -52,13 +52,13 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((), call.description.state_outputs)
         self.assertEqual(1, next(iter(call.description.resources)).amount)
 
-    async def test_startup_defers_index_building_to_the_instance_initializer(self):
+    async def test_startup_initializes_the_index_before_yielding(self):
         with patch("reference_provider.science.build_index", wraps=science.build_index) as build:
             binding = await self.binding()
             library = binding.contribution
 
-            build.assert_not_called()
-            self.assertIsNone(library.loaded_index)
+            build.assert_called_once()
+            self.assertIsNotNone(library.loaded_index)
 
     async def test_provider_settings_change_without_becoming_sdk_configuration(self):
         original = await self.binding()

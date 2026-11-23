@@ -126,8 +126,8 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             original_open = owner.open_analysis
             opened = []
 
-            def open_analysis(*, allocations):
-                analysis = original_open(allocations=allocations)
+            def open_analysis(*, allocations, retain_results):
+                analysis = original_open(allocations=allocations, retain_results=retain_results)
 
                 opened.append(analysis)
 

@@ -47,8 +47,8 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         peak_detection_call_binding = peak_detector.call(method=PeakDetector.run)
 
         self.assertNotEqual(baseline_corrector.description.binding_id, peak_detector.description.binding_id)
-        self.assertRegex(baseline_corrector.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
-        self.assertRegex(peak_detector.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(baseline_corrector.description.binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(peak_detector.description.binding_revision, r"\Aconfigured-v4:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("run", baseline_call_binding.description.name)
         self.assertEqual("run", peak_detection_call_binding.description.name)
         self.assertIs(science.Spectrum, baseline_call_binding.input_codec.value_type)

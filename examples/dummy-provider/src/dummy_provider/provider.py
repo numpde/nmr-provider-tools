@@ -57,21 +57,10 @@ async def open_provider(
     execution = configuration["execution"]
     settings = ExecutionSettings(execution)
     weighted = configuration["science"]["weighted"]
-    execution_host = settings.create_host(process_session=process_session)
-
-    async with execution_host:
-        if settings.backend == "thread":
-            hosted = execution_host.adopt(
-                contribution=construct(startup=weighted),
-                requirements=settings.resource_requirements,
-            )
-            await execution_host.initialize(allocation=hosted.allocation)
-        else:
-            hosted = await execution_host.start(
-                contribution_type=WeightedSum,
-                constructor="dummy_provider.process_factory:construct",
-                startup=weighted,
-                requirements=settings.resource_requirements,
-            )
-
+    async with settings.open_contribution(
+        contribution_type=WeightedSum,
+        constructor=construct,
+        startup=weighted,
+        process_session=process_session,
+    ) as (execution_host, hosted):
         yield Provider(execution_host=execution_host, weighted=hosted, operation_policy=settings.operation_policy)

@@ -17,7 +17,7 @@ from provider_core.scientific import HostedContribution
 
 from .application import PeakWorkflow
 from .binding import BaselineCorrector, PeakDetector
-from . import science
+from .process_factory import construct_baseline, construct_peaks
 from .science import Spectrum
 
 
@@ -99,9 +99,6 @@ async def open_provider(
     execution_settings = ExecutionSettings(execution)
     backend = execution_settings.backend
     stage_options = _stage_options(execution)
-    requirements = execution_settings.resource_requirements
-    baseline_settings = science.BaselineSettings(**provider_config["science"]["baseline"]["settings"])
-    peak_settings = science.PeakSettings(**provider_config["science"]["peaks"]["settings"])
 
     execution_settings.require_sessions(process_sessions=process_sessions, expected_keys=stage_options.keys())
 
@@ -109,28 +106,22 @@ async def open_provider(
         hosts = {}
         hosted = {}
 
-        for stage, contribution_type, settings in (
-            ("baseline", BaselineCorrector, baseline_settings),
-            ("peaks", PeakDetector, peak_settings),
+        for (stage, contribution_type, constructor) in (
+            ("baseline", BaselineCorrector, construct_baseline),
+            ("peaks", PeakDetector, construct_peaks),
         ):
-            host = execution_settings.create_host(
-                process_session=process_sessions[stage] if backend == "process" else None,
-                host=stage_options[stage],
-            )
+            # silent-defaults: allow-contract -- Thread stages have no runner; process inventory was checked before startup
+            process_session = process_sessions[stage] if backend == "process" else None
 
-            await lifetime.enter_async_context(host)
-            hosts[stage] = host
-
-            if backend == "process":
-                hosted[stage] = await host.start(
+            (hosts[stage], hosted[stage]) = await lifetime.enter_async_context(
+                execution_settings.open_contribution(
                     contribution_type=contribution_type,
-                    constructor=f"spectrum_provider.process_factory:construct_{stage}",
+                    constructor=constructor,
                     startup=provider_config["science"][stage]["settings"],
-                    requirements=requirements,
-                )
-            else:
-                hosted[stage] = host.adopt(contribution=contribution_type(configuration=settings), requirements=requirements)
-                await host.initialize(allocation=hosted[stage].allocation)
+                    process_session=process_session,
+                    host=stage_options[stage],
+                ),
+            )
 
         yield Provider(
             baseline_host=hosts["baseline"],

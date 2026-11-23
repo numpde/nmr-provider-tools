@@ -1,5 +1,11 @@
 # Spectrum summary provider
 
+Startup uses SDK `ExecutionSettings.open_contribution()` to own host creation,
+model initialization and retirement. The provider keeps its scientific settings,
+model/stage inventory and capacity shares. For a single typed result, use the
+managed-call pattern in [Reference Match](../reference-match-provider/); this
+example retains explicit workflow control where state or multiple stages require it.
+
 This installed example composes two independent scientific stages: baseline
 subtraction followed by peak detection. `science.py` owns scientific values and
 calculations, `binding.py` declares the operations, and `provider.py` selects the

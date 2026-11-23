@@ -30,6 +30,7 @@ from .application import PredictionWorkflow
 from .binding import Chf, Hf
 from .fake_model import Model as InstalledMockModel
 from .science import Model, Settings
+from .process_factory import construct
 
 
 # Read the selected deployment configuration from the application's working directory.
@@ -174,20 +175,18 @@ async def open_offerings(
 
             for index, offering_config in enumerate(offering_configs):
                 if execution_mode == "process":
-                    execution_host = execution_settings.create_host(
-                        process_session=process_sessions[family, index],
-                        host=process_options[family, index],
-                    )
-                    await lifetime.enter_async_context(execution_host)
-                    hosted_predictor = await execution_host.start(
-                        contribution_type=predictor_class,
-                        constructor="nmrpeak_mock_provider.process_factory:construct",
-                        startup={
-                            "contribution_class": predictor_class.__name__,
-                            "settings": offering_config["settings"],
-                            "checkpoint_path": str((PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]).resolve()),
-                        },
-                        requirements=resource_requirements,
+                    (execution_host, hosted_predictor) = await lifetime.enter_async_context(
+                        execution_settings.open_contribution(
+                            process_session=process_sessions[family, index],
+                            host=process_options[family, index],
+                            contribution_type=predictor_class,
+                            constructor=construct,
+                            startup={
+                                "contribution_class": predictor_class.__name__,
+                                "settings": offering_config["settings"],
+                                "checkpoint_path": str((PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]).resolve()),
+                            },
+                        ),
                     )
                 else:
                     predictor = predictor_class(

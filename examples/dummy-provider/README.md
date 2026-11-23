@@ -1,5 +1,11 @@
 # Dummy provider example
 
+Startup uses SDK `ExecutionSettings.open_contribution()` to own host creation,
+model initialization and retirement. The provider keeps its scientific settings,
+model/stage inventory and capacity shares. For a single typed result, use the
+managed-call pattern in [Reference Match](../reference-match-provider/); this
+example retains explicit workflow control where state or multiple stages require it.
+
 This standalone Python project shows how scientific functions and a binding
 adapter use the installed `provider_core` interface. Production startup selects
 thread or persistent-process execution for the same scientific contribution.
@@ -124,8 +130,8 @@ Set `execution.backend` to `thread` or `process` at startup. Process startup
 requires an explicit deployment-owned `RunnerSession`; the SDK takes its ownership
 when the process host is constructed. Earlier configuration refusals leave an
 unconnected session with the caller. Thread startup rejects an unused process
-session. The provider initializes its thread allocation explicitly; process
-`start()` constructs and initializes the installed child before returning.
+session. The SDK startup context initializes the selected contribution on either backend
+before yielding.
 
 One process host owns one allocation, so startup selects the weighted offering.
 `Sum` remains a separate stateless binding example. A native supervisor and its
