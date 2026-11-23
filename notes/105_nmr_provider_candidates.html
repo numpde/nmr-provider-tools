@@ -19,7 +19,7 @@
 <body>
   <main>
     <table>
-      <thead><tr><th scope="col">Method</th><th scope="col">Integrated</th><th scope="col">Year</th><th scope="col">Publication</th><th scope="col">Description</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th><th scope="col">Checkpoint size</th><th scope="col">Parameters</th></tr></thead>
+      <thead><tr><th scope="col">Method</th><th scope="col">Integrated</th><th scope="col">Year</th><th scope="col">Authors</th><th scope="col">Publication</th><th scope="col">Description</th><th scope="col">Datasets</th><th scope="col">Code</th><th scope="col">Checkpoints</th><th scope="col">Checkpoint size</th><th scope="col">Parameters</th></tr></thead>
       <tbody id="method-rows"></tbody>
     </table>
     <table>
@@ -34,20 +34,68 @@
     "integrated": true,
     "year": "2026",
     "publications": [],
-    "description": "Our learned inverse models E01/E02 generate molecular candidates from NMR input; G01 predicts atom-assigned shifts, multiplicities and J-coupling candidates from structures.",
+    "description": "Our E01/E02 models generate molecular candidates from ¹H and paired ¹H+¹³C peak inputs, respectively. G01 maps a molecular graph to atom-indexed ¹H/¹³C shift predictions, reported J-value candidates/counts and multiplicities, learned using unassigned experimental NMR peak sets; J-coupling partners are not identified.",
     "datasets": [
       {
         "id": "nmrexp",
-        "role": "training source"
+        "role": "source archive for E01/E02/G01"
+      },
+      {
+        "id": "nmrexp-magnet-e01",
+        "role": "E01 training lineage"
+      },
+      {
+        "id": "nmrexp-magnet-e02",
+        "role": "E02 training lineage"
+      },
+      {
+        "id": "nmrexp-magnet-g01",
+        "role": "G01 training lineage"
       }
     ],
     "code": [
       {
-        "text": "Method",
+        "text": "Scientific code",
+        "url": "https://github.com/numpde/magnet"
+      },
+      {
+        "text": "Integration",
         "url": "https://github.com/numpde/magnet-deploy"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [
+      {
+        "text": "E01 · ¹H→structure",
+        "url": "https://github.com/numpde/magnet-deploy/blob/main/models/e_01_jvae_nmrexp/runner/release/checkpoint.pt",
+        "parameters": {
+          "count": 2377684,
+          "scope": "E01 weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
+        "text": "E02 · ¹H+¹³C→structure",
+        "url": "https://github.com/numpde/magnet-deploy/blob/main/models/e_02_ch_nmrexp/runner/release/checkpoint.pt",
+        "parameters": {
+          "count": 2872886,
+          "scope": "E02 weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
+        "text": "G01 · structure→NMR",
+        "url": "https://github.com/numpde/magnet-deploy/blob/main/models/g_01_nmr_forward/runner/release/checkpoint.pt",
+        "parameters": {
+          "count": 99236,
+          "scope": "G01 weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      }
+    ],
+    "authors": null
   },
   {
     "method": "NMRPeak",
@@ -68,6 +116,14 @@
       {
         "id": "mst-nmr-nmrpeak",
         "role": "training / validation / test"
+      },
+      {
+        "id": "nmrexp-nmrpeak-hf",
+        "role": "HF published eligible training subset"
+      },
+      {
+        "id": "nmrexp-nmrpeak-chf",
+        "role": "CHF published eligible training subset"
       }
     ],
     "code": [
@@ -82,6 +138,26 @@
     ],
     "checkpoints": [
       {
+        "text": "HF · ¹H+formula",
+        "url": "https://zenodo.org/records/19122815",
+        "parameters": {
+          "count": 106443264,
+          "scope": "HF model weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
+        "text": "CHF · ¹H+¹³C+formula",
+        "url": "https://zenodo.org/records/19122815",
+        "parameters": {
+          "count": 106443264,
+          "scope": "CHF model weights",
+          "source": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt",
+          "approximate": false
+        }
+      },
+      {
         "text": "Weights ZIP",
         "url": "https://zenodo.org/records/19122815",
         "size": {
@@ -91,6 +167,78 @@
           "source": "https://zenodo.org/records/19122815",
           "approximate": true
         }
+      }
+    ],
+    "authors": {
+      "display": "Fanjie Xu et al.",
+      "names": [
+        "Fanjie Xu",
+        "Jinyuan Hu",
+        "Jingxiang Zou",
+        "Junjie Wang",
+        "Boying Huang",
+        "Zhifeng Gao",
+        "Xiaohong Ji",
+        "Weinan E",
+        "Zhong-Qun Tian",
+        "Fujie Tang",
+        "Jun Cheng"
+      ],
+      "source": [
+        "https://arxiv.org/abs/2602.08752"
+      ]
+    }
+  },
+  {
+    "method": "NMRNet",
+    "integrated": false,
+    "year": "2025",
+    "authors": {
+      "display": "Fanjie Xu et al.",
+      "names": [
+        "Fanjie Xu",
+        "Wentao Guo",
+        "Feng Wang",
+        "Lin Yao",
+        "Hongshuai Wang",
+        "Fujie Tang",
+        "Zhifeng Gao",
+        "Linfeng Zhang",
+        "Weinan E",
+        "Zhong-Qun Tian",
+        "Jun Cheng"
+      ],
+      "source": [
+        "https://doi.org/10.1038/s43588-025-00783-z"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Nature Computational Science",
+        "url": "https://doi.org/10.1038/s43588-025-00783-z"
+      }
+    ],
+    "description": "An SE(3)-equivariant Transformer predicts atom-specific NMR shifts from three-dimensional structures. Self-supervised geometric pretraining is followed by supervised fine-tuning for liquid-state and solid-state NMR; unlike NMRNet++, it does not use literature spectra as unassigned training targets.",
+    "datasets": [
+      {
+        "id": "nmrnet-geometric-pretraining",
+        "role": "structure-only pretraining"
+      },
+      {
+        "id": "nmrnet-finetuning",
+        "role": "supervised chemical-shift fine-tuning / evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/Colin-Jay/NMRNet"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Zenodo weights",
+        "url": "https://doi.org/10.5281/zenodo.13317524"
       }
     ]
   },
@@ -159,7 +307,104 @@
           "approximate": false
         }
       }
-    ]
+    ],
+    "authors": {
+      "display": "Yongqi Jin et al.",
+      "names": [
+        "Yongqi Jin",
+        "Yecheng Wang",
+        "Jun-Jie Wang",
+        "Rong Zhu",
+        "Guolin Ke",
+        "Weinan E"
+      ],
+      "source": [
+        "https://proceedings.mlr.press/v306/jin26k.html"
+      ]
+    }
+  },
+  {
+    "method": "CSP5",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "J. Benji Rowlands et al.",
+      "names": [
+        "J. Benji Rowlands",
+        "Richard J. Lewis",
+        "Peter Howe",
+        "Jonathan M. Goodman"
+      ],
+      "source": [
+        "https://doi.org/10.26434/chemrxiv.15001823/v1",
+        "https://github.com/Goodman-lab/CSP5"
+      ]
+    },
+    "publications": [
+      {
+        "text": "ChemRxiv",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      }
+    ],
+    "description": "Solvent-conditioned graph neural chemical-shift prediction from molecular structure; an optimal-assignment objective learns from unassigned ¹H/¹³C NMRexp spectra alongside assigned data. CSP5q variants predict per-shift quantile distributions for structure verification.",
+    "datasets": [
+      {
+        "id": "nmrexp-csp5-13c",
+        "role": "unassigned ¹³C training / evaluation"
+      },
+      {
+        "id": "nmrexp-csp5-1h",
+        "role": "unassigned ¹H training / evaluation"
+      },
+      {
+        "id": "exp22k-csp5",
+        "role": "assigned ¹³C training"
+      },
+      {
+        "id": "dft8k-csp5",
+        "role": "assigned ¹H training"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/Goodman-lab/CSP5"
+      },
+      {
+        "text": "Inference package",
+        "url": "https://pypi.org/project/csp5/"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "¹³C DMSO-d₆",
+        "url": "https://zenodo.org/records/23668018/files/CSP5-13C-dmso-d6.pt?download=1",
+        "size": {
+          "value": 18.4,
+          "unit": "MB",
+          "scope": "one solvent-specific model",
+          "source": "https://zenodo.org/records/23668018",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H DMSO-d₆",
+        "url": "https://zenodo.org/records/23668018/files/CSP5-1H-dmso-d6.pt?download=1",
+        "size": {
+          "value": 18.4,
+          "unit": "MB",
+          "scope": "one solvent-specific model",
+          "source": "https://zenodo.org/records/23668018",
+          "approximate": true
+        }
+      },
+      {
+        "text": "Other solvent models",
+        "url": "https://zenodo.org/records/23668018"
+      }
+    ],
+    "checkpointsReleaseVerified": "https://zenodo.org/records/23668018",
+    "checkpointCoverage": "The latest verified author release is Zenodo v2 (2026-10-26). The linked ¹H/¹³C DMSO-d₆ files appear in both v1 and v2, with matching published MD5 checksums. No CDCl₃ model appears in the v2 model manifest."
   },
   {
     "method": "CSTShift",
@@ -175,7 +420,11 @@
     "datasets": [
       {
         "id": "nmrshiftdb2-dft-cstshift",
-        "role": "supervised training / test"
+        "role": "¹³C training / test"
+      },
+      {
+        "id": "nmrshiftdb2-dft-cstshift-h",
+        "role": "¹H training / test"
       }
     ],
     "code": [
@@ -189,7 +438,19 @@
         "text": "Trained models",
         "url": "https://yzhang.hpc.nyu.edu/IMA/Datasets/CSTShift_models.zip"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Chao Han et al.",
+      "names": [
+        "Chao Han",
+        "Dongdong Zhang",
+        "Song Xia",
+        "Yingkai Zhang"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acs.jctc.4c00422"
+      ]
+    }
   },
   {
     "method": "SECS",
@@ -210,6 +471,14 @@
       {
         "id": "secs-exp-tune",
         "role": "experimental fine-tuning"
+      },
+      {
+        "id": "secs-inhouse-eval-34",
+        "role": "independent experimental evaluation"
+      },
+      {
+        "id": "secs-chemotion-eval-1486",
+        "role": "independent experimental evaluation"
       }
     ],
     "code": [
@@ -224,10 +493,36 @@
     ],
     "checkpoints": [
       {
-        "text": "Zenodo",
-        "url": "https://zenodo.org/records/14638782"
+        "text": "Published SECS v3 archive",
+        "url": "https://zenodo.org/records/14638782",
+        "size": {
+          "value": 15.7,
+          "unit": "GB",
+          "scope": "v3 archive",
+          "source": "https://zenodo.org/records/14638782",
+          "approximate": true
+        },
+        "releaseVersion": "v3",
+        "publicationRecord": "https://doi.org/10.5281/zenodo.14177705",
+        "originalAuthorREADME": "https://github.com/lamalab-org/secs/blob/main/README.md",
+        "archiveContents": [
+          "checkpoint models",
+          "candidate-molecule table",
+          "scientific resources"
+        ]
       }
-    ]
+    ],
+    "authors": {
+      "display": "Adrian Mirza, Luc Patiny & Kevin M. Jablonka",
+      "names": [
+        "Adrian Mirza",
+        "Luc Patiny",
+        "Kevin Maik Jablonka"
+      ],
+      "source": [
+        "https://doi.org/10.1038/s41467-026-73846-y"
+      ]
+    }
   },
   {
     "method": "NMRTrans",
@@ -243,7 +538,15 @@
     "datasets": [
       {
         "id": "nmrspec",
-        "role": "training / validation / test"
+        "role": "source corpus (before model-specific filtering)"
+      },
+      {
+        "id": "nmrspec-nmrtrans-release-splits",
+        "role": "original checkpoint train / validation / test"
+      },
+      {
+        "id": "nmrtrans-nmrexp-merged",
+        "role": "alternative merged-data checkpoint"
       }
     ],
     "code": [
@@ -254,18 +557,210 @@
     ],
     "checkpoints": [
       {
-        "text": "¹H + formula",
-        "url": "https://huggingface.co/little1d/H-Formula",
-        "parameters": {
-          "count": 60000000,
-          "scope": "T5-small backbone only",
-          "source": "https://arxiv.org/abs/2602.10158",
+        "text": "¹H",
+        "url": "https://huggingface.co/little1d/H",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
+        "size": {
+          "value": 556,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/H/tree/main",
           "approximate": true
         }
       },
       {
-        "text": "All six",
-        "url": "https://huggingface.co/collections/little1d/nmrtrans"
+        "text": "¹³C",
+        "url": "https://huggingface.co/little1d/C",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
+        "size": {
+          "value": 552,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H + ¹³C",
+        "url": "https://huggingface.co/little1d/C-H",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
+        "size": {
+          "value": 729,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-H/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H + formula",
+        "url": "https://huggingface.co/little1d/H-Formula",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits"
+      },
+      {
+        "text": "¹³C + formula",
+        "url": "https://huggingface.co/little1d/C-Formula",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
+        "size": {
+          "value": 558,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-Formula/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H + ¹³C + formula (original)",
+        "url": "https://huggingface.co/little1d/C-H-Formula/blob/main/nmrtrans-c-h-nmr-formula.ckpt",
+        "codeRef": "main",
+        "datasetRef": "nmrspec-nmrtrans-release-splits",
+        "size": {
+          "value": 736,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-H-Formula/tree/main",
+          "approximate": true
+        }
+      },
+      {
+        "text": "¹H + ¹³C + formula (merged)",
+        "url": "https://huggingface.co/little1d/C-H-Formula/blob/main/nmrtrans-c-h-nmr-formula-nmrexp.ckpt",
+        "codeRef": "bugfix",
+        "datasetRef": "nmrtrans-nmrexp-merged",
+        "size": {
+          "value": 737,
+          "unit": "MB",
+          "scope": "checkpoint",
+          "source": "https://huggingface.co/little1d/C-H-Formula/tree/main",
+          "approximate": true
+        }
+      }
+    ],
+    "authors": {
+      "display": "Liujia Yang et al.",
+      "names": [
+        "Liujia Yang",
+        "Zhuo Yang",
+        "Jiaqing Xie",
+        "Yubin Wang",
+        "Ben Gao",
+        "Xingjian Wei",
+        "Jiaxing Sun",
+        "Jiang Wu",
+        "Conghui He",
+        "Yuqiang Li",
+        "Qinying Gu"
+      ],
+      "source": [
+        "https://doi.org/10.1145/3770855.3818935"
+      ],
+      "variants": [
+        {
+          "source": "https://arxiv.org/abs/2602.10158",
+          "label": "arXiv 2026-02",
+          "names": [
+            "Liujia Yang",
+            "Zhuo Yang",
+            "Jiaqing Xie",
+            "Yubin Wang",
+            "Ben Gao",
+            "Tianfan Fu",
+            "Xingjian Wei",
+            "Jiaxing Sun",
+            "Jiang Wu",
+            "Conghui He",
+            "Yuqiang Li",
+            "Qinying Gu"
+          ]
+        }
+      ]
+    },
+    "architectureFacts": {
+      "backboneParameters": {
+        "count": 60000000,
+        "scope": "T5-small backbone only",
+        "source": "https://arxiv.org/abs/2602.10158",
+        "approximate": true
+      },
+      "wholeModelParameterCount": null
+    }
+  },
+  {
+    "method": "UltraNMR",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Chen Yang et al.",
+      "names": [
+        "Chen Yang",
+        "Zheng Fang",
+        "Hanyu Sun",
+        "Fanjie Xu",
+        "Hongxin Xiang",
+        "Hanyu Gao",
+        "Xiangxiang Zeng",
+        "Yuqiang Li",
+        "Xiaojian Wang",
+        "Jun Xia"
+      ],
+      "source": [
+        "https://arxiv.org/abs/2606.20756"
+      ]
+    },
+    "publications": [
+      {
+        "text": "arXiv",
+        "url": "https://arxiv.org/abs/2606.20756"
+      }
+    ],
+    "description": "Foundation model pretrained on simulated paired ¹H/¹³C spectra with intra- and cross-spectrum objectives. Its spectral embeddings support experimental fine-tuning, library retrieval and downstream formula-conditioned NMR-to-SMILES generation.",
+    "datasets": [
+      {
+        "id": "ultranmr-pretrain-158m",
+        "role": "simulated representation pretraining"
+      },
+      {
+        "id": "nmrgym-269999",
+        "role": "experimental fine-tuning / scaffold-disjoint evaluation"
+      },
+      {
+        "id": "ultranmr-retrieval-94m",
+        "role": "retrieval index"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/wuycM/UltraNMR"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Pretrained spectral encoder",
+        "url": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nce",
+        "size": {
+          "value": 1.51,
+          "unit": "GB",
+          "scope": "encoder model file",
+          "source": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nce",
+          "approximate": true
+        }
+      },
+      {
+        "text": "NMRGym structure decoder",
+        "url": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nmrgym_formula",
+        "size": {
+          "value": 2.11,
+          "unit": "GB",
+          "scope": "NMR-to-SMILES model file",
+          "source": "https://huggingface.co/milesyc/ultranmr/tree/main/checkpoints_nmrgym_formula",
+          "approximate": true
+        }
       }
     ]
   },
@@ -296,7 +791,18 @@
         "url": "https://github.com/rxn4chemistry/nmr-to-structure"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Marvin Alberts, Federico Zipoli & Alain C. Vaucher",
+      "names": [
+        "Marvin Alberts",
+        "Federico Zipoli",
+        "Alain C. Vaucher"
+      ],
+      "source": [
+        "https://openreview.net/forum?id=akFqQokObE"
+      ]
+    }
   },
   {
     "method": "Alberts multimodal multitask",
@@ -349,7 +855,18 @@
           "approximate": true
         }
       }
-    ]
+    ],
+    "authors": {
+      "display": "Marvin Alberts, Nina Hartrampf & Teodoro Laino",
+      "names": [
+        "Marvin Alberts",
+        "Nina Hartrampf",
+        "Teodoro Laino"
+      ],
+      "source": [
+        "https://openreview.net/forum?id=VMWpN8DaDM"
+      ]
+    }
   },
   {
     "method": "NMRMind",
@@ -378,7 +895,31 @@
         "url": "https://github.com/nes0zx/NMRMind"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Xi Xue et al.",
+      "names": [
+        "Xi Xue",
+        "Hanyu Sun",
+        "Jingying Sun",
+        "Luc Patiny",
+        "Xiangying Liu",
+        "Kai Chen",
+        "Jingjie Yan",
+        "Liangning Li",
+        "Xue Liu",
+        "Shu Xu",
+        "Dongming Zhang",
+        "Yafeng Deng",
+        "Yingda Zang",
+        "Yaling Gong",
+        "Jie Ma",
+        "Xiaojian Wang"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acs.analchem.5c03783"
+      ]
+    }
   },
   {
     "method": "PRISM",
@@ -390,7 +931,7 @@
         "url": "https://doi.org/10.1002/anie.7185622"
       }
     ],
-    "description": "Two transformer models: experimental ¹H/¹³C peak lists to SMILES (spec2mol), and SMILES to predicted peak lists (mol2spec), with chemistry-aware spectral conditioning.",
+    "description": "Two Transformer models: spect2mol generates SMILES from ¹H and/or ¹³C peak lists, with optional formula and solvent conditioning; mol2spec predicts separate ¹H and ¹³C peak lists from SMILES.",
     "datasets": [
       {
         "id": "nmrexp-prism",
@@ -401,11 +942,15 @@
       {
         "text": "GitHub",
         "url": "https://github.com/alhqlearn/PRISM"
+      },
+      {
+        "text": "Inverse inference",
+        "url": "https://github.com/alhqlearn/PRISM/blob/main/spect2mol/inference.py"
       }
     ],
     "checkpoints": [
       {
-        "text": "spec2mol",
+        "text": "spect2mol",
         "url": "https://doi.org/10.5281/zenodo.23600371",
         "size": {
           "value": 649.81,
@@ -419,7 +964,14 @@
           "scope": "model",
           "source": "https://doi.org/10.1002/anie.7185622",
           "approximate": true
-        }
+        },
+        "releaseVerification": "unverified",
+        "releaseSource": "https://github.com/alhqlearn/PRISM#data--checkpoints",
+        "claimedDeposits": [
+          "https://doi.org/10.5281/zenodo.23600371",
+          "https://doi.org/10.5281/zenodo.20271514"
+        ],
+        "fileName": "spec2mol_best.pt"
       },
       {
         "text": "mol2spec ¹H",
@@ -436,7 +988,13 @@
           "scope": "model",
           "source": "https://doi.org/10.1002/anie.7185622",
           "approximate": false
-        }
+        },
+        "releaseVerification": "unverified",
+        "releaseSource": "https://github.com/alhqlearn/PRISM#data--checkpoints",
+        "claimedDeposits": [
+          "https://doi.org/10.5281/zenodo.23600371",
+          "https://doi.org/10.5281/zenodo.20271514"
+        ]
       },
       {
         "text": "mol2spec ¹³C",
@@ -453,9 +1011,40 @@
           "scope": "model",
           "source": "https://doi.org/10.1002/anie.7185622",
           "approximate": false
-        }
+        },
+        "releaseVerification": "unverified",
+        "releaseSource": "https://github.com/alhqlearn/PRISM#data--checkpoints",
+        "claimedDeposits": [
+          "https://doi.org/10.5281/zenodo.23600371",
+          "https://doi.org/10.5281/zenodo.20271514"
+        ]
       }
-    ]
+    ],
+    "authors": {
+      "display": "Ajnabiul Hoque & Frank Glorius",
+      "names": [
+        "Ajnabiul Hoque",
+        "Frank Glorius"
+      ],
+      "source": [
+        "https://doi.org/10.1002/anie.7185622"
+      ]
+    },
+    "inverseCodePath": "spect2mol/inference.py",
+    "inverseCheckpointAdvertisedName": "spec2mol_best.pt",
+    "inverseReleaseNamingSource": "https://github.com/alhqlearn/PRISM/blob/main/README.md",
+    "inputModes": {
+      "inverse": [
+        "1H only",
+        "13C only",
+        "1H + 13C"
+      ],
+      "optionalContext": [
+        "molecular formula",
+        "solvent"
+      ],
+      "source": "https://github.com/alhqlearn/PRISM/blob/main/README.md"
+    }
   },
   {
     "method": "ChefNMR2",
@@ -507,7 +1096,27 @@
           "approximate": true
         }
       }
-    ]
+    ],
+    "authors": {
+      "display": "Ziyu Xiong et al.",
+      "names": [
+        "Ziyu Xiong",
+        "Vanessa Y. Ying",
+        "Jonathan Z. Huang",
+        "Zane Koch",
+        "Joseph D. Clark",
+        "Robert C. Heeter",
+        "Joon Soo An",
+        "Karit Matanachai",
+        "Samuel G. Rodriques",
+        "Andrew D. White",
+        "Mohammad R. Seyedsayamdost",
+        "Ellen D. Zhong"
+      ],
+      "source": [
+        "https://doi.org/10.64898/2026.10.29.762711"
+      ]
+    }
   },
   {
     "method": "DiffNMR",
@@ -541,7 +1150,23 @@
         "text": "DiffNMR weights",
         "url": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_elucidation/diffnmr/DiffNMR_nless15_best.pdparams"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Qingsong Yang et al.",
+      "names": [
+        "Qingsong Yang",
+        "Binglan Wu",
+        "Xuwei Liu",
+        "Bo Chen",
+        "Wei Li",
+        "Gen Long",
+        "Xin Chen",
+        "Mingjun Xiao"
+      ],
+      "source": [
+        "https://doi.org/10.1088/2752-5724/ae301f"
+      ]
+    }
   },
   {
     "method": "PINS",
@@ -561,7 +1186,22 @@
       }
     ],
     "code": [],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Pengfei Liu et al.",
+      "names": [
+        "Pengfei Liu",
+        "Cuimei Liu",
+        "Laiqun Xia",
+        "Wei Jia",
+        "Zhendong Hua",
+        "Liang Li",
+        "Jun Tao"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acs.analchem.6c02952"
+      ]
+    }
   },
   {
     "method": "NMR2Struct",
@@ -603,7 +1243,20 @@
         "text": "¹³C",
         "url": "https://github.com/MarklandGroup/NMR2Struct/blob/main/checkpoints/cnmr_only_checkpoint.pt"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Frank Hu et al.",
+      "names": [
+        "Frank Hu",
+        "Michael S. Chen",
+        "Grant M. Rotskoff",
+        "Matthew W. Kanan",
+        "Thomas E. Markland"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acscentsci.4c01132"
+      ]
+    }
   },
   {
     "method": "DeepSPInN",
@@ -628,7 +1281,22 @@
         "url": "https://github.com/devalab/DeepSPInN"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Sriram Devata et al.",
+      "names": [
+        "Sriram Devata",
+        "Bhuvanesh Sridharan",
+        "Sarvesh Mehta",
+        "Yashaswi Pathak",
+        "Siddhartha Laghuvarapu",
+        "Girish Varma",
+        "U. Deva Priyakumar"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D4DD00008K"
+      ]
+    }
   },
   {
     "method": "NMRViT",
@@ -673,7 +1341,18 @@
           "approximate": true
         }
       }
-    ]
+    ],
+    "authors": {
+      "display": "Chao Han, Xiaolin Pan & Yingkai Zhang",
+      "names": [
+        "Chao Han",
+        "Xiaolin Pan",
+        "Yingkai Zhang"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D6SC02352E"
+      ]
+    }
   },
   {
     "method": "NMRElucidator",
@@ -718,7 +1397,23 @@
           "approximate": true
         }
       }
-    ]
+    ],
+    "authors": {
+      "display": "Frank Hu et al.",
+      "names": [
+        "Frank Hu",
+        "Jonathan M. Tubb",
+        "Dimitris Argyropoulos",
+        "Sergey Golotvin",
+        "Mikhail Elyashberg",
+        "Grant M. Rotskoff",
+        "Matthew W. Kanan",
+        "Thomas E. Markland"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acs.jcim.6c00905"
+      ]
+    }
   },
   {
     "method": "NMRElucidator+C",
@@ -746,7 +1441,20 @@
       }
     ],
     "code": [],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Frank Hu et al.",
+      "names": [
+        "Frank Hu",
+        "Jonathan M. Tubb",
+        "Grant M. Rotskoff",
+        "Matthew W. Kanan",
+        "Thomas E. Markland"
+      ],
+      "source": [
+        "https://arxiv.org/abs/2611.07133"
+      ]
+    }
   },
   {
     "method": "inverse-IMPRESSION",
@@ -771,7 +1479,21 @@
         "url": "https://doi.org/10.5281/zenodo.20432239"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Zheqi Jin et al.",
+      "names": [
+        "Zheqi Jin",
+        "Grace Armitage",
+        "Richard Cox",
+        "Ben Honoré",
+        "Mohammad Golbabaee",
+        "Craig Butts"
+      ],
+      "source": [
+        "https://doi.org/10.1021/jacs.6c14119"
+      ]
+    }
   },
   {
     "method": "NMR-Solver",
@@ -801,7 +1523,24 @@
         "text": "NMRNet weights",
         "url": "https://doi.org/10.5281/zenodo.16952024"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Yongqi Jin et al.",
+      "names": [
+        "Yongqi Jin",
+        "Jun-Jie Wang",
+        "Fanjie Xu",
+        "Xiaohong Ji",
+        "Zhifeng Gao",
+        "Linfeng Zhang",
+        "Guolin Ke",
+        "Rong Zhu",
+        "Weinan E"
+      ],
+      "source": [
+        "https://doi.org/10.1038/s41467-026-71315-0"
+      ]
+    }
   },
   {
     "method": "SpectraLLM",
@@ -847,6 +1586,82 @@
         "text": "Additional adapter",
         "url": "https://huggingface.co/ccjh/widthIrplus_msg_qm9s_mb_msd"
       }
+    ],
+    "authors": {
+      "display": "Yunyue Su et al.",
+      "names": [
+        "Yunyue Su",
+        "Jiahui Chen",
+        "Zao Jiang",
+        "Zhenyi Zhong",
+        "Liang Wang",
+        "Qiang Liu",
+        "Zhaoxiang Zhang"
+      ],
+      "source": [
+        "https://proceedings.iclr.cc/paper_files/paper/2026/hash/2aad9aaf0e14591f7b7d4770752eec89-Abstract-Conference.html"
+      ]
+    }
+  },
+  {
+    "method": "MMST",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Martin Priessner et al.",
+      "names": [
+        "Martin Priessner",
+        "Richard J. Lewis",
+        "Isak Lemurell",
+        "Magnus J. Johansson",
+        "Jonathan M. Goodman",
+        "Jon Paul Janet",
+        "Anna Tomberg"
+      ],
+      "source": [
+        "https://doi.org/10.1002/anie.202517611"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Angew. Chem. Int. Ed.",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      }
+    ],
+    "description": "Flexible multimodal Transformer generates SMILES from ¹H/¹³C, HSQC, COSY, IR and mass/formula inputs. Candidate spectra are used for ranking; an improvement cycle simulates spectra for proposed analogues and fine-tunes the model to new chemical space.",
+    "datasets": [
+      {
+        "id": "mmst-zinc-4m",
+        "role": "simulated training"
+      },
+      {
+        "id": "mmst-pubchem-1m5",
+        "role": "out-of-distribution evaluation / adaptation"
+      },
+      {
+        "id": "mmst-experimental-34",
+        "role": "experimental evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/mpriessner/MultiModalSpectralTransformer"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Model/data archive, part 1",
+        "url": "https://doi.org/10.5281/zenodo.16076914"
+      },
+      {
+        "text": "Model/data archive, part 2",
+        "url": "https://doi.org/10.5281/zenodo.16257786"
+      },
+      {
+        "text": "Model/data archive, part 3",
+        "url": "https://doi.org/10.5281/zenodo.17284940"
+      }
     ]
   },
   {
@@ -881,7 +1696,23 @@
         "text": "SpectroMol checkpoint",
         "url": "https://github.com/YZY-stack/multi-spec-elucidation/blob/main/spectromol/checkpoints/0806_ft.pth"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Chengchun Liu et al.",
+      "names": [
+        "Chengchun Liu",
+        "Zhiyuan Yan",
+        "Li Yuan",
+        "Hao Li",
+        "Boxuan Zhao",
+        "Yonghong Tian",
+        "Bartosz A. Grzybowski",
+        "Fanyang Mo"
+      ],
+      "source": [
+        "https://doi.org/10.1002/anie.9212238"
+      ]
+    }
   },
   {
     "method": "MACROS",
@@ -905,7 +1736,136 @@
       }
     ],
     "code": [],
+    "checkpoints": [],
+    "authors": {
+      "display": "Bingsen Xue et al.",
+      "names": [
+        "Bingsen Xue",
+        "Zhuojun Jiang",
+        "Jianhao Zhang",
+        "Mingcheng Gu",
+        "Yizhe Yuan",
+        "Yongtai Zhuo",
+        "Yifan Zhang",
+        "Li Wang",
+        "Ya Su",
+        "Yue Yuan",
+        "Jiang Liu",
+        "Xueqian Kong",
+        "Cheng Jin"
+      ],
+      "source": [
+        "https://arxiv.org/abs/2608.14720"
+      ]
+    }
+  },
+  {
+    "method": "NMRAgent",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Zheng Fang et al.",
+      "names": [
+        "Zheng Fang",
+        "Chen Yang",
+        "Yusen Tan",
+        "Yunpeng Zhao",
+        "Fanjie Xu",
+        "Hongxin Xiang",
+        "Hanyu Sun",
+        "Hanyu Gao",
+        "Xiaojian Wang",
+        "Wenjie Du",
+        "Yuqiang Li",
+        "Jun Xia"
+      ],
+      "source": [
+        "https://arxiv.org/abs/2606.29776"
+      ]
+    },
+    "publications": [
+      {
+        "text": "arXiv preprint",
+        "url": "https://arxiv.org/abs/2606.29776"
+      }
+    ],
+    "description": "An LLM-based evidence-checking workflow accepts a molecular formula and ¹H/¹³C shifts, retrieves or generates candidate structures, checks peak–atom consistency and repairs incompatible fragments. It uses external model services and chemistry knowledge sources; it is not a single pretrained NMR-to-SMILES model.",
+    "datasets": [
+      {
+        "id": "nmrgym-269999",
+        "role": "experimental evaluation / benchmarking"
+      },
+      {
+        "id": "simnmr-pubchem",
+        "role": "reference spectral retrieval database"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/Meaw0415/NMRAgent"
+      }
+    ],
     "checkpoints": []
+  },
+  {
+    "method": "ChemStructLLM",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Martin Priessner et al.",
+      "names": [
+        "Martin Priessner",
+        "Richard J. Lewis",
+        "Magnus J. Johansson",
+        "Jonathan M. Goodman",
+        "Jon Paul Janet",
+        "Anna Tomberg"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D5DD00359H"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Digital Discovery",
+        "url": "https://doi.org/10.1039/D5DD00359H"
+      }
+    ],
+    "description": "Reasoning-capable LLM evaluates and revises candidate molecules using a supplied starting structure and ¹H/¹³C, HSQC, COSY and MS evidence. Chemformer, Mol2Mol and MMST supply complementary structure proposals; it is a tool-orchestration workflow, not a standalone NMR-to-SMILES model.",
+    "datasets": [
+      {
+        "id": "mmst-zinc-4m",
+        "role": "underlying MMST model training"
+      },
+      {
+        "id": "chemstruct-34",
+        "role": "experimental method evaluation"
+      }
+    ],
+    "code": [
+      {
+        "text": "GitHub",
+        "url": "https://github.com/mpriessner/ChemStructLLM_"
+      },
+      {
+        "text": "Source ZIP",
+        "url": "https://zenodo.org/records/21111281/files/ChemStructLLM_-main.zip"
+      }
+    ],
+    "checkpoints": [
+      {
+        "text": "Pretrained tool models, multipart",
+        "url": "https://zenodo.org/records/21111281",
+        "size": {
+          "value": 13.84,
+          "unit": "GB",
+          "scope": "27-piece archive: MMST, Chemformer and Mol2Mol tool models",
+          "source": "https://zenodo.org/records/21111281",
+          "approximate": true
+        }
+      }
+    ]
   },
   {
     "method": "CASCADE-2.0",
@@ -939,7 +1899,19 @@
         "text": "Repository models",
         "url": "https://github.com/asbhd/CASCADE-2.0/tree/main/models"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Abhijeet Bhadauria et al.",
+      "names": [
+        "Abhijeet Bhadauria",
+        "Zhitao Feng",
+        "Mihai Popescu",
+        "Robert Paton"
+      ],
+      "source": [
+        "https://doi.org/10.26434/chemrxiv-2025-r8m9m"
+      ]
+    }
   },
   {
     "method": "MolDeTr",
@@ -984,7 +1956,26 @@
         "text": "Zenodo",
         "url": "https://doi.org/10.5281/zenodo.21217102"
       }
-    ]
+    ],
+    "authors": {
+      "display": "Nicolas Schmid et al.",
+      "names": [
+        "Nicolas Schmid",
+        "Marc Wanner",
+        "Giulia Fischetti",
+        "Andreas Henrici",
+        "Mohsen Meshkian",
+        "Simon Bruderer",
+        "Rudolf M. Füchslin",
+        "Björn Heitmann",
+        "Jan Dirk Wegner",
+        "Roland K. O. Sigel",
+        "Dirk Wilhelm"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acs.analchem.5c03465"
+      ]
+    }
   },
   {
     "method": "DP4-AI",
@@ -1004,6 +1995,48 @@
         "url": "https://github.com/KristapsE/DP4-AI"
       }
     ],
+    "checkpoints": [],
+    "authors": {
+      "display": "Alexander Howarth, Kristaps Ermanis & Jonathan M. Goodman",
+      "names": [
+        "Alexander Howarth",
+        "Kristaps Ermanis",
+        "Jonathan M. Goodman"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D0SC00442A"
+      ]
+    }
+  },
+  {
+    "method": "DP5q",
+    "integrated": false,
+    "year": "2026",
+    "authors": {
+      "display": "Ruslan Kotlyarov, Alexander Howarth & Jonathan M. Goodman",
+      "names": [
+        "Ruslan Kotlyarov",
+        "Alexander Howarth",
+        "Jonathan M. Goodman"
+      ],
+      "source": [
+        "https://doi.org/10.1039/D5SC06988B"
+      ]
+    },
+    "publications": [
+      {
+        "text": "Chemical Science",
+        "url": "https://doi.org/10.1039/D5SC06988B"
+      }
+    ],
+    "description": "DFT-free structure confirmation: a graph convolutional network predicts quantiles of atom-specific ¹³C chemical-shift distributions; DP5q combines their uncertainties and experimental residuals to score each proposed structure independently rather than assuming that one candidate must be correct.",
+    "datasets": [
+      {
+        "id": "nmrshiftdb2-dp5q",
+        "role": "¹³C training / validation / test"
+      }
+    ],
+    "code": [],
     "checkpoints": []
   },
   {
@@ -1021,6 +2054,10 @@
       {
         "id": "nmrshiftdb2",
         "role": "dereplication / shift knowledge base"
+      },
+      {
+        "id": "sherlock-eval-45",
+        "role": "experimental validation (45 cases)"
       }
     ],
     "code": [
@@ -1029,7 +2066,18 @@
         "url": "https://github.com/NFDI4Chem/sherlock"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Michael Wenk, Jean-Marc Nuzillard & Christoph Steinbeck",
+      "names": [
+        "Michael Wenk",
+        "Jean-Marc Nuzillard",
+        "Christoph Steinbeck"
+      ],
+      "source": [
+        "https://doi.org/10.3390/molecules28031448"
+      ]
+    }
   },
   {
     "method": "SMART 2.0",
@@ -1049,7 +2097,31 @@
       }
     ],
     "code": [],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Raphael Reher et al.",
+      "names": [
+        "Raphael Reher",
+        "Hyun Woo Kim",
+        "Chen Zhang",
+        "Huanru Henry Mao",
+        "Mingxun Wang",
+        "Louis-Félix Nothias",
+        "Andres Mauricio Caraballo-Rodriguez",
+        "Evgenia Glukhov",
+        "Bahar Teke",
+        "Tiago Leao",
+        "Kelsey L. Alexander",
+        "Brendan M. Duggan",
+        "Ezra L. Van Everbroeck",
+        "Pieter C. Dorrestein",
+        "Garrison W. Cottrell",
+        "William H. Gerwick"
+      ],
+      "source": [
+        "https://doi.org/10.1021/jacs.9b13786"
+      ]
+    }
   },
   {
     "method": "SPECTRE",
@@ -1061,7 +2133,7 @@
         "url": "https://doi.org/10.1021/acs.jcim.5c02444"
       }
     ],
-    "description": "Transformer predicts entropy-optimized molecular fingerprints from ¹H, ¹³C and/or HSQC peak lists plus optional molecular weight; identifies similar natural products by retrieval, not de novo bond enumeration.",
+    "description": "Transformer predicts collision-free, entropy-selected molecular fingerprints from ¹H, ¹³C, HSQC and optional molecular weight, then retrieves similar natural products. Training uses data-type dropout; ¹H-only retrieval is less accurate than combinations with HSQC/¹³C.",
     "datasets": [
       {
         "id": "spectre-db",
@@ -1078,7 +2150,31 @@
         "url": "https://github.com/xwd0418/Spectre"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Wangdong Xu, Byeol Ryu et al.",
+      "names": [
+        "Wangdong Xu",
+        "Byeol Ryu",
+        "Anthony Tong",
+        "Huanru Henry Mao",
+        "Hyunwoo Kim",
+        "James Jialun Zhao",
+        "Chen Zhang",
+        "Yiran Xu",
+        "Mingxun Wang",
+        "William H. Gerwick",
+        "Garrison W. Cottrell"
+      ],
+      "source": [
+        "https://doi.org/10.1021/acs.jcim.5c02444"
+      ],
+      "equalContributors": [
+        "Wangdong Xu",
+        "Byeol Ryu"
+      ],
+      "equalContributionSource": "https://doi.org/10.1021/acs.jcim.5c02444"
+    }
   },
   {
     "method": "DeepSAT",
@@ -1103,7 +2199,29 @@
         "url": "https://github.com/mwang87/DeepSAT"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Hyun Woo Kim et al.",
+      "names": [
+        "Hyun Woo Kim",
+        "Chen Zhang",
+        "Raphael Reher",
+        "Mingxun Wang",
+        "Kelsey L. Alexander",
+        "Louis-Félix Nothias",
+        "Yoo Kyong Han",
+        "Hyeji Shin",
+        "Ki Yong Lee",
+        "Kyu Hyeong Lee",
+        "Myeong Ji Kim",
+        "Pieter C. Dorrestein",
+        "William H. Gerwick",
+        "Garrison W. Cottrell"
+      ],
+      "source": [
+        "https://doi.org/10.1186/s13321-023-00738-4"
+      ]
+    }
   },
   {
     "method": "SENECA",
@@ -1127,12 +2245,21 @@
         "url": "https://github.com/steinbeck/seneca-jcics"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "Christoph Steinbeck",
+      "names": [
+        "Christoph Steinbeck"
+      ],
+      "source": [
+        "https://doi.org/10.1021/ci000407n"
+      ]
+    }
   },
   {
     "method": "LSD / PyLSD",
     "integrated": false,
-    "year": "1991 / 2017",
+    "year": "1991 / 2018",
     "publications": [
       {
         "text": "LSD · Tetrahedron",
@@ -1156,7 +2283,38 @@
         "url": "https://github.com/nuzillard/PyLSD"
       }
     ],
-    "checkpoints": []
+    "checkpoints": [],
+    "authors": {
+      "display": "J.-M. Nuzillard et al.",
+      "names": [
+        "Jean-Marc Nuzillard",
+        "Guy Massiot",
+        "Bertrand Plainchont"
+      ],
+      "source": [
+        "https://doi.org/10.1016/S0040-4020(01)80878-4",
+        "https://doi.org/10.1002/mrc.4612"
+      ],
+      "works": [
+        {
+          "year": 1991,
+          "authors": [
+            "Jean-Marc Nuzillard",
+            "Guy Massiot"
+          ],
+          "publication": "https://doi.org/10.1016/S0040-4020(01)80878-4"
+        },
+        {
+          "year": 2018,
+          "firstPublishedOnline": 2017,
+          "authors": [
+            "Jean-Marc Nuzillard",
+            "Bertrand Plainchont"
+          ],
+          "publication": "https://doi.org/10.1002/mrc.4612"
+        }
+      ]
+    }
   }
 ]
   </script>
@@ -1170,7 +2328,7 @@
       "unit": "molecules"
     },
     "kind": "Experimental ¹H/¹³C",
-    "origin": "Literature supporting information (2013–2025), filtered to one sample per unique molecule. Authors report 58,796 molecules overlapping NMRexp and 181,201 unique to NMRSpec; the overlap depends on their molecular-identity processing.",
+    "origin": "Experimental ¹H/¹³C spectra from chemistry supporting information (2013–2025), deduplicated to 239,997 molecular structures. In the authors' molecular-identity comparison to NMRexp, 58,796 are shared and 181,201 are exclusive to NMRSpec.",
     "references": [
       {
         "text": "Study",
@@ -1179,6 +2337,14 @@
       {
         "text": "Data",
         "url": "https://huggingface.co/datasets/little1d/NMRTrans-Data"
+      }
+    ],
+    "overlaps": [
+      {
+        "datasetId": "nmrexp",
+        "count": 58796,
+        "unit": "shared molecular structures",
+        "source": "https://arxiv.org/abs/2602.10158"
       }
     ]
   },
@@ -1190,7 +2356,7 @@
       "unit": "NMR records"
     },
     "kind": "Experimental NMR",
-    "origin": "Literature supporting information, 2010–2024: 3,372,987 experimental NMR records across six nuclei, including 1,667,135 ¹H and 1,455,670 ¹³C records. Counts are spectra, not unique molecules.",
+    "origin": "NMRexp_10to24_1, from literature SI published 2010–2024: 3,372,987 structure–spectrum records across six nuclei. Includes 1,667,135 ¹H spectra representing 1,417,781 distinct compounds and 1,455,670 ¹³C spectra. An NMR record is not necessarily a unique molecule.",
     "references": [
       {
         "text": "Study",
@@ -1200,7 +2366,20 @@
         "text": "Data",
         "url": "https://doi.org/10.5281/zenodo.17296666"
       }
-    ]
+    ],
+    "nuclei": {
+      "1H": 1667135,
+      "13C": 1455670,
+      "19F": 197186,
+      "31P": 33456,
+      "11B": 17143,
+      "29Si": 2397
+    },
+    "uniqueMoleculesWith1H": 1417781,
+    "sources": {
+      "paper": "https://doi.org/10.1038/s41597-025-06245-5",
+      "record": "https://doi.org/10.5281/zenodo.17296666"
+    }
   },
   {
     "id": "nmrexp-prism",
@@ -1729,7 +2908,7 @@
       "unit": "molecules"
     },
     "kind": "Experimental / predicted ¹H, ¹³C and HSQC NMR",
-    "origin": "173,422 training, 4,056 validation and 4,056 test molecules; 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H entries. Most simulated HSQC data used for training cannot be redistributed and are absent from the public dataset.",
+    "origin": "SPECTRE-DB: 173,422 training, 4,056 validation, 4,056 test molecules; available spectrum types comprise 117,806 HSQC, 111,521 ¹³C and 101,486 ¹H records. The 1D NP-MRD inputs are mostly predicted, while HSQC combines JEOL experimental and ACD/Labs-calculated data. ACD/Labs-calculated HSQC spectra are excluded from public download by redistribution restrictions.",
     "references": [
       {
         "text": "Study",
@@ -1739,7 +2918,17 @@
         "text": "Public data",
         "url": "https://drive.google.com/file/d/16eKPJz2hwsfnPIKweJyKrfi9cZiGVErD/view"
       }
-    ]
+    ],
+    "modalityCounts": {
+      "hsqc": 117806,
+      "13C": 111521,
+      "1H": 101486
+    },
+    "splits": {
+      "training": 173422,
+      "validation": 4056,
+      "test": 4056
+    }
   },
   {
     "id": "spectre-retrieval",
@@ -2027,14 +3216,14 @@
   },
   {
     "id": "nmrshiftdb2-dft-cstshift",
-    "name": "NMRShiftDB2-DFT · CSTShift",
+    "name": "NMRShiftDB2-DFT · CSTShift ¹³C",
     "derivedFrom": "nmrshiftdb2",
     "size": {
       "count": 26353,
-      "unit": "¹³C entries"
+      "unit": "¹³C molecule records"
     },
-    "kind": "Experimental ¹H/¹³C shifts + DFT geometry and shielding tensors",
-    "origin": "CSTShift archive lists 26,353 ¹³C and 11,983 ¹H entries; the two counts are separate and may overlap by molecule. DFT geometry optimization and GIAO tensors supplement experimental shift targets.",
+    "kind": "Experimental atom-assigned ¹³C and DFT shielding tensors",
+    "origin": "¹³C dataset: 21,064 training plus 5,289 test molecule records (26,353 total), paired with DFT-optimized geometries/GIAO shielding descriptors. The proton cohort is a separately counted dataset; carbon and proton sample totals may share molecules.",
     "references": [
       {
         "text": "Paper",
@@ -2060,6 +3249,511 @@
       {
         "text": "Repository",
         "url": "https://github.com/AI4DrugControl/PINS"
+      }
+    ]
+  },
+  {
+    "id": "nmrnet-geometric-pretraining",
+    "name": "NMRNet geometric pretraining",
+    "size": null,
+    "kind": "3D molecular / crystal structures",
+    "origin": "Self-supervised pretraining on public structural resources including AFLOW, Materials Project and the Cambridge Structural Database. No single consolidated molecule/crystal count is asserted.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s43588-025-00783-z"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/Colin-Jay/NMRNet"
+      }
+    ]
+  },
+  {
+    "id": "nmrnet-finetuning",
+    "name": "NMRNet supervised benchmark collections",
+    "size": null,
+    "kind": "Experimental and computed atom-assigned NMR shifts",
+    "origin": "Multiple distinct liquid-state and solid-state fine-tuning/evaluation sets, including nmrshiftdb2-2024, QM9NMR, ShiftML1 and NN-NMR. The sets should not be conflated into one uniform experimental corpus.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1038/s43588-025-00783-z"
+      },
+      {
+        "text": "Release",
+        "url": "https://doi.org/10.5281/zenodo.13317524"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-csp5-13c",
+    "name": "NMRexp · CSP5 unassigned ¹³C",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1200000,
+      "unit": "¹³C spectra",
+      "approximate": true
+    },
+    "kind": "Experimental unassigned ¹³C",
+    "origin": "Approximately 1.2 million experimental ¹³C spectra selected from NMRexp for solvent-specific optimal-assignment weak supervision; count is an approximate method-specific training/evaluation corpus, not atom-assigned observations.",
+    "references": [
+      {
+        "text": "Preprint",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Release",
+        "url": "https://zenodo.org/records/23668018"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-csp5-1h",
+    "name": "NMRexp · CSP5 unassigned ¹H",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 1400000,
+      "unit": "¹H spectra",
+      "approximate": true
+    },
+    "kind": "Experimental unassigned ¹H",
+    "origin": "Approximately 1.4 million experimental ¹H spectra selected from NMRexp for solvent-specific optimal-assignment weak supervision; not 1.4 million different molecules.",
+    "references": [
+      {
+        "text": "Preprint",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Release",
+        "url": "https://zenodo.org/records/23668018"
+      }
+    ]
+  },
+  {
+    "id": "exp22k-csp5",
+    "name": "Exp22K · CSP5 assigned ¹³C",
+    "size": {
+      "count": 22000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Experimental atom-assigned ¹³C",
+    "origin": "Exp22K assigned ¹³C shifts used for CSP5 pretraining and joint supervision. Count is the nominal dataset name, not an independently checked train-split size.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/Goodman-lab/CSP5"
+      }
+    ]
+  },
+  {
+    "id": "dft8k-csp5",
+    "name": "DFT8K · CSP5 assigned ¹H",
+    "size": {
+      "count": 8000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Computed atom-assigned ¹H",
+    "origin": "DFT8K molecular ¹H training targets used to warm-start the CSP5 ¹H prediction model; exact filtered sample and split sizes are not asserted.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://doi.org/10.26434/chemrxiv.15001823/v1"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/Goodman-lab/CSP5"
+      }
+    ]
+  },
+  {
+    "id": "nmrshiftdb2-dp5q",
+    "name": "NMRShiftDB2 · DP5q curated ¹³C",
+    "derivedFrom": "nmrshiftdb2",
+    "size": {
+      "count": 22349,
+      "unit": "NMR records"
+    },
+    "kind": "Experimental atom-assigned ¹³C / calculated model geometries",
+    "origin": "22,349 entries representing 22,248 distinct molecules after filtering rare elements, fragments and large DFT-reference discrepancies; ETKDG/MMFF geometries and DFT shielding estimates used in the study's data preparation. Records are not unique molecules.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D5SC06988B"
+      }
+    ]
+  },
+  {
+    "id": "nmrtrans-nmrexp-merged",
+    "name": "NMRTrans + NMRexp merged (bugfix variant)",
+    "size": null,
+    "kind": "Experimental ¹H/¹³C and formulas",
+    "origin": "Alternative NMRTrans checkpoint trained on a union of NMRTrans and NMRexp, with corrected peak masking and a 223-token SMILES vocabulary. Uses a revised train/validation/test split; the published result is evaluated on a cleaned 113,323-record held-out test subset. Neither this test-set count nor the sum of source corpus sizes establishes an exact deduplicated training count.",
+    "references": [
+      {
+        "text": "Model release",
+        "url": "https://huggingface.co/little1d/C-H-Formula"
+      },
+      {
+        "text": "Code",
+        "url": "https://github.com/little1d/NMRTrans/tree/bugfix"
+      },
+      {
+        "text": "Source NMRexp",
+        "url": "https://doi.org/10.1038/s41597-025-06245-5"
+      }
+    ]
+  },
+  {
+    "id": "mmst-zinc-4m",
+    "name": "MMST simulated ZINC corpus",
+    "size": {
+      "count": 4000000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C, HSQC, COSY, IR, MS",
+    "origin": "Approximately 4 million ZINC molecules with simulated multimodal spectra, used for MMST training. The reported 72% top-1 and 80% top-3 results are from an in-distribution held-out test, not experimental ¹H-only performance.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      },
+      {
+        "text": "Data, part 1",
+        "url": "https://doi.org/10.5281/zenodo.16076914"
+      },
+      {
+        "text": "Data, part 2",
+        "url": "https://doi.org/10.5281/zenodo.16257786"
+      },
+      {
+        "text": "Data, part 3",
+        "url": "https://doi.org/10.5281/zenodo.17284940"
+      }
+    ]
+  },
+  {
+    "id": "mmst-pubchem-1m5",
+    "name": "MMST PubChem expansion corpus",
+    "size": {
+      "count": 1500000,
+      "unit": "molecules",
+      "approximate": true
+    },
+    "kind": "Simulated multimodal spectra, PubChem",
+    "origin": "Approximately 1.5 million PubChem molecules released for broader chemical-space tests and improvement-cycle work. A separately reported evaluation selected three disjoint groups of 1,000 PubChem molecules; the entire 1.5M set is not asserted to have trained the base MMST.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      },
+      {
+        "text": "Archive",
+        "url": "https://doi.org/10.5281/zenodo.14712886"
+      }
+    ]
+  },
+  {
+    "id": "chemstruct-34",
+    "name": "ChemStructLLM experimental set",
+    "size": {
+      "count": 34,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C, HSQC and COSY",
+    "origin": "Structured spectroscopic observations and reference structures for 34 organic molecules released for workflow evaluation. This is not the training corpus of the reasoning LLM or MMST.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1039/D5DD00359H"
+      },
+      {
+        "text": "Data",
+        "url": "https://zenodo.org/records/21111281"
+      }
+    ]
+  },
+  {
+    "id": "ultranmr-pretrain-158m",
+    "name": "UltraNMR simulation pretraining",
+    "size": {
+      "count": 158000000,
+      "unit": "paired ¹H/¹³C spectra",
+      "approximate": true
+    },
+    "kind": "Simulated ¹H/¹³C spectra",
+    "origin": "Approximately 158 million paired simulated proton and carbon NMR spectra for foundation-model pretraining. This counts paired spectral examples, not deduplicated experimental molecules.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://arxiv.org/abs/2606.20756"
+      },
+      {
+        "text": "Implementation",
+        "url": "https://github.com/wuycM/UltraNMR"
+      }
+    ]
+  },
+  {
+    "id": "nmrgym-269999",
+    "name": "NMRGym scaffold-split benchmark",
+    "size": {
+      "count": 269999,
+      "unit": "unique molecules"
+    },
+    "kind": "Curated experimental ¹H/¹³C",
+    "origin": "269,999 distinct molecular structures with paired curated ¹H and ¹³C shifts, assembled from experimental sources. Bemis–Murcko scaffold split: 215,861 train, 27,084 validation and 27,054 test; paper's benchmark inputs are shift lists, not raw FIDs. The data card requests contacting its curator, although public Hub file listings currently show the three deduplicated pickle splits.",
+    "references": [
+      {
+        "text": "KDD 2026",
+        "url": "https://doi.org/10.1145/3770855.3817452"
+      },
+      {
+        "text": "Data card",
+        "url": "https://huggingface.co/datasets/meaw0415/NMRGym"
+      },
+      {
+        "text": "Project",
+        "url": "https://AIMS-Lab-HKUSTGZ.github.io/NMRGym/"
+      }
+    ],
+    "access": {
+      "curatorRequest": "https://huggingface.co/datasets/meaw0415/NMRGym/blob/main/README.md",
+      "visibleHubFiles": "https://huggingface.co/datasets/meaw0415/NMRGym/tree/main",
+      "assessment": "The curator asks prospective users to email for access, while the Hub currently lists three split pickle artifacts; verify access and provenance before operational use."
+    }
+  },
+  {
+    "id": "ultranmr-retrieval-94m",
+    "name": "UltraNMR molecular spectral-index library",
+    "size": {
+      "count": 94000000,
+      "unit": "unique molecules",
+      "approximate": true
+    },
+    "kind": "Simulated spectra and stored learned embeddings",
+    "origin": "Approximately 94 million unique molecular structures indexed by UltraNMR spectral embeddings for approximate structure-aware retrieval. Retrieval-library size is not additional pretraining data or experimental spectra.",
+    "references": [
+      {
+        "text": "Paper",
+        "url": "https://arxiv.org/abs/2606.20756"
+      },
+      {
+        "text": "Implementation",
+        "url": "https://github.com/wuycM/UltraNMR"
+      }
+    ]
+  },
+  {
+    "id": "nmrspec-nmrtrans-release-splits",
+    "name": "NMRTrans original checkpoint splits",
+    "derivedFrom": "nmrspec",
+    "size": null,
+    "kind": "Filtered experimental ¹H/¹³C and formula training records",
+    "origin": "The authors distribute train.pkl.lz4, val.pkl.lz4 and test.pkl.lz4 consumed by the original checkpoint models. Their README verifies 21,298 records in the original test split, but does not state the combined post-filter train/validation/test count; the 239,997-molecule NMRSpec extraction total must not be substituted as the training size. A separate third-party structured mirror reports 212,440 total records (169,863/21,279/21,298); equivalence to the official pickle cache was not independently checked.",
+    "references": [
+      {
+        "text": "Author data cache",
+        "url": "https://huggingface.co/datasets/little1d/NMRTrans-Data"
+      },
+      {
+        "text": "Author release notes",
+        "url": "https://github.com/little1d/NMRTrans/blob/main/README.md"
+      },
+      {
+        "text": "Third-party mirror (not verified identical)",
+        "url": "https://huggingface.co/datasets/SpectrumWorld/SA-MolNMR-SI-240K"
+      }
+    ]
+  },
+  {
+    "id": "nmrshiftdb2-dft-cstshift-h",
+    "name": "NMRShiftDB2-DFT · CSTShift ¹H",
+    "derivedFrom": "nmrshiftdb2",
+    "size": {
+      "count": 11983,
+      "unit": "¹H molecule records"
+    },
+    "kind": "Experimental atom-assigned ¹H and DFT shielding tensors",
+    "origin": "¹H dataset: 9,590 training plus 2,393 test molecule records (11,983 total), with DFT-optimized geometries and GIAO shielding tensors. The overlap with the ¹³C cohort must not be inferred from its row counts.",
+    "references": [
+      {
+        "text": "Study",
+        "url": "https://doi.org/10.1021/acs.jctc.4c00422"
+      },
+      {
+        "text": "Data",
+        "url": "https://yzhang.hpc.nyu.edu/IMA/Datasets/NMRShiftDB2_DFT.zip"
+      }
+    ]
+  },
+  {
+    "id": "mmst-experimental-34",
+    "name": "MMST measured multimodal evaluation",
+    "size": {
+      "count": 34,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C, HSQC, COSY, IR and MS",
+    "origin": "34 compounds with manually checked experimental multimodal spectra selected for the MMST study's simulation-to-experiment validation. The paper describes curation to exclude unclear assignments/artifacts. Their possible overlap with the separate ChemStructLLM 34-molecule set is not claimed.",
+    "references": [
+      {
+        "text": "MMST paper",
+        "url": "https://doi.org/10.1002/anie.202517611"
+      }
+    ]
+  },
+  {
+    "id": "sherlock-eval-45",
+    "name": "Sherlock 45-case validation",
+    "size": {
+      "count": 45,
+      "unit": "structure-elucidation test cases"
+    },
+    "kind": "Experimental 1D/2D NMR and reference structures",
+    "origin": "45 openly archived NMR structure-elucidation test cases. The default settings produced candidate lists containing the expected structure in 37/45 cases; after three parameter adjustments, 40/45 could be elucidated, while five were stopped after three hours. Experimental validation, not model training.",
+    "references": [
+      {
+        "text": "Study & dataset inventory",
+        "url": "https://doi.org/10.3390/molecules28031448"
+      },
+      {
+        "text": "Example spectrum archive",
+        "url": "https://doi.org/10.57992/NMRXIV.P10.S69"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-magnet-e01",
+    "name": "NMRexp · Magnet E01 training lineage",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 966100,
+      "unit": "final-epoch training examples",
+      "approximate": true
+    },
+    "kind": "Experimental ¹H",
+    "origin": "The deployed E01 weights first trained on a strict ¹H cohort (1,346,191 accepted ¹H spectra out of NMRexp's 1,667,135) with fixed early 100,000-molecule hash training selection, then continued on the full eligible 80% training partition. The final run emitted approximately 966,100 examples after filtering and ≈121,000 validation examples. These are final-epoch samples, not the unique molecules or cumulative exposure across all stages.",
+    "references": [
+      {
+        "text": "Checkpoint / training audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-magnet-e02",
+    "name": "NMRexp · Magnet E02 training lineage",
+    "derivedFrom": "nmrexp",
+    "size": {
+      "count": 414232,
+      "unit": "final-epoch training examples"
+    },
+    "kind": "Experimental paired ¹H+¹³C",
+    "origin": "E02 began from the full eligible paired-spectrum 80% NMRexp training partition, then continued on nested fixed 20% and 50% hash subsets. Final 50% continuation emitted 414,232 training and 104,056 validation examples after filtering; exact cumulative training exposure cannot be reconstructed from retained evidence. One ¹H and one ¹³C record per molecule are selected independently and need not share solvent or source document.",
+    "references": [
+      {
+        "text": "Checkpoint / training audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-magnet-g01",
+    "name": "NMRexp · Magnet G01 training lineage",
+    "derivedFrom": "nmrexp",
+    "size": null,
+    "kind": "Experimental unassigned ¹H/¹³C peak sets",
+    "origin": "G01 uses an epoch-8 checkpoint trained on the full eligible 80% NMRexp molecule partition, limiting graphs to 160 atoms including explicit hydrogens. Each ¹H target is an unassigned peak-group shift/integral set; each ¹³C target is an unassigned shift list. Hydrogen shifts use integral-weighted Sinkhorn matching, carbon shifts use symmetric set loss, and reported J/multiplicity supervision is matched via shifts. Predicted values are indexed by molecular atoms, but training does not establish atom-to-peak assignments or J-coupling partners. Earlier G01 training stages and exact final-epoch population are not fully established.",
+    "references": [
+      {
+        "text": "Checkpoint / training audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      },
+      {
+        "text": "G01 scientific data/objective contract",
+        "url": "https://github.com/numpde/magnet/blob/main/src/magnet/stairway/g_01_nmr_forward/README.md"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-nmrpeak-hf",
+    "name": "NMRPeak-G HF eligible training subset",
+    "derivedFrom": "nmrexp-nmrpeak",
+    "size": {
+      "count": 805224,
+      "unit": "training molecules"
+    },
+    "kind": "Experimental ¹H and molecular formula",
+    "origin": "The NMRPeak paper reports 805,224 eligible ¹H+formula training molecules after curation, out of the separately counted total NMRPeak NMRexp corpus. Counts describe the published recipe, not independently verified exact membership of the released HF checkpoint.",
+    "references": [
+      {
+        "text": "Paper and deployed-release audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      },
+      {
+        "text": "NMRPeak paper",
+        "url": "https://arxiv.org/abs/2602.08752"
+      }
+    ]
+  },
+  {
+    "id": "nmrexp-nmrpeak-chf",
+    "name": "NMRPeak-G CHF eligible training subset",
+    "derivedFrom": "nmrexp-nmrpeak",
+    "size": {
+      "count": 670668,
+      "unit": "training molecules"
+    },
+    "kind": "Experimental paired ¹H+¹³C and formula",
+    "origin": "The NMRPeak paper reports 670,668 eligible paired ¹H+¹³C+formula training molecules. The published recipe does not prove exact trained-molecule membership of the released CHF checkpoint.",
+    "references": [
+      {
+        "text": "Paper and deployed-release audit",
+        "url": "https://github.com/numpde/magnet/blob/main/notes/030_deployed_checkpoint_training_data_20261020.txt"
+      },
+      {
+        "text": "NMRPeak paper",
+        "url": "https://arxiv.org/abs/2602.08752"
+      }
+    ]
+  },
+  {
+    "id": "secs-inhouse-eval-34",
+    "name": "SECS in-house experimental evaluation",
+    "size": {
+      "count": 34,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H/¹³C NMR",
+    "origin": "Separate held-out evaluation set of 34 molecules with experimental proton and carbon spectra; not part of the 2,370-molecule experimental fine-tuning set. The authors use it to compare simulated, augmented and experimentally fine-tuned encoders.",
+    "references": [
+      {
+        "text": "Nature Communications 2026",
+        "url": "https://doi.org/10.1038/s41467-026-73846-y"
+      }
+    ]
+  },
+  {
+    "id": "secs-chemotion-eval-1486",
+    "name": "SECS Chemotion experimental evaluation",
+    "size": {
+      "count": 1486,
+      "unit": "molecules"
+    },
+    "kind": "Experimental ¹H NMR",
+    "origin": "Held-out published Chemotion examples; includes a 323-compound subset satisfying the paper's narrow formula and ≤15-heavy-atom search constraints. Evaluation, not model training. The reported top-1 is 10.3% on the full 1,486 and 27.9% on the constrained subset.",
+    "references": [
+      {
+        "text": "Nature Communications 2026",
+        "url": "https://doi.org/10.1038/s41467-026-73846-y"
       }
     ]
   }
@@ -2097,6 +3791,17 @@
       cell(row, method.method);
       cell(row, method.integrated ? "✓" : "");
       cell(row, method.year);
+      const authors = cell(row, method.authors ? method.authors.display : "—");
+      if (method.authors) {
+        authors.title = method.authors.works
+          ? method.authors.works.map(work =>
+              work.year + ": " + work.authors.join(", ")).join(" | ")
+          : method.authors.variants
+            ? method.authors.names.join(", ") + " | " +
+              method.authors.variants.map(version =>
+                version.label + ": " + version.names.join(", ")).join(" | ")
+            : method.authors.names.join(", ");
+      }
       const publications = document.createElement("td");
       links(publications, method.publications);
       row.append(publications);
@@ -2113,8 +3818,18 @@
       row.append(uses);
       for (const entries of [method.code, method.checkpoints]) {
         const td = document.createElement("td");
-        if (entries.length) links(td, entries);
-        else td.textContent = "—";
+        if (entries.length) {
+          links(td, entries);
+          for (const anchor of td.children) {
+            const entry = entries.find(value => value.text === anchor.textContent);
+            if (entry && entry.releaseVerification === "unverified") {
+              anchor.textContent += " (unverified)";
+              anchor.title = "Upstream README cites two conflicting Zenodo deposit IDs";
+            } else if (entry && entry.codeRef) {
+              anchor.title = "Requires code branch: " + entry.codeRef;
+            }
+          }
+        } else td.textContent = "—";
         row.append(td);
       }
       for (const field of ["size", "parameters"]) {
@@ -2136,13 +3851,19 @@
             if (fact.scope !== "checkpoint" && fact.scope !== "per checkpoint")
               value += " (" + fact.scope + ")";
           } else {
-            value = (fact.approximate ? "≈" : "") +
-              Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") + "M";
+            value = fact.approximate
+              ? "≈" + Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") + "M"
+              : fact.count.toLocaleString("en-US");
             if (fact.scope !== "model") value += " (" + fact.scope + ")";
           }
           td.append(document.createTextNode(entry.text + ": " + value));
         });
-        if (!available.length) td.textContent = "—";
+        if (!available.length && field === "parameters" && method.architectureFacts?.backboneParameters) {
+          const fact = method.architectureFacts.backboneParameters;
+          td.textContent = (fact.approximate ? "≈" : "") +
+            Number((fact.count / 1e6).toFixed(3)).toLocaleString("en-US") +
+            "M (" + fact.scope + "; complete model unknown)";
+        } else if (!available.length) td.textContent = "—";
         row.append(td);
       }
       document.getElementById("method-rows").append(row);
