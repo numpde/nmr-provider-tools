@@ -367,6 +367,32 @@ requests stop and waits for cleanup; an overdue cleanup flag does not abandon
 running science. Calls with live state ports still need an explicitly shared
 analysis and the lower-level interfaces below.
 
+For a provider-authored sequence whose observers can stop waiting, retain the
+whole coroutine with `provider_core.scientific_invocation.open_invocation`:
+
+```python
+from functools import partial
+from provider_core.scientific_invocation import open_invocation
+
+async def summarize(spectrum):
+    corrected = await baseline(scientific_input=spectrum)
+    return await peaks(scientific_input=corrected)
+
+# Keep this scope inside the contexts owning baseline and peak hosts.
+async with open_invocation(partial(summarize, spectrum)) as invocation:
+    report = await invocation.wait()
+```
+
+Cancelling or timing out `wait()` only interrupts that observer. Repeated waits
+observe the original sequence's value or failure; they never invoke it again.
+Leaving the scope, or calling `close()`, cancels unfinished work once and joins
+it before the enclosing hosts can retire. Repeated cancellation of the closer
+is deferred until settlement, preserving independent failures. The supplied
+coroutine must settle its resources on cancellation, as `ScientificCall` does.
+This owner neither retries the sequence nor provides durable recovery, delivery
+or API permissions. API services already retaining their execution task do not
+need a second invocation owner solely to call `ScientificCall`.
+
 Configure recovery in the deployment's execution section. Omit `error_policy`
 or set `max_attempts = 1` to raise after one attempt:
 
