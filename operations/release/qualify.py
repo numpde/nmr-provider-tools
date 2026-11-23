@@ -30,7 +30,7 @@ from tools.artifact_metadata import metadata_mismatch
 from build_bundle import build as build_wheelhouse_bundle
 from build_acquisition_bundle import build as build_acquisition_bundle
 from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
-from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE
+from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE, native_requirements
 from tools.wheelhouse import digest, requirements
 from type_requirements import require_type
 
@@ -872,9 +872,9 @@ def check(artifacts, revision):
         native_install_lock = artifacts / (artifact_prefix + "-native-install.lock")
 
         issued_native_requirements = requirements(native_install_lock)
-        expected_native_requirements = {
-            ("provider-core", release_version): {digest(captured_wheels[0])}
-        }
+        expected_native_requirements = native_requirements(
+            captured_wheels[0], pathlib.Path("/core-runtime.lock"), pathlib.Path("/wheelhouse"),
+        )
 
         if issued_native_requirements != expected_native_requirements:
             raise ValueError(

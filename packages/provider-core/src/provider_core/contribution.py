@@ -47,7 +47,7 @@ def require_binding_revision(binding_revision: object) -> None:
     """Require a plain or configuration-derived scientific binding revision."""
     require_type(binding_revision, str)
 
-    expected_revision_pattern = r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z"
+    expected_revision_pattern = r"(?:sha256:|configured-v[234]:sha256:)[0-9a-f]{64}\Z"
 
     if re.fullmatch(pattern=expected_revision_pattern, string=binding_revision) is None:
         raise ValueError(f"{reprlib.repr(binding_revision)=} should match {expected_revision_pattern=}")

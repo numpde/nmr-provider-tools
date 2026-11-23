@@ -2,7 +2,7 @@
 
 Pydantic owns annotation-to-schema translation. The SDK closes dataclass objects
 because its JSON codec rejects unknown fields, including in nested records.
-This optional API dependency is loaded only when schema export is requested.
+The same cached Pydantic adapter owns validation and serialization.
 """
 
 from provider_core.container_guard import require_container
@@ -16,13 +16,19 @@ from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
 from pydantic_core import core_schema
 
 
-class _ClosedDataclasses(GenerateJsonSchema):
+class _ClosedRecords(GenerateJsonSchema):
     def dataclass_schema(self, schema: core_schema.DataclassSchema) -> JsonSchemaValue:
         """Reflect the SDK codec's unknown-field rule without editing provider types."""
         dataclass_definition = super().dataclass_schema(schema=schema)
         dataclass_definition["additionalProperties"] = False
 
         return dataclass_definition
+
+    def typed_dict_schema(self, schema: core_schema.TypedDictSchema) -> JsonSchemaValue:
+        record_definition = super().typed_dict_schema(schema=schema)
+        record_definition["additionalProperties"] = False
+
+        return record_definition
 
 
 @cache
@@ -40,5 +46,5 @@ def dataclass_json_schema(*, value_type: type) -> dict:
     return _adapter(value_type=value_type).json_schema(
         by_alias=False,
         mode="validation",
-        schema_generator=_ClosedDataclasses,
+        schema_generator=_ClosedRecords,
     )

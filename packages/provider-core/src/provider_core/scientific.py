@@ -17,8 +17,7 @@ import json
 import pathlib
 from collections import Counter
 from collections.abc import Callable, Mapping
-from enum import Enum
-from dataclasses import InitVar, dataclass, field, fields, is_dataclass, replace
+from dataclasses import InitVar, dataclass, field, replace
 from threading import Lock
 from types import FunctionType, NoneType
 from typing import ClassVar, Protocol, get_args, get_origin, get_type_hints
@@ -328,40 +327,12 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
     return tuple(exported_methods)
 
 
-def _schema(*, annotation: object, seen: frozenset[type]) -> object:
-    """Describe portable operation values for the execution contract."""
-    origin = get_origin(tp=annotation)
+def _codec_schema(codec: PayloadCodec) -> object:
+    # Custom codecs own their representation through their declared format
+    if isinstance(codec, JsonDataclassCodec):
+        return codec.json_schema()
 
-    if origin is not None:
-        return {
-            "origin": f"{origin.__module__}.{origin.__qualname__}",  # machine-string: Execution contract schemas identify a type by its dotted Python import name
-            "arguments": [_schema(annotation=type_argument, seen=seen) for type_argument in get_args(tp=annotation)],
-        }
-
-    if annotation is Ellipsis:
-        return {"variadic": True}
-
-    if not isinstance(annotation, type):
-        return {"literal": annotation}
-
-    type_schema = {
-        "type": f"{annotation.__module__}.{annotation.__qualname__}",  # machine-string: Execution contract schemas retain the annotated type's dotted Python import name
-    }
-
-    if annotation in seen:
-        return type_schema
-
-    if is_dataclass(obj=annotation):
-        hints = get_type_hints(obj=annotation)
-
-        type_schema["fields"] = [
-            {"name": member.name, "type": _schema(annotation=hints[member.name], seen=seen | {annotation})}
-            for member in fields(class_or_instance=annotation)
-        ]
-    elif issubclass(annotation, Enum):
-        type_schema["values"] = [member.value for member in annotation]
-
-    return type_schema
+    return {"format": codec.format}
 
 
 def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
@@ -675,7 +646,7 @@ class HostedContribution:
 
         description = ImplementationDescription(
             binding_id="allocation:" + host + ":" + allocation_name.encode(encoding="utf-8").hex(),
-            binding_revision="configured-v3:sha256:" + "0" * 64,
+            binding_revision="configured-v4:sha256:" + "0" * 64,
             contract_version=1,
             configuration=None,
             assets=frozenset(),
@@ -695,14 +666,14 @@ class HostedContribution:
 
         implementation_schema["operation_schemas"] = [
             {
-                "input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
-                "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())
+                "input": _codec_schema(call.input_codec),
+                "result": _codec_schema(call.result_codec)
             }
             for call in calls
         ]
 
         encoded_contract = json.dumps(obj=implementation_schema, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode(encoding="ascii")
-        revision = "configured-v3:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
+        revision = "configured-v4:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
 
         object.__setattr__(self, "description", replace(description, binding_revision=revision))
 

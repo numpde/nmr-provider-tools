@@ -87,7 +87,7 @@ class NativeInstallationTests(unittest.TestCase):
 
         asyncio.run(run())
 
-    def test_native_imports_have_no_third_party_dependency_closure(self):
+    def test_native_imports_need_validation_but_no_api_dependencies(self):
         for name in ("httpx", "httpcore", "http_sf", "cryptography", "tomli_w"):
             self.assertIsNone(importlib.util.find_spec(name), name)
 
@@ -119,15 +119,11 @@ class NativeInstallationTests(unittest.TestCase):
         distribution = importlib.metadata.distribution("provider-core")
 
         self.assertTrue(distribution.requires)
-        self.assertTrue(all(('; extra == "api"' in requirement) for requirement in distribution.requires))
+        self.assertEqual({"pydantic==2.14.3"}, {requirement for requirement in distribution.requires if ";" not in requirement})
         installer = json.loads(pathlib.Path("/opt/provider-tools/installer/release.json").read_text())
 
         self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])
 
-        self.assertEqual(
-            {"provider-core", "pip"},
-            {installed_distribution.metadata["Name"] for installed_distribution in importlib.metadata.distributions()},
-        )
 
     def test_core_distribution_excludes_provider_examples(self):
         distribution_files = importlib.metadata.distribution("provider-core").files

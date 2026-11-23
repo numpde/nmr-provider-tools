@@ -13,24 +13,24 @@ require_container()
 import json
 import reprlib
 from collections.abc import Mapping
-from dataclasses import MISSING, dataclass, fields, is_dataclass
-from enum import Enum, auto
+from dataclasses import dataclass, fields, is_dataclass
+from enum import auto
 from functools import cache
-from types import NoneType, UnionType
 
 from typing import (
     Any,
-    Literal,
     Protocol,
-    Union,
-    get_args,
     get_origin,
     get_type_hints,
     runtime_checkable,
 )
 
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
+
+from provider_core._json_schema import _adapter, dataclass_json_schema
 from provider_core.contribution_errors import CallRejected, ErrorCode
-from provider_core.tools import duplicate_json_fields, require_finite_number
+from provider_core.tools import duplicate_json_fields
 from provider_core.type_requirements import require_instance, require_type
 
 
@@ -127,21 +127,6 @@ def _read_json(payload: bytes) -> object:
         ) from error
 
 
-def _path_field(parent_path: str, name: str) -> str:
-    return f"{parent_path}.{name}"  # machine-string: Recursive codec traversal appends field selectors to this location identifier
-
-
-def _path_index(parent_path: str, index: int) -> str:
-    return f"{parent_path}[{index}]"  # machine-string: Recursive codec traversal appends an array selector to this location identifier
-
-
-def _union_members(annotation: object) -> tuple[object, ...] | None:
-    if get_origin(annotation) in (UnionType, Union):
-        return get_args(annotation)
-
-    return None
-
-
 @cache
 def _resolved_hints(value_type: type[object]) -> dict[str, object]:
     return get_type_hints(value_type, include_extras=True)
@@ -169,548 +154,50 @@ def _dataclass_fields(value_type: type[object]):
     return (declared_fields, annotations)
 
 
-def _validate_annotation(
-    annotation: object,
-    *,
-    annotation_path: str,
-    seen: frozenset[type[object]],
-) -> None:
-    if annotation in (str, bool, int, float, NoneType):
-        return
-
-    if annotation is Any:
-        raise TypeError(f"{annotation_path = } may not use Any")
-
-    origin = get_origin(annotation)
-    arguments = get_args(annotation)
-
-    if origin is Literal:
-        if not (arguments):
-            raise TypeError(f"{annotation_path = } has an empty Literal")
-
-        return
-
-    if origin is tuple:
-        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
-            _validate_annotation(
-                arguments[0],
-                annotation_path=f"{annotation_path}[]",  # machine-string: Recursive annotation checks extend this identifier with a variadic tuple selector
-                seen=seen,
-            )
-
-            return
-
-        for (index, element_annotation) in enumerate(arguments):
-            _validate_annotation(
-                element_annotation,
-                annotation_path=f"{annotation_path}[{index}]",  # machine-string: Recursive annotation checks extend this identifier with a tuple member selector
-                seen=seen,
-            )
-
-        return
-
-    if origin is list:
-        if len(arguments) != 1:
-            raise TypeError(f"{annotation_path=}; {annotation=} should declare one list element type")
-
-        _validate_annotation(arguments[0], annotation_path=annotation_path, seen=seen)
-
-        return
-
-    if origin is dict:
-        if (len(arguments) != 2) or (arguments[0] is not str):
-            raise TypeError(f"{annotation_path=}; {annotation=} should be dict[str, T] for JSON object keys")
-
-        _validate_annotation(arguments[1], annotation_path=annotation_path, seen=seen)
-
-        return
-
-    members = _union_members(annotation)
-
-    if members is not None:
-        if (len(members) != 2) or (NoneType not in members):
-            raise TypeError(f"{annotation_path = } supports only T | None unions")
-
-        _validate_annotation(
-            next(member for member in members if member is not NoneType),
-            annotation_path=annotation_path,
-            seen=seen,
-        )
-
-        return
-
-    if isinstance(annotation, type) and issubclass(annotation, Enum):
-        return
-
-    if isinstance(annotation, type) and is_dataclass(annotation):
-        _validate_dataclass(annotation, seen=seen)
-
-        return
-
-    raise TypeError(f"{annotation_path = } uses unsupported portable {annotation = }")
-
-
-def _validate_dataclass(
-    value_type: type[object],
-    *,
-    seen: frozenset[type[object]],
-) -> None:
-    if value_type in seen:
-        return
-
-    (declared_fields, hints) = _dataclass_fields(value_type)
-    nested_seen = seen | {value_type}
-
-    for field in declared_fields:
-        _validate_annotation(
-            hints[field.name],
-            annotation_path=f"{value_type.__qualname__}.{field.name}",  # machine-string: Nested annotation checks carry this dotted dataclass member identifier
-            seen=nested_seen,
-        )
-
-
-def _decode_value(json_value: object, annotation: object, *, value_path: str) -> object:
-    if annotation is str:
-        require_type(
-            json_value,
-            str,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        return json_value
-
-    if annotation is bool:
-        require_type(
-            json_value,
-            bool,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        return json_value
-
-    if annotation is int:
-        require_type(
-            json_value,
-            int,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        return json_value
-
-    if annotation is float:
-        try:
-            require_finite_number(json_value)
-        except (TypeError, ValueError) as cause:
-            raise PayloadRejected(
-                f"{value_path=}; expected a finite number",
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ) from cause
-
-        return float(json_value)
-
-    if annotation is NoneType:
-        require_type(
-            json_value,
-            NoneType,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        return None
-
-    origin = get_origin(annotation)
-    arguments = get_args(annotation)
-
-    if origin is Literal:
-        if not (json_value in arguments):
-            raise PayloadRejected(
-                f"{value_path = } is not one of the declared literal values",
-                code=PayloadRejected.Code.INVALID_VALUE,
-            )
-
-        expected_types = [type(literal_value) for literal_value in arguments]
-
-        if not any((type(json_value) is expected_type) for expected_type in expected_types):
-            raise PayloadRejected(
-                f"{value_path=}; {type(json_value)=} ≠ {expected_types=}",
-                code=PayloadRejected.Code.INVALID_VALUE,
-            )
-
-        return json_value
-
-    if origin is list:
-        require_type(
-            json_value,
-            list,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        return [
-            _decode_value(element, arguments[0], value_path=_path_index(value_path, index))
-            for (index, element) in enumerate(json_value)
-        ]
-
-    if origin is dict:
-        require_type(
-            json_value,
-            dict,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        return {
-            key: _decode_value(element, arguments[1], value_path=_path_field(value_path, key))
-            for (key, element) in json_value.items()
-        }
-
-    if origin is tuple:
-        require_type(
-            json_value,
-            list,
-            error_factory=lambda diagnostic: PayloadRejected(
-                f"{value_path=}; " + diagnostic,
-                code=PayloadRejected.Code.INVALID_TYPE,
-            ),
-        )
-
-        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
-            # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
-            return tuple(
-                _decode_value(
-                    encoded_element,
-                    arguments[0],
-                    value_path=_path_index(value_path, index),
-                )
-                for (index, encoded_element) in enumerate(json_value)
-            )
-
-        if len(json_value) != len(arguments):
-            raise PayloadRejected(
-                f"{value_path = } must contain exactly {len(arguments) = } items",
-                code=PayloadRejected.Code.INVALID_LENGTH,
-            )
-
-        # repo-check: allow-tuple-generator -- A fixed tuple annotation requires an immutable positional result with the declared element types.
-        return tuple(
-            _decode_value(
-                encoded_element,
-                element_annotation,
-                value_path=_path_index(value_path, index),
-            )
-            for (index, (encoded_element, element_annotation)) in enumerate(
-                zip(json_value, arguments, strict=True)
-            )
-        )
-
-    members = _union_members(annotation)
-
-    if members is not None:
-        if json_value is None:
-            return None
-
-        member = next(member_annotation for member_annotation in members if member_annotation is not NoneType)
-
-        return _decode_value(json_value, member, value_path=value_path)
-
-    if isinstance(annotation, type) and issubclass(annotation, Enum):
-        try:
-            return annotation(json_value)
-        except (TypeError, ValueError) as error:
-            raise PayloadRejected(
-                f"{value_path = } is not a declared enum value",
-                code=PayloadRejected.Code.INVALID_VALUE,
-            ) from error
-
-    if isinstance(annotation, type) and is_dataclass(annotation):
-        return _decode_dataclass(json_value, annotation, value_path=value_path)
-
-    raise AssertionError(f"Unsupported {annotation = } reached decoding")
-
-
-def _decode_dataclass(json_value: object, value_type: type[T], *, value_path: str) -> T:
-    require_type(
-        json_value,
-        dict,
-        error_factory=lambda diagnostic: PayloadRejected(
-            f"{value_path=}; " + diagnostic,
-            code=PayloadRejected.Code.INVALID_TYPE,
-        ),
-    )
-
-    (declared_fields, annotations) = _dataclass_fields(value_type)
-    fields_by_name = {field.name: field for field in declared_fields}
-    unexpected_fields = set(json_value) - set(fields_by_name)
-
-    if unexpected_fields:
-        raise PayloadRejected(
-            f"{value_path = } contains unexpected {sorted(unexpected_fields) = }",
-            code=PayloadRejected.Code.UNEXPECTED_FIELD,
-        )
-
-    missing_fields = {
-        name
-        for (name, field) in fields_by_name.items()
-        if
-        (name not in json_value) and
-        (field.default is MISSING) and
-        (field.default_factory is MISSING)
-    }
-
-    if missing_fields:
-        raise PayloadRejected(
-            f"{value_path = } is missing required {sorted(missing_fields) = }",
-            code=PayloadRejected.Code.MISSING_FIELD,
-        )
-
-    decoded_arguments = {
-        name: _decode_value(
-            encoded_field_value,
-            annotations[name],
-            value_path=_path_field(value_path, name),
-        )
-        for (name, encoded_field_value) in json_value.items()
-    }
-
-    try:
-        return value_type(**decoded_arguments)
-    except CallRejected:
-        raise
-    except (TypeError, ValueError) as error:
-        raise PayloadRejected(
-            f"{value_path = } could not construct {value_type.__qualname__ = }",
-            code=PayloadRejected.Code.INVALID_VALUE,
-        ) from error
-
-
-def _encode_value(portable_value: object, annotation: object, *, value_path: str) -> object:
-    if annotation is str:
-        require_type(
-            portable_value,
-            str,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return portable_value
-
-    if annotation is bool:
-        require_type(
-            portable_value,
-            bool,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return portable_value
-
-    if annotation is int:
-        require_type(
-            portable_value,
-            int,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return portable_value
-
-    if annotation is float:
-        try:
-            require_finite_number(portable_value)
-        except (TypeError, ValueError) as cause:
-            raise TypeError(f"{value_path=}; expected a finite number") from cause
-
-        return float(portable_value)
-
-    if annotation is NoneType:
-        require_type(
-            portable_value,
-            NoneType,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return None
-
-    origin = get_origin(annotation)
-    arguments = get_args(annotation)
-
-    if origin is Literal:
-        if not (portable_value in arguments):
-            raise TypeError(f"{value_path = } is not one of the declared literal values")
-
-        expected_types = [type(literal_value) for literal_value in arguments]
-
-        if not any((type(portable_value) is expected_type) for expected_type in expected_types):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_types=}")
-
-        return portable_value
-
-    if origin is list:
-        require_type(
-            portable_value,
-            list,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return [
-            _encode_value(element, arguments[0], value_path=_path_index(value_path, index))
-            for (index, element) in enumerate(portable_value)
-        ]
-
-    if origin is dict:
-        require_type(
-            portable_value,
-            dict,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return {
-            _encode_value(key, str, value_path=value_path):
-            _encode_value(element, arguments[1], value_path=_path_field(value_path, key))
-            for (key, element) in portable_value.items()
-        }
-
-    if origin is tuple:
-        require_type(
-            portable_value,
-            tuple,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
-            return [
-                _encode_value(
-                    element_value,
-                    arguments[0],
-                    value_path=_path_index(value_path, index),
-                )
-                for (index, element_value) in enumerate(portable_value)
-            ]
-
-        if len(portable_value) != len(arguments):
-            raise TypeError(f"{value_path = } must contain exactly {len(arguments) = } items")
-
-        return [
-            _encode_value(
-                element_value,
-                element_annotation,
-                value_path=_path_index(value_path, index),
-            )
-            for (index, (element_value, element_annotation)) in enumerate(
-                zip(portable_value, arguments, strict=True)
-            )
-        ]
-
-    members = _union_members(annotation)
-
-    if members is not None:
-        if portable_value is None:
-            return None
-
-        member = next(member_annotation for member_annotation in members if member_annotation is not NoneType)
-
-        return _encode_value(portable_value, member, value_path=value_path)
-
-    if isinstance(annotation, type) and issubclass(annotation, Enum):
-        require_type(
-            portable_value,
-            annotation,
-            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-        )
-
-        return portable_value.value
-
-    if isinstance(annotation, type) and is_dataclass(annotation):
-        return _encode_dataclass(portable_value, annotation, value_path=value_path)
-
-    raise AssertionError(f"Unsupported {annotation = } reached encoding")
-
-
-def _encode_dataclass(
-    portable_dataclass: object,
-    value_type: type[object],
-    *,
-    value_path: str,
-) -> dict[str, object]:
-    require_type(
-        portable_dataclass,
-        value_type,
-        error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
-    )
-
-    (declared_fields, hints) = _dataclass_fields(value_type)
-
-    return {
-        field.name: _encode_value(
-            getattr(portable_dataclass, field.name),
-            hints[field.name],
-            value_path=_path_field(value_path, field.name),
-        )
-        for field in declared_fields
-    }
-
-
 @dataclass(frozen=True, slots=True, kw_only=True)
 class JsonDataclassCodec[T]:
-    """Strict JSON serialization for one provider-owned portable dataclass."""
+    """Use Pydantic's type semantics within the SDK's JSON transport contract.
+
+    Incoming JSON rejects duplicate keys and nonfinite numbers, and Pydantic
+    validates fields in strict mode with unknown record fields forbidden.
+    Serialization uses Pydantic's documented conversions and treats serializer
+    warnings as errors. Scientific validity remains the contribution's concern.
+    """
 
     format: str
     value_type: type[T]
 
     def __post_init__(self) -> None:
         _require_format(self.format)
-        _validate_dataclass(self.value_type, seen=frozenset())
+        require_instance(self.value_type, type)
+
+        if not is_dataclass(self.value_type):
+            raise TypeError(f"{self.value_type=} should be a dataclass type")
+
+        _adapter(value_type=self.value_type)
 
     def json_schema(self) -> dict:
-        """Describe this codec's input structure without replacing runtime admission.
-
-        Requires provider-core[api]; native scientific execution needs no schema
-        library. The document is independent of other exports and keeps local
-        definitions at its root so consumers can use it directly as parameters.
-        """
-
-        # Load optional schema dependencies only when export is requested.
-        from provider_core._json_schema import dataclass_json_schema
-
         return dataclass_json_schema(value_type=self.value_type)
 
     def decode(self, payload: bytes) -> T:
-        return _decode_dataclass(
-            _read_json(payload),
-            self.value_type,
-            value_path="$",
-        )
+        # Retain lexical JSON checks that are independent of the scientific type
+        document = _read_json(payload)
+
+        try:
+            encoded = json.dumps(document, allow_nan=False)
+            return _adapter(value_type=self.value_type).validate_json(encoded, strict=True, extra="forbid")
+        except (ValidationError, ValueError) as error:
+            raise PayloadRejected(str(error), code=PayloadRejected.Code.INVALID_VALUE) from error
 
     def encode(self, value: T) -> bytes:
-        encoded_fields = _encode_dataclass(
-            value,
-            self.value_type,
-            value_path="$",
-        )
+        require_type(value, self.value_type)
 
-        return (
-            json
-            .dumps(
-                encoded_fields,
-                ensure_ascii=True,
-                allow_nan=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            .encode("ascii")
-        )
+        try:
+            document = _adapter(value_type=self.value_type).dump_python(value, mode="json", warnings="error")
+        except PydanticSerializationError as error:
+            raise TypeError(str(error)) from error
+
+        return json.dumps(document, allow_nan=False, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -378,9 +378,11 @@ field-labeled errors or other domain validation.
 Providers using interpretation can expose an existing scientific method without
 writing a second input schema. Install `provider-core[api]`; scientific records
 can be ordinary dataclasses; `frozen=True` and `slots=True` are optional. The default
-JSON codec supports typed lists, string-keyed dictionaries, tuples, and nested
-dataclasses. It validates every element against its annotation; `Any`, `object`,
-and unparameterized lists or dictionaries are not supported.
+JSON codec delegates type interpretation, strict input validation, serialization,
+and schemas to the pinned Pydantic `TypeAdapter`. This includes unions, typed
+dictionaries, nested dataclasses, and JSON metadata. Input records reject unknown
+fields; JSON rejects duplicate keys and nonfinite numbers. Output follows
+Pydantic serialization rules, with serializer warnings treated as errors.
 
 ```python
 from provider_core.preparation_tool import PreparationTool
@@ -731,8 +733,8 @@ response and endpoint-fallback rules.
 Use the [GitHub releases](https://github.com/numpde/nmr-provider-tools/releases)
 on Python 3.12 or later. Each release supplies one wheel, its source distribution,
 two installation locks and qualification evidence. The full `install.lock` includes
-API dependencies; `native-install.lock` installs only that same SDK wheel for
-scientific workers. For ordinary dependency declarations, request
+API dependencies; `native-install.lock` installs that same SDK wheel and its
+Pydantic validation dependencies for scientific workers. For ordinary dependency declarations, request
 `provider-core[api]` when using API or delivery modules.
 
 Native lifecycle helpers and `provider_core.upload_file` use only the standard
