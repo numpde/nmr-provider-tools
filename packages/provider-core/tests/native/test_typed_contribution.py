@@ -46,7 +46,7 @@ class Candidate(TypedDict):
 
 class RankedCandidate(Candidate):
     vote_fraction: float
-    label: NotRequired[str]
+    compound_name: NotRequired[str]
 
 
 @dataclass

@@ -132,7 +132,13 @@ def native_requirements(wheel, runtime_lock, pool):
         scratch = pathlib.Path(temporary)
         constraints = scratch / "constraints.txt"
 
-        constraints.write_text("".join(f"{name}=={version}\n" for (name, version) in locked))
+        constraints.write_text(
+            "".join(
+                f"{name}=={version}\n"  # machine-string: pip constraints require distribution pins
+                for (name, version) in locked
+            )
+        )
+
         report = scratch / "report.json"
 
         subprocess.run(
@@ -160,11 +166,15 @@ def native_requirements(wheel, runtime_lock, pool):
 
         for distribution in pip_installation_report.install_records(read_json(report)):
             metadata = distribution["metadata"]
-            identity = parse_lock_line(f"{metadata['name']}=={metadata['version']}".encode())
+            distribution_pin = f"{metadata['name']}=={metadata['version']}"  # machine-string: pip requirement syntax supplies the distribution name and version
+            identity = parse_lock_line(distribution_pin.encode())
+
+            # silent-defaults: allow-contract -- The built SDK wheel supplies its own digest; dependency hashes come from the trusted runtime lock
             hashes = {digest(wheel)} if identity[0] == "provider-core" else locked[identity]
+
             selected_hash = pip_installation_report.archive_sha256(distribution)
 
-            if selected_hash not in hashes:
+            if not (selected_hash in hashes):
                 raise ValueError(f"{identity=}; {selected_hash=} should be in {hashes=}")
 
             selected[identity] = hashes
@@ -301,8 +311,11 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         native_lock.write_text(
             "".join(
                 (
-                    f"{name}=={version} \\\n"
-                    + " \\\n".join(f"    --hash=sha256:{checksum}" for checksum in sorted(hashes))
+                    f"{name}=={version} \\\n"  # machine-string: pip hash-lock requirement with a continued line
+                    + " \\\n".join(
+                        f"    --hash=sha256:{checksum}"  # machine-string: pip's allowed archive hash option
+                        for checksum in sorted(hashes)
+                    )
                     + "\n"
                 )
                 for ((name, version), hashes) in sorted(expected_native_requirements.items())

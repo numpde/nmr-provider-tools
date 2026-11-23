@@ -59,7 +59,7 @@ class SampleGroups:
 
 @dataclass
 class AliasedMeasurement:
-    value: int = Field(alias="wire_value")
+    sample_count: int = Field(alias="samples")
 
 
 class Spectra(Contribution):
@@ -74,14 +74,14 @@ class SchemaTests(unittest.TestCase):
 
     def test_schema_encoding_and_decoding_use_declared_field_names(self):
         codec = JsonDataclassCodec(format="measurement.v1", value_type=AliasedMeasurement)
-        measurement = AliasedMeasurement(value=7)
+        measurement = AliasedMeasurement(sample_count=7)
 
-        self.assertEqual(first={"value"}, second=set(codec.json_schema()["properties"]))
-        self.assertEqual(first=b'{"value":7}', second=codec.encode(measurement))
-        self.assertEqual(first=measurement, second=codec.decode(b'{"value":7}'))
+        self.assertEqual(first={"sample_count"}, second=set(codec.json_schema()["properties"]))
+        self.assertEqual(first=b'{"sample_count":7}', second=codec.encode(measurement))
+        self.assertEqual(first=measurement, second=codec.decode(b'{"sample_count":7}'))
 
         with self.assertRaises(expected_exception=PayloadRejected):
-            codec.decode(b'{"wire_value":7}')
+            codec.decode(b'{"samples":7}')
 
     def test_nested_dataclass_objects_are_closed(self):
         schema = self.codec.json_schema()
