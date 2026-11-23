@@ -93,6 +93,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 entered = Event()
                 release = Event()
                 stopping = asyncio.Event()
+                close_requests = []
                 calculate = getattr(science, held_stage)
 
                 def held(*args, **kwargs):
@@ -118,6 +119,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                             original_close = analysis.close
 
                             def close():
+                                close_requests.append(analysis)
                                 stopping.set()
 
                                 return original_close()
@@ -135,13 +137,31 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                                     async with asyncio.timeout(10):
                                         await stopping.wait()
 
+                                    closer.cancel("first interrupted shutdown wait")
+                                    second_closer = asyncio.create_task(invocation.close())
+
+                                    await asyncio.sleep(0)
+                                    closer.cancel("second interrupted shutdown wait")
+                                    await asyncio.sleep(0)
                                     self.assertFalse(closer.done())
+                                    self.assertFalse(second_closer.done())
+                                    self.assertEqual(1, len(close_requests))
                                 finally:
                                     release.set()
 
                                 async with asyncio.timeout(10):
-                                    await closer
+                                    with self.assertRaises(BaseExceptionGroup) as interrupted:
+                                        await closer
 
+                                    await second_closer
+
+                                self.assertEqual(
+                                    [("first interrupted shutdown wait",), ("second interrupted shutdown wait",)],
+                                    [cause.args for cause in interrupted.exception.exceptions],
+                                )
+
+                                self.assertTrue(all(isinstance(cause, asyncio.CancelledError) for cause in interrupted.exception.exceptions))
+                                self.assertEqual(1, len(close_requests))
                                 self.assertEqual(1, baseline.call_count)
                                 self.assertEqual(int(held_stage == "detect_peaks"), peaks.call_count)
 
