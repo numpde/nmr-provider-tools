@@ -1,0 +1,11 @@
+# provider-core 0.7.3
+
+`InterpreterSettings` captures endpoint keys and TLS material once, shares endpoint retry delays across jobs, and creates managed conversations. Snapshot owners supply their captured material reader. Each managed conversation settles its active tool dispatch and model I/O before returning or completing retirement, including repeated cancellation. Providers keep their prompts, scientific tool handlers, correction feedback and public outcome decisions. The low-level `Interpreter` remains available for deliberate early crash reporting with caller-owned task settlement.
+
+`ExecutionSettings.open_process_call()` now returns a cold `ProcessCall` owner. It owns initial startup and replacement, retires the old worker before replacement, checks binding compatibility and rechecks execution permission before retrying. `ErrorPolicy.total_seconds` bounds an invocation with one deadline; cleanup may continue beyond that deadline. Scientific retries require the operation's explicit `retryable_failures` declaration as well as caller policy. Lost outcomes are not replayed. The process payload ceiling is two mebibytes within an eight-mebibyte frame.
+
+`open_invocation()` retains one provider-authored sequence of scientific calls across interrupted observation and joins it before enclosing resources close. The spectrum example uses that owner for preparation and prediction without a provider task wrapper. The NMRPeak example uses managed interpreter settings and retires interpretation before its scientific execution scope closes.
+
+Consumers upgrading from 0.6.x must use the owning `provider_core.adapters.nmr.v1` and `provider_core.validation.upstream.nmr.v1` modules instead of removed compatibility import paths. Interpreter policy limits remain explicit. The native and API locks include their complete dependency closures; use the released wheelhouse tool to select target-compatible wheels rather than copying portable hash inventories into deployments.
+
+Qualification logs identify the exact tested release bytes. Repository quality findings remain recorded in `notes/092_repo_checks_status.html`; package qualification does not claim a deployed provider or a live scientific-model result.
