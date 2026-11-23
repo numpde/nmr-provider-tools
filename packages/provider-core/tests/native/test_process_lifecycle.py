@@ -158,7 +158,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=22, second=prediction.value)
         self.assertEqual(first=2, second=self.counts()["calculation_started"])
 
-    def configured_call(self, *, runner, scenario):
+    def configured_call(self, *, runner, scenario, error_policy=None):
         settings = ExecutionSettings(
             {
                 "backend": "process",
@@ -178,6 +178,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
                     "reject_encoded_result_over_bytes": 1024,
                 },
                 "resource_requirement": [],
+                "error_policy": {} if error_policy is None else error_policy,
             },
         )
 
@@ -199,6 +200,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 "unrelated_identity": (unrelated.st_dev, unrelated.st_ino),
             },
             method=WitnessedScience.calculate,
+            identity_method=WitnessedScience.runtime,
         )
 
     async def test_configured_call_owns_startup_and_retirement_after_caller_failure(self):
@@ -230,6 +232,159 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(member="Witnessed partial resource close failed", container=report)
         self.assertEqual(first=[], second=list(runner.scratch.iterdir()))
         self.assertFalse(expr=(self.root / "partial-resource").exists())
+
+    async def test_explicit_owner_closes_startup_before_a_callable_can_escape(self):
+        runner = self.make_runner()
+        calculate = self.configured_call(runner=runner, scenario="cancel-start")
+
+        self.assertIsNone(obj=calculate.host)
+
+        starting = asyncio.create_task(coro=calculate.start())
+
+        try:
+            await asyncio.to_thread(wait_for_event, self.root, "initialization_acquired")
+
+            closing = asyncio.create_task(coro=calculate.close())
+
+            await asyncio.sleep(0.05)
+
+            self.assertFalse(expr=closing.done())
+        finally:
+            (self.root / "release-initialization").touch()
+
+        with self.assertRaises(expected_exception=RuntimeError):
+            await starting
+
+        await closing
+        await calculate.close()
+
+        self.assert_native_retirement(calculate.host, runner, calculate.host.session)
+        self.assertEqual(first=0, second=self.counts()["calculation_started"])
+
+    async def test_repeated_close_does_not_forget_an_unconfirmed_scientific_retirement(self):
+        runner = self.make_runner()
+        calculate = self.configured_call(runner=runner, scenario="independent-failures")
+
+        with self.assertRaises(expected_exception=OSError):
+            await calculate.start()
+
+        for _ in range(2):
+            with self.assertRaises(expected_exception=BaseException) as raised:
+                await calculate.close()
+
+            report = "".join(traceback.format_exception(raised.exception))
+
+            self.assertIn(member="Witnessed partial resource close failed", container=report)
+
+        self.assertEqual(first=1, second=self.counts()["close_entered"])
+        self.assertEqual(first=[], second=list(runner.scratch.iterdir()))
+
+    async def test_configured_retry_retires_before_replacement_and_reuses_exact_input(self):
+        runner = self.make_runner()
+
+        async with self.configured_call(
+            runner=runner,
+            scenario="retry-once",
+            error_policy={"max_attempts": 2, "retry_scientific_failures": True, "total_seconds": 5},
+        ) as calculate:
+            original = calculate.host
+            identity = calculate.runtime_identity
+            number = Number(value=10)
+
+            async def mutate_caller_input(seconds):
+                object.__setattr__(number, "value", 99)
+
+            with patch(target="provider_core.scientific_call.sleep", side_effect=mutate_caller_input):
+                prediction = await calculate(scientific_input=number)
+
+            self.assertEqual(first=11, second=prediction.value)
+            self.assertNotEqual(first=original.process_id, second=calculate.host.process_id)
+            self.assertTrue(expr=original.retired)
+            self.assertTrue(expr=original.session.retirement.scratch_released)
+            self.assertFalse(expr=(runner.scratch / original.session.operation).exists())
+            self.assertEqual(first=identity, second=calculate.runtime_identity)
+
+        self.assertEqual(first=[], second=list(runner.scratch.iterdir()))
+
+        events = witness_events(self.root)
+        calculations = [event for event in events if event["event"] == "calculation_started"]
+        self.assertEqual(first=[10, 10], second=[event["value"] for event in calculations])
+        names = [event["event"] for event in events]
+        self.assertLess(a=names.index("closed"), b=names.index("constructed", names.index("constructed") + 1))
+        self.assertEqual(first=2, second=self.counts()["closed"])
+
+    async def test_changed_replacement_runtime_preserves_first_failure_without_redispatch(self):
+        runner = self.make_runner()
+
+        with self.assertRaises(expected_exception=ValueError) as raised:
+            async with self.configured_call(
+                runner=runner,
+                scenario="retry-changed-runtime",
+                error_policy={"max_attempts": 2, "retry_scientific_failures": True},
+            ) as calculate:
+                await calculate(scientific_input=Number(value=10))
+
+        self.assertIn(member="Replacement scientific runtime", container=str(raised.exception))
+        self.assertIn(member="Witnessed retryable calculation failure", container=str(raised.exception.__cause__))
+        self.assertEqual(first=1, second=self.counts()["calculation_started"])
+        self.assertEqual(first=2, second=self.counts()["closed"])
+        self.assertEqual(first=[], second=list(runner.scratch.iterdir()))
+
+    async def test_concurrent_call_waits_until_replacement_has_finished(self):
+        runner = self.make_runner()
+
+        async with self.configured_call(
+            runner=runner,
+            scenario="retry-retirement-gate",
+            error_policy={"max_attempts": 2, "retry_scientific_failures": True, "total_seconds": 5},
+        ) as calculate:
+            first = asyncio.create_task(coro=calculate(scientific_input=Number(value=10)))
+
+            try:
+                await asyncio.to_thread(wait_for_event, self.root, "close_entered")
+
+                second = asyncio.create_task(coro=calculate(scientific_input=Number(value=20)))
+
+                await asyncio.sleep(0.05)
+
+                self.assertFalse(expr=second.done())
+                self.assertEqual(first=1, second=self.counts()["calculation_started"])
+            finally:
+                (self.root / "release-retirement").touch()
+
+            results = await asyncio.gather(first, second)
+
+            self.assertEqual(first=[11, 22], second=[result.value for result in results])
+            self.assertEqual(first=results[0].process_id, second=results[1].process_id)
+
+    async def test_cancelled_recovery_joins_retirement_and_never_acquires_a_replacement(self):
+        runner = self.make_runner()
+
+        async with self.configured_call(
+            runner=runner,
+            scenario="retry-retirement-gate",
+            error_policy={"max_attempts": 2, "retry_scientific_failures": True},
+        ) as calculate:
+            invocation = asyncio.create_task(coro=calculate(scientific_input=Number(value=10)))
+
+            try:
+                await asyncio.to_thread(wait_for_event, self.root, "close_entered")
+                invocation.cancel()
+
+                await asyncio.sleep(0.05)
+
+                self.assertFalse(expr=invocation.done())
+            finally:
+                (self.root / "release-retirement").touch()
+
+            with self.assertRaises(expected_exception=asyncio.CancelledError) as raised:
+                await invocation
+
+            report = "".join(traceback.format_exception(raised.exception))
+
+            self.assertIn(member="Witnessed retryable calculation failure", container=report)
+            self.assertEqual(first=1, second=self.counts()["constructed"])
+            self.assert_native_retirement(calculate.host, runner, calculate.host.session)
 
     async def test_deferred_start_cannot_renew_the_native_setup_cap(self):
         (host, _, session) = self.make_host(startup_not_after=time.monotonic() - 1)

@@ -336,7 +336,24 @@ The runner table supplies `socket`, `lease_file`, `role`, `startup_seconds` and
 session, starts the model in the worker, and retires it on context exit, including
 after startup failure or cancellation. The factory is an importable callable
 accepting `startup=`; it executes only in the model process. This context requires
-`backend = "process"`.
+`backend = "process"`. Calls on this object serialize, including replacement:
+when an eligible scientific failure is retried, the SDK confirms retirement of
+the old worker before starting another with the same captured settings. Admission
+retries keep the existing worker. Interrupted replacement remains owned until
+context exit; failed replacement prevents further calls on that object.
+
+If actual model/runtime evidence must remain identical across replacement, pass
+`identity_method=Predictor.runtime_identity`, a no-input scientific operation
+returning stable evidence. The SDK captures it at startup and compares it before
+redispatch. `calculate.runtime_identity` returns a detached decoded copy of the
+first worker's evidence. Exclude transient facts such as process IDs from it.
+
+`open_process_call(...)` itself creates an unstarted owner and performs no I/O.
+Existing lifecycle protocols can retain that handle before awaiting
+`calculate.start()`, then await `calculate.close()` from their retirement method.
+Closing during startup prevents later dispatch and settles the original host;
+repeated closes keep reporting any unconfirmed retirement. The async context
+manager above is the convenience form of that same lifecycle.
 
 Examples with injected runner sessions or thread execution use
 `execution.open_contribution(contribution_type=..., constructor=..., startup=...,
@@ -403,11 +420,16 @@ backoff_initial_seconds = 0.1
 backoff_max_seconds = 1
 retry_admission_codes = ["capacity", "unavailable"]
 retry_scientific_failures = false
+total_seconds = 60
 ```
 
 `max_attempts` includes the initial attempt. Delays double up to the configured
 cap; the last failed attempt raises without another sleep. The SDK logs each
-retry. Allocation acquisition failures (`CapacityUnavailable`) use the
+retry. `total_seconds` is optional and covers waiting for the call's slot,
+all attempts, backoff and replacement. Expiration stops further dispatch; original
+work and cleanup still settle. Synchronous work cannot be interrupted mid-call,
+so the SDK checks the deadline again before its next dispatch.
+Allocation acquisition failures (`CapacityUnavailable`) use the
 `capacity` selection. A confirmed refusal raises
 `provider_core.scientific_call.AdmissionRejected`, whose `refusal` attribute
 retains the original `NotAdmitted` with its code and message.
@@ -424,8 +446,8 @@ declared retries after successful analysis cleanup, using the same encoded input
 snapshot. It does not retry scientific input rejections, model initialization
 failures, result encoding/decoding errors, uncertain transport failures,
 cancellation, or cleanup failures. The SDK preserves the last original failure
-and groups independent call/cleanup failures; it never converts them into a
-successful result. Bounded attempts do not impose a hard deadline on cleanup.
+with prior retry failures attached as causes, and groups independent call/cleanup
+failures; it never converts them into a successful result. Bounded attempts do not impose a hard deadline on cleanup.
 
 Managed calls open analyses with `retain_results=False`. Closure then discards
 all results, including a result produced after cancellation or a lost admission

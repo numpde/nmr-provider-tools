@@ -83,6 +83,11 @@ class Calculation:
     process_id: int
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RuntimeIdentity:
+    model: str
+
+
 class WitnessedScience(Contribution):
     def __init__(self, *, startup):
         super().__init__()
@@ -147,10 +152,21 @@ class WitnessedScience(Contribution):
             )
 
     @operation()
+    def runtime(self) -> RuntimeIdentity:
+        changed = (self.scenario == "retry-changed-runtime") and (self.root / "first-failure").exists()
+
+        return RuntimeIdentity(model="changed" if changed else "initial")
+
+    @operation(retryable_failures=(OSError,))
     def calculate(self, *, number: Number) -> Calculation:
         self.calls += 1
 
-        record_event(self.root, "calculation_started", calls=self.calls)
+        record_event(self.root, "calculation_started", calls=self.calls, value=number.value)
+
+        if self.scenario.startswith("retry-") and not (self.root / "first-failure").exists():
+            (self.root / "first-failure").touch()
+
+            raise OSError("Witnessed retryable calculation failure")
 
         if self.scenario == "active-kill":
             # No timer may finish science between its active witness and the
@@ -166,6 +182,9 @@ class WitnessedScience(Contribution):
 
     def close(self) -> None:
         record_event(self.root, "close_entered")
+
+        if (self.scenario == "retry-retirement-gate") and not (self.root / "release-retirement").exists():
+            wait_for_release(self.root / "release-retirement")
 
         if self.resource is not None:
             self.resource.close()

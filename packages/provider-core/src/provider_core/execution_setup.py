@@ -20,6 +20,7 @@ from types import MappingProxyType
 from provider_core.contribution import ResourceRequirement
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import AdmissionCode, OperationPolicy
+from provider_core.process_call import ProcessCall
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
 from provider_core.scientific import Contribution, HostedContribution
@@ -140,8 +141,7 @@ class ExecutionSettings:
 
             yield (execution_host, contribution)
 
-    @asynccontextmanager
-    async def open_process_call(
+    def open_process_call(
         self,
         *,
         runner: Mapping,
@@ -149,34 +149,28 @@ class ExecutionSettings:
         constructor: Callable,
         startup: Mapping,
         method: Callable,
-    ) -> AsyncIterator[ScientificCall]:
-        """Own the runner, model and callable until all work and retirement settle.
+        identity_method: Callable | None = None,
+    ) -> ProcessCall:
+        """Own a scientific call and any workers needed for its permitted retries.
 
-        The factory runs in the scientific process. Errors during setup or in
-        the caller's context still retire the host and close its runner session.
+        Calls serialize across worker replacement. Eligible scientific failures
+        retire the old worker before acquiring another from the same settings;
+        admission retries keep the current worker. An optional no-input method
+        reports stable runtime evidence, which must match on every replacement.
+        Startup and cleanup remain owned when a caller times out or cancels.
         """
-
         if not (self.backend == "process"):
             raise ValueError(f"{self.backend=} should be 'process' to open a runner-backed scientific call")
 
-        session = RunnerSession.from_config(runner)
-
-        try:
-            host = self.create_host(process_session=session)
-        except BaseException:
-            session.close()
-
-            raise
-
-        async with host:
-            contribution = await self.start_contribution(
-                host=host,
-                contribution_type=contribution_type,
-                constructor=constructor,
-                startup=startup,
-            )
-
-            yield self.bind_call(host=host, contribution=contribution, method=method)
+        return ProcessCall(
+            settings=self,
+            runner=runner,
+            contribution_type=contribution_type,
+            constructor=constructor,
+            startup=startup,
+            method=method,
+            identity_method=identity_method,
+        )
 
     def require_sessions(self, *, process_sessions: Mapping | None, expected_keys: Collection) -> None:
         """Check a provider's inventory before any host takes session custody.
