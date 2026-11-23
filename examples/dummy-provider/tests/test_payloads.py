@@ -53,5 +53,5 @@ class ArrayPayloadTests(unittest.TestCase):
         scientific_input = science.PreparationInput(samples=np.array(object=[1.0], dtype=float))
         scientific_input.samples[0] = float("nan")
 
-        with self.assertRaises(expected_exception=TypeError):
+        with self.assertRaises(expected_exception=ValueError):
             codec.encode(value=scientific_input)

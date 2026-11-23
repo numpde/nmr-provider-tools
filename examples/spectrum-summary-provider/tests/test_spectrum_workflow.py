@@ -432,6 +432,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("spectrum_provider.science.subtract_baseline", wraps=science.subtract_baseline) as calculate,
             patch("spectrum_provider.provider.BaselineCorrector", BrokenBaseline),
+            patch("spectrum_provider.process_factory.BaselineCorrector", BrokenBaseline),
         ):
             (workflow, _, _) = await self.workflow(result_bytes=8192)
 
