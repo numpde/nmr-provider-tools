@@ -27,7 +27,7 @@ from wheelhouse_tool import __main__ as tool
 from wheelhouse_tool.stream import stream_context
 from wheelhouse_tool.report import manifest as report_manifest
 from wheelhouse_tool.identity import selection_identity
-from wheelhouse_tool.locate import locate, main as locate_main
+from wheelhouse_tool.locate import locate, main as locate_main, read_requirements
 from wheelhouse_tool.network import RequestFailure, retry, retry_delay
 
 
@@ -1255,3 +1255,91 @@ class WheelhouseTests(unittest.TestCase):
                 tool.run("acquire", self.lock, self.pool)
 
         self.assertEqual([".wheelhouse-acquire.lock"], [pool_entry_path.name for pool_entry_path in self.pool.iterdir()])
+
+
+class TargetRequirementsTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+
+        self.addCleanup(temporary.cleanup)
+        self.directory = pathlib.Path(temporary.name)
+        self.lock = self.directory / "pylock.toml"
+        self.compatible_hash = "a" * 64
+        self.incompatible_hash = "b" * 64
+        self.compatible_url = "https://example.invalid/example-1.0-py3-none-any.whl"
+
+        self.lock.write_text(
+            f'lock-version = "1.0"\n'
+            f'created-by = "test"\n'
+            f'[[packages]]\n'
+            f'name = "example"\n'
+            f'version = "1.0"\n'
+            f'[[packages.wheels]]\n'
+            f'url = "{self.compatible_url}"\n'
+            f'hashes = {{ sha256 = "{self.compatible_hash}" }}\n'
+            f'[[packages.wheels]]\n'
+            f'url = "https://example.invalid/example-1.0-cp39-cp39-win_amd64.whl"\n'
+            f'hashes = {{ sha256 = "{self.incompatible_hash}" }}\n'
+        )
+
+    def invoke(self, *arguments):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with (
+            patch.object(sys, "argv", ["wheelhouse-tool", "requirements", "--lock", str(self.lock), *arguments]),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            status = tool.main()
+
+        return (status, stdout.getvalue(), stderr.getvalue())
+
+    def test_output_pins_one_compatible_wheel_and_hash(self):
+        (status, generated, diagnostics) = self.invoke()
+
+        self.assertEqual(0, status)
+        self.assertEqual("", diagnostics)
+        self.assertNotIn(self.incompatible_hash, generated)
+        self.assertEqual(1, generated.count("--hash=sha256:"))
+
+        output = self.directory / "requirements.txt"
+
+        output.write_text(generated)
+        (records, _, _) = read_requirements(output)
+        (requirement, hashes) = records[0]
+
+        self.assertEqual(1, len(records))
+        self.assertEqual(self.compatible_url, requirement.url)
+        self.assertEqual({self.compatible_hash}, hashes)
+
+    def test_changed_source_lock_cannot_authorize_a_projection(self):
+        source = self.directory / "source.lock"
+
+        original = (
+            f"example==1.0 \\\n"
+            f"    --hash=sha256:{self.compatible_hash}\n"
+        )
+
+        original_digest = hashlib.sha256(original.encode()).hexdigest()
+
+        self.lock.write_text(
+            self.lock.read_text()
+            + '[tool.nmr-provider-tools]\n'
+            + f'source-lock-sha256 = "{original_digest}"\n'
+        )
+
+        source.write_text(original.replace(self.compatible_hash, self.incompatible_hash))
+        (status, generated, diagnostics) = self.invoke("--source-lock", str(source))
+
+        self.assertEqual(1, status)
+        self.assertEqual("", generated)
+        self.assertIn("source_lock_sha256", diagnostics)
+
+    def test_incompatible_lock_has_no_output(self):
+        self.lock.write_text(self.lock.read_text().replace("py3-none-any", "cp39-cp39-win32"))
+        (status, generated, diagnostics) = self.invoke()
+
+        self.assertEqual(1, status)
+        self.assertEqual("", generated)
+        self.assertTrue(diagnostics)

@@ -410,10 +410,28 @@ def local_lock(lock, local_root, prefer_sdist=(), require_sdist=(), document=Non
     )
 
 
+
+def requirements_text(artifacts):
+    """Pin only the artifacts already selected for the running interpreter.
+
+    Direct URLs preserve the selected wheel, including its Python and platform
+    tags. Each digest comes from the admitted lock; this does not resolve or
+    download dependencies and does not approve any additional archive.
+    """
+
+    return "".join(
+        (
+            f"{package.name} @ {url} \\\n"
+            f"    --hash=sha256:{digest}\n"  # machine-string: pip consumes the direct requirement and verifies this exact selected archive
+        )
+        for (_filename, digest, url, package, _artifact) in artifacts
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("action", choices=("acquire", "check", "select"))
+    parser.add_argument("action", choices=("acquire", "check", "select", "requirements"))
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--pool", type=Path)
     parser.add_argument("--source-lock", type=Path, help="Original requirements lock for a metadata projection.")
@@ -441,7 +459,7 @@ def main():
         dependency_lock = read_lock(args.lock)
         artifacts = selected(args.lock, prefer_sdist, require_sdist, dependency_lock, args.source_lock)
 
-        if args.action == "select":
+        if args.action in {"select", "requirements"}:
             artifact_report = {
                 "artifacts": [
                     {"package": str(package.name), "filename": name, "sha256": digest}
@@ -470,7 +488,10 @@ def main():
 
         return 1
 
-    print(json.dumps(artifact_report, sort_keys=True))
+    if args.action == "requirements":
+        print(requirements_text(artifacts), end="")
+    else:
+        print(json.dumps(artifact_report, sort_keys=True))
 
     return 0
 

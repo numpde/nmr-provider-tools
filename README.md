@@ -157,6 +157,21 @@ entry point installed in the image and the runtime check used during its build.
 `packages/wheelhouse-tool/` owns the wheelhouse CLI, its image and bundle
 builders, and its operator launchers. Its Python import name is `wheelhouse_tool`.
 
+For a deployment lock, run the released bundle inside the target Python image:
+
+```sh
+python wheelhouse-tool.pyz locate --lock release-install.lock --index-url https://pypi.org/simple > pylock.target.toml
+python wheelhouse-tool.pyz requirements --lock pylock.target.toml --source-lock release-install.lock > requirements.txt
+```
+
+`locate` reads the package index metadata under the release lock's existing
+hashes; `requirements` performs the target selection offline. The output pins
+one exact wheel URL and hash per package, so another Python version or platform
+requires regeneration. Keep the portable release lock as the authority, rather
+than copying its cross-platform hash inventory into every deployment. For the
+SDK wheel, supply `locate --source <release-wheel-URL>#sha256=<release-wheel-hash>`;
+the selector checks it against the SDK pin in the release lock.
+
 `packages/provider-core/sdk_build/` acquires SDK dependencies, builds distributions
 and runs tests against the installed SDK. `operations/release/` qualifies the
 resulting release artifacts and publishes them to GitHub.
