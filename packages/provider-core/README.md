@@ -1207,3 +1207,28 @@ Pass `report_condition.require_execution` to `ScientificCall(require_execution=.
 from an API session. The SDK checks it before each attempt, including after retry
 backoff; refusal propagates without another retry. The session continues to own
 cancellation and cleanup of the original scientific call.
+
+### Configured interpretation
+
+`InterpreterSettings.from_config(configuration, read_material=...)` captures an
+ordered `endpoints` list, shared `transport` settings and explicit Interpreter
+`policy` settings. Endpoint entries supply `configuration_id`, `url`, `model`,
+`key_file`, optional `ca_file` and optional `reasoning_effort`. The default reader
+uses bounded startup files; a snapshot owner passes a reader over its captured
+bytes. Model visits never reopen those paths. Transport supports the existing
+ChatEndpointFactory limits, including a fixed Unix proxy socket.
+
+Keep one settings object across jobs so endpoint retry delays are shared. Call
+`settings.new_interpreter()` for each Attempt. Its `run()` owns the conversation
+through tool and model cleanup, including cancellation; `retire()` can stop it
+externally and joins that same work. Enclose it inside resources used by tool
+handlers, which must settle their own scientific operations on cancellation.
+Accepted values remain available as `accepted_result` if later cleanup fails.
+The lower-level `Interpreter` remains for callers that deliberately report a
+scientific crash before model cleanup and own run-task joining themselves.
+
+Providers retain prompts, tool schemas, scientific rejection feedback, source
+selection and public outcome mapping. Scripted examples can construct settings
+from endpoint factories plus explicit policy instead of HTTP configuration.
+`services` exposes shared retry availability; these state-only services need no
+shutdown call. `diagnostic_secrets` is solely for diagnostic redaction.

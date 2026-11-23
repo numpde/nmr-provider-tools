@@ -11,7 +11,6 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 
 # Bind deployment options now; construct a fresh Interpreter for each request.
-from functools import partial
 
 import pathlib
 import tomllib
@@ -21,6 +20,7 @@ from provider_core.execution_setup import ExecutionSettings
 from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, require_capacity_partition, settle_cleanup
+from provider_core.interpreter_settings import InterpreterSettings
 from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
@@ -94,12 +94,12 @@ class Offering:
             with failure_collector.capture():
                 await prediction_workflow.settle_receiver()
 
+        with failure_collector.capture():
+            await input_interpreter.retire()
+
         if analysis_executor is not None:
             with failure_collector.capture():
                 await settle_cleanup(control=analysis_executor.close())
-
-        with failure_collector.capture():
-            await input_interpreter.retire()
 
         failure_collector.raise_if_any()
 
@@ -211,11 +211,10 @@ async def open_offerings(
                 # A timeout retains the original thread until host cleanup.
                 await execution_host.initialize(allocation=offering.allocation)
 
-        create_interpreter = partial(
-            Interpreter,
-            endpoint_factories=endpoint_factories,
+        interpreter_settings = InterpreterSettings(
+            endpoint_factories,
             secrets=secrets,
-            **provider_config["interpreter"],
+            policy=provider_config["interpreter"],
         )
 
         yield frozenset(
@@ -223,7 +222,7 @@ async def open_offerings(
                 execution_host=execution_host,
                 operation_policy=execution_settings.operation_policy,
                 hosted_predictor=hosted_predictor,
-                create_interpreter=create_interpreter,
+                create_interpreter=interpreter_settings.new_interpreter,
                 family=family,
                 interpretation_prompt_file=interpretation_prompt_file,
                 preparation_call=preparation_call,
