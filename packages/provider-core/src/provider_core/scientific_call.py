@@ -50,7 +50,8 @@ class ErrorPolicy:
     """One attempt raises; additional attempts retry only selected failures.
 
     Backoff doubles up to its cap. Scientific retries explicitly authorize
-    repeating a failed calculation after its analysis has closed successfully.
+    repeating a declared retryable calculation after its analysis has closed
+    successfully. The operation declaration selects exact eligible failures.
     Transport uncertainty, invalid input, decoding errors, cancellation and
     cleanup failures never authorize another calculation.
     """
@@ -181,7 +182,7 @@ class ScientificCall[InputT, OutputT]:
                         self.error_policy.retry_scientific_failures and
                         (observation.outcome is Outcome.FAILED) and
                         observation.failures and
-                        all((failure.phase == "calculation") for failure in observation.failures)
+                        all(((failure.phase == "calculation") and failure.retryable) for failure in observation.failures)
                     ):
                         retry_failure = error
 

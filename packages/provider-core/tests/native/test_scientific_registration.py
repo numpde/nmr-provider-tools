@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from threading import Barrier, Event, current_thread
 import unittest
+from unittest.mock import patch
 
 from provider_core.embedded_host import Allocation, InProcessExecutionHost
 from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, OperationPolicy, NotAdmitted, Outcome, RequestConflict, StartDeadlineExpired, DispatchState, Invocation, observe_cleanup, observe_completion
@@ -124,6 +125,18 @@ async def run_sum(*, host, hosted, operation_id):
 
 
 class AdoptionTests(unittest.IsolatedAsyncioTestCase):
+    def test_retry_eligibility_changes_the_exported_execution_revision(self):
+        def declared():
+            return HostedContribution(
+                contribution=None, contribution_type=Sum, host="fixture", allocation_name="sum",
+                requirements=frozenset(),
+            ).description.binding_revision
+
+        original = declared()
+        declaration = Sum.calculate.__scientific_operation__
+        with patch.object(target=Sum.calculate, attribute="__scientific_operation__", new=replace(declaration, retryable_failures=(OSError,))):
+            self.assertNotEqual(first=original, second=declared())
+
     async def test_host_constructor_validates_its_explicit_policy_arguments(self):
         options = {
             "input_bytes": 8192,

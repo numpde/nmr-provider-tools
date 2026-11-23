@@ -412,9 +412,15 @@ retry. Allocation acquisition failures (`CapacityUnavailable`) use the
 `provider_core.scientific_call.AdmissionRejected`, whose `refusal` attribute
 retains the original `NotAdmitted` with its code and message.
 
-Set `retry_scientific_failures = true` only when repeating a failed calculation
-is acceptable for that contribution. This authorizes retry of a completed failed
-calculation, after successful analysis cleanup, using the same encoded input
+Declare eligible failures on the scientific method with
+`@operation(retryable_failures=(ModelCallFailed,))`. Only those exact exception
+types qualify; subclasses and undeclared failures do not. The declaration means
+that repeating the entire call is acceptable, including any work completed
+before the exception. A partially successful batch must not declare its whole
+failure retryable if that would replay successful entries.
+
+Set `retry_scientific_failures = true` in deployment policy to permit these
+declared retries after successful analysis cleanup, using the same encoded input
 snapshot. It does not retry scientific input rejections, model initialization
 failures, result encoding/decoding errors, uncertain transport failures,
 cancellation, or cleanup failures. The SDK preserves the last original failure

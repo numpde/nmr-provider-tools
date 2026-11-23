@@ -206,6 +206,7 @@ class _Declaration:
     progress: bool
     input_codec: PayloadCodec | None
     result_codec: PayloadCodec | None
+    retryable_failures: tuple[type[Exception], ...]
 
 
 # silent-defaults: allow-contract -- Unspecified capabilities declare no state, progress or interruption; omitted codecs derive from annotations and resources come from adoption.
@@ -219,6 +220,7 @@ def operation(
     progress: bool = False,
     input_codec: PayloadCodec | None = None,
     result_codec: PayloadCodec | None = None,
+    retryable_failures: tuple[type[Exception], ...] = (),
 ) -> Callable:
     """Export an ordinary method without wrapping or changing direct calls.
 
@@ -226,6 +228,9 @@ def operation(
     optional analysis session and control; explicit state ports name live inputs.
     Omitted resources use the contribution's common call requirements. Explicit
     empty resources mean that this operation has no call resource requirements.
+    retryable_failures names exact exception types for which repeating the entire
+    calculation is scientifically permitted. Subclasses and undeclared failures
+    do not qualify; deployment policy still decides whether to retry.
     """
 
     declaration = _Declaration(
@@ -237,6 +242,7 @@ def operation(
         progress=progress,
         input_codec=input_codec,
         result_codec=result_codec,
+        retryable_failures=retryable_failures,
     )
 
     def decorate(function: Callable) -> Callable:
@@ -544,6 +550,7 @@ def _compile_method(
         scientific_call=callback,
         result_codec=result_codec,
         _output_slots=declaration.state_outputs,
+        retryable_failures=declaration.retryable_failures,
     )
 
 
@@ -667,7 +674,11 @@ class HostedContribution:
         implementation_schema["operation_schemas"] = [
             {
                 "input": _codec_schema(call.input_codec),
-                "result": _codec_schema(call.result_codec)
+                "result": _codec_schema(call.result_codec),
+                "retryable_failures": [
+                    f"{failure_type.__module__}.{failure_type.__qualname__}"  # machine-string: The execution contract identifies retryable exception classes by dotted Python name
+                    for failure_type in call.retryable_failures
+                ],
             }
             for call in calls
         ]

@@ -419,6 +419,10 @@ class Failure:
 
     phase: str
     cause: BaseException = field(repr=False)
+    retryable: bool = False
+
+    def __post_init__(self) -> None:
+        require_type(self.retryable, bool)
 
 
 @dataclass(frozen=True, slots=True)

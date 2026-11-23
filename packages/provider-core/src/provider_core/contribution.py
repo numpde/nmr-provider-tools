@@ -24,7 +24,7 @@ from typing import Any, Protocol, get_args, get_origin, get_type_hints, runtime_
 
 from provider_core.contribution_errors import ScientificRejection as ScientificRejection
 from provider_core.tools import require_identity_text
-from provider_core.type_requirements import require_instance, require_type
+from provider_core.type_requirements import require_instance, require_subclass, require_type
 
 from provider_core.payload import (
     DataclassStateBinding,
@@ -762,9 +762,15 @@ class CallBinding[InputT, StateT, OutputT]:
     _shape: _ScientificCallShape = field(init=False, repr=False, compare=False)
     _owner: _CallOwner | None = field(default=None, init=False, repr=False, compare=False)
     _output_slots: tuple[StateOutputBinding[Any], ...] = field(default=(), repr=False)
+    retryable_failures: tuple[type[Exception], ...] = field(default=(), repr=False)
 
     def __post_init__(self) -> None:
         require_type(self.description, CallDescription)
+
+        require_type(self.retryable_failures, tuple)
+
+        for failure_type in self.retryable_failures:
+            require_subclass(failure_type, Exception)
 
         (input_codec, result_codec) = (self.input_codec, self.result_codec)
 

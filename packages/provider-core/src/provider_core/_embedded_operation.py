@@ -264,7 +264,8 @@ class _Operation(_Changes):
             if (self.outcome is Outcome.SUCCEEDED) and (phase == "encoding"):
                 self.result_state = ResultState.ENCODING_FAILED
 
-            self.failures = (Failure(phase, cause),)
+            retryable = (phase == "calculation") and (type(cause) in self.call.retryable_failures)
+            self.failures = (Failure(phase, cause, retryable=retryable),)
 
     def _initialize_instance(self):
         if self.science.resident.ready:

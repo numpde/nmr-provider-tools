@@ -72,6 +72,20 @@ class ProcessWireTests(unittest.TestCase):
             with self.subTest(wire_type=type(wire_candidate)), self.assertRaises(expected_exception=TypeError):
                 frame(wire_candidate)
 
+    def test_retry_permission_survives_foreign_exception_reconstruction(self):
+        class ModelCallFailed(Exception):
+            pass
+
+        for retryable in (False, True):
+            with self.subTest(retryable=retryable):
+                received = roundtrip(Failure("calculation", ModelCallFailed("Model call failed"), retryable=retryable))
+                self.assertIs(expr1=type(received.cause), expr2=RemoteScienceError)
+                self.assertIs(expr1=received.retryable, expr2=retryable)
+                self.assertEqual(first=received.phase, second="calculation")
+
+        with self.assertRaises(expected_exception=TypeError):
+            Failure("calculation", ModelCallFailed(), retryable="yes")
+
     def test_invocation_preserves_bytes_identity_and_policy(self):
         reservation = ReservationRef("host", "analysis", "allocation", "binding", "sha256:" + ("a" * 64))
         policy = OperationPolicy(5, 5, 5, 1000, 1000)

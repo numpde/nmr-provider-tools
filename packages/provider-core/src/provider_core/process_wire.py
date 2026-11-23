@@ -63,7 +63,7 @@ MAX_TRACEBACK_LINE = (2 ** 31) - 1
 
 
 class RemoteScienceError(RuntimeError):
-    """Foreign failure evidence, never permission to correct or repeat science."""
+    """Foreign failure evidence; this exception alone grants no retry permission."""
 
 
 @dataclass(frozen=True, slots=True)

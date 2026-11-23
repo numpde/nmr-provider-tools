@@ -49,7 +49,7 @@ class Calculator(Contribution):
 
         self.release.set()
 
-    @operation()
+    @operation(retryable_failures=(OSError,))
     def calculate(self, *, sample: Sample) -> Sample:
         self.inputs.append(sample)
         self.entered.set()
@@ -247,6 +247,23 @@ class ScientificCallTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first=Sample(count=3), second=prediction)
         self.assertEqual(first=[Sample(count=1), Sample(count=2), Sample(count=2)], second=self.science.inputs)
+
+    async def test_scientific_retry_refuses_undeclared_failures_and_subclasses(self):
+        for failure in (ValueError("Invalid calculation input"), PermissionError("Model access refused")):
+            with self.subTest(failure_type=type(failure)):
+                self.science.failure = failure
+                self.science.failures_remaining = 1
+                self.science.inputs.clear()
+                calculate = self.call(
+                    error_policy={"max_attempts": 3, "retry_scientific_failures": True},
+                    method=Calculator.calculate,
+                )
+
+                with self.assertRaises(expected_exception=type(failure)) as caught:
+                    await calculate(scientific_input=Sample(count=1))
+
+                self.assertIs(expr1=caught.exception, expr2=failure)
+                self.assertEqual(first=self.science.inputs, second=[Sample(count=1)])
 
     async def test_lost_submission_reply_does_not_replay_science(self):
         calculate = self.call(error_policy={"max_attempts": 3, "retry_scientific_failures": True}, method=Calculator.calculate)
