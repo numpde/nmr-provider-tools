@@ -246,7 +246,8 @@ class InstallationContractTests(unittest.TestCase):
                     "h11==0.16.0",
                     "tomli-w==1.2.0",
                 )
-            } | {"pydantic==2.14.3"},
+            }
+            | {"pydantic==2.14.3"},
         )
 
     def test_core_imports_without_scientific_or_repository_packages(self):

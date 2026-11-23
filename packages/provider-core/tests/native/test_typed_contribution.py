@@ -407,16 +407,20 @@ class TypedContributionTests(unittest.TestCase):
 
     def test_sampling_records_preserve_union_typed_dictionary_and_json_metadata(self):
         codec = JsonDataclassCodec(format="sampling.v1", value_type=SamplingRecord)
+
         original = SamplingRecord(
             n_samples="adaptive",
             candidates=[{"smiles": "C", "votes": 8, "vote_fraction": 1.0}],
             metadata={"members": [{"epoch": 949, "seed": None}], "opening": {"validity": 1.0}},
         )
+
         self.assertEqual(original, codec.decode(codec.encode(original)))
         schema = codec.json_schema()["$defs"]["RankedCandidate"]
+
         self.assertEqual({"smiles", "votes", "vote_fraction"}, set(schema["required"]))
         self.assertFalse(schema["additionalProperties"])
         del original.candidates[0]["votes"]
+
         with self.assertRaises(PayloadRejected):
             codec.decode(json.dumps({"n_samples": 8, "candidates": original.candidates, "metadata": {}}).encode())
 

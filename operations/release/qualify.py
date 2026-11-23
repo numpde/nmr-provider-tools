@@ -872,8 +872,11 @@ def check(artifacts, revision):
         native_install_lock = artifacts / (artifact_prefix + "-native-install.lock")
 
         issued_native_requirements = requirements(native_install_lock)
+
         expected_native_requirements = native_requirements(
-            captured_wheels[0], pathlib.Path("/core-runtime.lock"), pathlib.Path("/wheelhouse"),
+            captured_wheels[0],
+            pathlib.Path("/core-runtime.lock"),
+            pathlib.Path("/wheelhouse"),
         )
 
         if issued_native_requirements != expected_native_requirements:

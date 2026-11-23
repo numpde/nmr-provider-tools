@@ -131,26 +131,42 @@ def native_requirements(wheel, runtime_lock, pool):
     with tempfile.TemporaryDirectory(prefix="native-selection-") as temporary:
         scratch = pathlib.Path(temporary)
         constraints = scratch / "constraints.txt"
+
         constraints.write_text("".join(f"{name}=={version}\n" for (name, version) in locked))
         report = scratch / "report.json"
+
         subprocess.run(
             [
                 *pip_command(sys.executable),
-                "install", "--dry-run", "--ignore-installed", "--no-index",
-                "--only-binary=:all:", "--no-cache-dir", "--quiet",
-                "--find-links", str(pool), "--constraint", str(constraints),
-                "--report", str(report), str(wheel),
+                "install",
+                "--dry-run",
+                "--ignore-installed",
+                "--no-index",
+                "--only-binary=:all:",
+                "--no-cache-dir",
+                "--quiet",
+                "--find-links",
+                str(pool),
+                "--constraint",
+                str(constraints),
+                "--report",
+                str(report),
+                str(wheel),
             ],
             check=True,
         )
+
         selected = {}
+
         for distribution in pip_installation_report.install_records(read_json(report)):
             metadata = distribution["metadata"]
             identity = parse_lock_line(f"{metadata['name']}=={metadata['version']}".encode())
             hashes = {digest(wheel)} if identity[0] == "provider-core" else locked[identity]
             selected_hash = pip_installation_report.archive_sha256(distribution)
+
             if selected_hash not in hashes:
                 raise ValueError(f"{identity=}; {selected_hash=} should be in {hashes=}")
+
             selected[identity] = hashes
 
     return selected
@@ -281,12 +297,17 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         native_lock = output / f"provider_core-{release_version}-native-install.lock"  # machine-string: lock filename consumed by native verification
 
         expected_native_requirements = native_requirements(wheel, locks["runtime"], pool)
-        native_lock.write_text("".join(
-            f"{name}=={version} \\\n"
-            + " \\\n".join(f"    --hash=sha256:{checksum}" for checksum in sorted(hashes))
-            + "\n"
-            for ((name, version), hashes) in sorted(expected_native_requirements.items())
-        ))
+
+        native_lock.write_text(
+            "".join(
+                (
+                    f"{name}=={version} \\\n"
+                    + " \\\n".join(f"    --hash=sha256:{checksum}" for checksum in sorted(hashes))
+                    + "\n"
+                )
+                for ((name, version), hashes) in sorted(expected_native_requirements.items())
+            )
+        )
 
     return (wheel, install_lock, identities)
 

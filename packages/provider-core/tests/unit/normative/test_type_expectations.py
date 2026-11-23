@@ -24,8 +24,10 @@ class TypeExpectationTests(unittest.TestCase):
 
     def test_invalid_input_retains_pydantic_field_diagnostics_and_cause(self):
         codec = JsonDataclassCodec(format="test.number.v1", value_type=NumericRecord)
+
         with self.assertRaises(PayloadRejected) as rejected:
             codec.decode(b'{"number":"not a number"}')
+
         self.assertIn("number", str(rejected.exception))
         self.assertIsNotNone(rejected.exception.__cause__)
         self.assertEqual(PayloadRejected.Code.INVALID_VALUE, rejected.exception.code)
@@ -37,9 +39,11 @@ class TypeExpectationTests(unittest.TestCase):
 
     def test_nonfinite_json_remains_rejected(self):
         codec = JsonDataclassCodec(format="test.number.v1", value_type=NumericRecord)
+
         for encoded in (b'{"number":NaN}', b'{"number":1e999}'):
             with self.subTest(encoded=encoded), self.assertRaises(PayloadRejected):
                 codec.decode(encoded)
+
         with self.assertRaises(ValueError):
             codec.encode(NumericRecord(number=float("inf")))
 
