@@ -1,4 +1,4 @@
-# API controller and schema tooling closure; native science and builds stay separate.
+# Full SDK runtime closure; native installation selects its dependencies from wheel metadata.
 # Direct dependency precedent: magnet-deploy c5813ee35cfbb1c98a5cc5d20a94787271f26486 pyproject.toml.
 --index-url https://pypi.org/simple
 cryptography==50.0.0

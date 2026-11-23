@@ -185,9 +185,38 @@ class JsonDataclassCodec[T]:
 
         try:
             encoded = json.dumps(document, allow_nan=False)
+        except ValueError as error:
+            raise PayloadRejected(
+                "Payload JSON contains a nonfinite number",
+                code=PayloadRejected.Code.INVALID_JSON,
+            ) from error
+
+        try:
             return _adapter(value_type=self.value_type).validate_json(encoded, strict=True, extra="forbid")
-        except (ValidationError, ValueError) as error:
-            raise PayloadRejected(str(error), code=PayloadRejected.Code.INVALID_VALUE) from error
+        except ValidationError as error:
+            details = error.errors(include_input=False, include_url=False)
+            first = details[0]
+            error_type = first["type"]
+            # Preserve SDK rejection categories; Pydantic owns the validation
+            if error_type in {"extra_forbidden", "unexpected_keyword_argument"}:
+                code = PayloadRejected.Code.UNEXPECTED_FIELD
+            elif error_type == "missing":
+                code = (
+                    PayloadRejected.Code.INVALID_LENGTH
+                    if first["loc"] and isinstance(first["loc"][-1], int)
+                    else PayloadRejected.Code.MISSING_FIELD
+                )
+            elif error_type in {"too_long", "too_short"}:
+                code = PayloadRejected.Code.INVALID_LENGTH
+            elif error_type.endswith("_type") or error_type == "is_instance_of":
+                code = PayloadRejected.Code.INVALID_TYPE
+            else:
+                code = PayloadRejected.Code.INVALID_VALUE
+            message = "; ".join(
+                f"{detail['loc']!r}: {detail['msg']} ({detail['type']})"
+                for detail in details
+            )
+            raise PayloadRejected(message, code=code) from error
 
     def encode(self, value: T) -> bytes:
         require_type(value, self.value_type)

@@ -124,7 +124,6 @@ class NativeInstallationTests(unittest.TestCase):
 
         self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])
 
-
     def test_core_distribution_excludes_provider_examples(self):
         distribution_files = importlib.metadata.distribution("provider-core").files
 
