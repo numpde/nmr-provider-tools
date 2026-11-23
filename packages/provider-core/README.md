@@ -377,7 +377,10 @@ field-labeled errors or other domain validation.
 
 Providers using interpretation can expose an existing scientific method without
 writing a second input schema. Install `provider-core[api]`; scientific records
-remain ordinary frozen/slotted dataclasses.
+can be ordinary dataclasses; `frozen=True` and `slots=True` are optional. The default
+JSON codec supports typed lists, string-keyed dictionaries, tuples, and nested
+dataclasses. It validates every element against its annotation; `Any`, `object`,
+and unparameterized lists or dictionaries are not supported.
 
 ```python
 from provider_core.preparation_tool import PreparationTool

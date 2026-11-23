@@ -153,17 +153,6 @@ def _dataclass_fields(value_type: type[object]):
     if not is_dataclass(value_type):
         raise TypeError(f"{value_type=}; expected a dataclass type")
 
-    parameters = value_type.__dataclass_params__
-
-    slotted = getattr(
-        parameters,
-        "slots",
-        "__slots__" in value_type.__dict__,
-    )
-
-    if (not parameters.frozen) or (not slotted):
-        raise TypeError(f"{value_type.__qualname__ = } must be a frozen, slotted dataclass")
-
     declared_fields = fields(value_type)
 
     if any((not field.init) for field in declared_fields):
@@ -220,8 +209,21 @@ def _validate_annotation(
 
         return
 
-    if origin in (list, dict):
-        raise TypeError(f"{annotation_path = } uses a mutable container; use tuple or a nested frozen dataclass")
+    if origin is list:
+        if len(arguments) != 1:
+            raise TypeError(f"{annotation_path=}; {annotation=} should declare one list element type")
+
+        _validate_annotation(arguments[0], annotation_path=annotation_path, seen=seen)
+
+        return
+
+    if origin is dict:
+        if (len(arguments) != 2) or (arguments[0] is not str):
+            raise TypeError(f"{annotation_path=}; {annotation=} should be dict[str, T] for JSON object keys")
+
+        _validate_annotation(arguments[1], annotation_path=annotation_path, seen=seen)
+
+        return
 
     members = _union_members(annotation)
 
@@ -346,6 +348,36 @@ def _decode_value(json_value: object, annotation: object, *, value_path: str) ->
             )
 
         return json_value
+
+    if origin is list:
+        require_type(
+            json_value,
+            list,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
+
+        return [
+            _decode_value(element, arguments[0], value_path=_path_index(value_path, index))
+            for (index, element) in enumerate(json_value)
+        ]
+
+    if origin is dict:
+        require_type(
+            json_value,
+            dict,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
+
+        return {
+            key: _decode_value(element, arguments[1], value_path=_path_field(value_path, key))
+            for (key, element) in json_value.items()
+        }
 
     if origin is tuple:
         require_type(
@@ -524,6 +556,31 @@ def _encode_value(portable_value: object, annotation: object, *, value_path: str
             raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_types=}")
 
         return portable_value
+
+    if origin is list:
+        require_type(
+            portable_value,
+            list,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
+
+        return [
+            _encode_value(element, arguments[0], value_path=_path_index(value_path, index))
+            for (index, element) in enumerate(portable_value)
+        ]
+
+    if origin is dict:
+        require_type(
+            portable_value,
+            dict,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
+
+        return {
+            _encode_value(key, str, value_path=value_path):
+            _encode_value(element, arguments[1], value_path=_path_field(value_path, key))
+            for (key, element) in portable_value.items()
+        }
 
     if origin is tuple:
         require_type(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 import unittest
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import provider_core.contribution as contribution
 
@@ -22,6 +22,17 @@ from tests.fakes.dummy_provider.binding import (
     sum_binding,
     weighted_sum_binding,
 )
+
+
+@dataclass
+class Sample:
+    value: float
+
+
+@dataclass
+class Measurements:
+    batches: list[dict[str, Sample]] = field(default_factory=list)
+    counts: dict[str, int] = field(default_factory=dict)
 
 
 class _Control:
@@ -308,27 +319,84 @@ class TypedContributionTests(unittest.TestCase):
                 )
             )
 
-    def test_portable_records_must_be_frozen_and_slotted(self):
-        @dataclass
-        class MutableRecord:
-            value: int
+    def test_dataclass_mutability_and_slots_do_not_change_wire_support(self):
+        for frozen in (False, True):
+            for slots in (False, True):
+                with self.subTest(frozen=frozen, slots=slots):
+                    @dataclass(frozen=frozen, slots=slots)
+                    class Record:
+                        value: int
 
-        with self.assertRaises(TypeError):
-            JsonDataclassCodec(
-                format="mutable-record.v1",
-                value_type=MutableRecord,
-            )
+                    codec = JsonDataclassCodec(format="record.v1", value_type=Record)
+                    original = Record(value=3)
 
-    def test_portable_records_reject_mutable_container_annotations(self):
-        @dataclass(frozen=True, slots=True)
-        class MutableInput:
-            values: list[float]
+                    self.assertEqual(first=original, second=codec.decode(codec.encode(original)))
 
-        with self.assertRaises(TypeError):
-            JsonDataclassCodec(
-                format="mutable.v1",
-                value_type=MutableInput,
-            )
+    def test_nested_lists_and_dictionaries_reconstruct_declared_records(self):
+        codec = JsonDataclassCodec(format="measurements.v1", value_type=Measurements)
+        original = Measurements(batches=[{"sample": Sample(value=1.5)}], counts={"valid": 8})
+        encoded = codec.encode(original)
+        decoded = codec.decode(encoded)
+
+        self.assertEqual(first={"batches": [{"sample": {"value": 1.5}}], "counts": {"valid": 8}}, second=json.loads(encoded))
+        self.assertEqual(first=original, second=decoded)
+        decoded.batches[0]["sample"].value = 2.5
+        decoded.counts["valid"] = 9
+        self.assertEqual(first=1.5, second=original.batches[0]["sample"].value)
+        self.assertEqual(first=8, second=original.counts["valid"])
+
+    def test_mutable_defaults_are_independent_between_decodes(self):
+        codec = JsonDataclassCodec(format="measurements.v1", value_type=Measurements)
+        first = codec.decode(b"{}")
+        second = codec.decode(b"{}")
+
+        first.batches.append({"sample": Sample(value=1)})
+        first.counts["valid"] = 8
+        self.assertEqual(first=Measurements(), second=second)
+
+    def test_mutable_containers_retain_structural_json_admission(self):
+        codec = JsonDataclassCodec(format="measurements.v1", value_type=Measurements)
+
+        for encoded in (
+            b'{"batches":{}}',
+            b'{"batches":[[]]}',
+            b'{"batches":[{"sample":{"value":true}}]}',
+            b'{"batches":[{"sample":{"value":1,"extra":2}}]}',
+            b'{"batches":[{"sample":{}}]}',
+            b'{"batches":[{"sample":{"value":NaN}}]}',
+            b'{"counts":[]}',
+            b'{"counts":{"valid":true}}',
+            b'{"counts":{"valid":1,"valid":2}}',
+        ):
+            with self.subTest(encoded=encoded), self.assertRaises(expected_exception=PayloadRejected):
+                codec.decode(encoded)
+
+    def test_mutable_containers_validate_types_before_encoding(self):
+        codec = JsonDataclassCodec(format="measurements.v1", value_type=Measurements)
+
+        for measurements in (
+            Measurements(batches=()),
+            Measurements(batches=[[]]),
+            Measurements(batches=[{"sample": {"value": 1}}]),
+            Measurements(batches=[{"sample": Sample(value=math.inf)}]),
+            Measurements(counts=[]),
+            Measurements(counts={1: 8}),
+            Measurements(counts={"valid": True}),
+        ):
+            with self.subTest(measurements=measurements), self.assertRaises(expected_exception=TypeError):
+                codec.encode(measurements)
+
+    def test_container_annotations_require_element_types_and_string_keys(self):
+        for annotation in (list, dict, list[object], dict[int, str], dict[str, object]):
+            with self.subTest(annotation=annotation):
+                @dataclass
+                class Record:
+                    value: int
+
+                Record.__annotations__["value"] = annotation
+
+                with self.assertRaises(expected_exception=TypeError):
+                    JsonDataclassCodec(format="record.v1", value_type=Record)
 
     def test_context_parameter_name_has_no_semantic_role(self):
         call = sum_binding().run

@@ -49,6 +49,11 @@ class Node:
     next: Node | None = None
 
 
+@dataclass
+class SampleGroups:
+    groups: dict[str, list[Peak]]
+
+
 class Spectra(Contribution):
     @operation()
     def prepare(self, *, spectrum: Spectrum) -> Peak:
@@ -67,6 +72,18 @@ class SchemaTests(unittest.TestCase):
 
         self.assertIs(expr1=False, expr2=peak["additionalProperties"])
         self.assertEqual(first=["integral"], second=peak["required"])
+
+    def test_typed_dictionaries_and_lists_preserve_value_schemas(self):
+        codec = JsonDataclassCodec(format="sample-groups.v1", value_type=SampleGroups)
+        schema = codec.json_schema()
+        groups = schema["properties"]["groups"]
+
+        self.assertEqual(first="object", second=groups["type"])
+        self.assertEqual(first={"type": "array", "items": {"$ref": "#/$defs/Peak"}}, second=groups["additionalProperties"])
+        self.assertIs(expr1=False, expr2=schema["$defs"]["Peak"]["additionalProperties"])
+        decoded = codec.decode(b'{"groups":{"source":[{"integral":3}]}}')
+
+        self.assertEqual(first=SampleGroups(groups={"source": [Peak(integral=3)]}), second=decoded)
 
     def test_defaults_and_required_nullable_fields_remain_distinct(self):
         schema = self.codec.json_schema()
