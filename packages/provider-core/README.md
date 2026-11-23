@@ -206,8 +206,8 @@ block that loop for their two-second transport allowance. Async startup,
 observations, result reads and cleanup retain their own I/O, but this backend
 does not provide fully asynchronous, continuously responsive control.
 
-The process channel permits at most **1 MiB per encoded input or result** and
-**8 MiB per encoded frame**. Per-operation input/result allowances above 1 MiB
+The process channel permits at most **2 MiB per encoded input or result** and
+**8 MiB per encoded frame**. Per-operation input/result allowances above 2 MiB
 are refused before transmission, even if the host's aggregate budgets are larger.
 There is no chunked transfer. Size checks on an input precede science; result
 encoding can fail after scientific work has happened.

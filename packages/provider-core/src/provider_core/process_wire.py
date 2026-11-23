@@ -53,7 +53,7 @@ from provider_core.type_requirements import require_type
 
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 # Leave room for base64 expansion, SDK records and bounded failure evidence.
-MAX_PAYLOAD_BYTES = 1024 * 1024
+MAX_PAYLOAD_BYTES = 2 * 1024 * 1024
 MAX_FAILURE_NODES = 32
 MAX_FAILURE_DEPTH = 8
 MAX_DIAGNOSTIC_CHARACTERS = 2048
