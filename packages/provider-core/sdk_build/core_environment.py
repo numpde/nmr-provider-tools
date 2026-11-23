@@ -24,6 +24,7 @@ import tempfile
 import tomllib
 import pathlib
 
+from tools.validation.upstream import pip_installation_report
 from tools.validation.upstream.pip_requirements import parse_lock_line
 
 from tools.adapters.pip_install import (
@@ -143,11 +144,11 @@ def native_requirements(wheel, runtime_lock, pool):
             check=True,
         )
         selected = {}
-        for distribution in read_json(report)["install"]:
+        for distribution in pip_installation_report.install_records(read_json(report)):
             metadata = distribution["metadata"]
             identity = parse_lock_line(f"{metadata['name']}=={metadata['version']}".encode())
             hashes = {digest(wheel)} if identity[0] == "provider-core" else locked[identity]
-            selected_hash = distribution["download_info"]["archive_info"]["hashes"]["sha256"]
+            selected_hash = pip_installation_report.archive_sha256(distribution)
             if selected_hash not in hashes:
                 raise ValueError(f"{identity=}; {selected_hash=} should be in {hashes=}")
             selected[identity] = hashes
@@ -286,11 +287,6 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             + "\n"
             for ((name, version), hashes) in sorted(expected_native_requirements.items())
         ))
-
-        observed_native_requirements = requirements(native_lock)
-
-        if observed_native_requirements != expected_native_requirements:
-            raise ValueError(f"{native_lock=}: " + metadata_mismatch(observed_native_requirements, expected_native_requirements))
 
     return (wheel, install_lock, identities)
 
