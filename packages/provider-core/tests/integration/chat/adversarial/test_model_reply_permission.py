@@ -977,13 +977,14 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
 class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
     """Revocation after execution entry prevents new effects but cannot release its claim."""
 
-    async def test_verified_stop_after_accepted_preparation_retains_entered_claim(self):
+    async def test_verified_stop_after_accepted_preparation_retains_claim_until_retirement(self):
         for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
             with self.subTest(stop=stop):
                 claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
 
                 async with reply_run(claims, "job:accepted", session_type=PreparedExecutionGateSession) as (running, release_reply):
                     session = running.session
+                    settlement = None
 
                     try:
                         session.science.release.set()
@@ -1024,20 +1025,24 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertIs(caught.exception.cause.cause, running.observation.stop)
 
-                        # The accepted preparation has already crossed the SDK's
-                        # EnteredCheckpoint, even though the scientific adapter
-                        # has not performed a new effect. Only pre-entry
-                        # AcknowledgedCheckpoint can use settle_revocation().
+                        # Accepted preparation crossed EnteredCheckpoint. Verified
+                        # revocation still needs the original session retirement
+                        # before it can release this entered Attempt.
                         self.assertIs(type(controller.operation._checkpoint), EnteredCheckpoint)
 
                         self.assertEqual(0, session.science.executions)
                         await asyncio.wait_for(session.retiring.wait(), 3)
                         self.assertEqual((controller,), claims.live_owners())
                         self.assertFalse(session.retirement_completed)
-                        self.assertIsNone(await controller.settle_revocation(caught.exception))
+                        settlement = asyncio.create_task(controller.settle_revocation(caught.exception))
 
-                        # Positive retirement proves resource closure, not a
-                        # valid disposition for an already-entered Attempt.
+                        with self.assertRaises(TimeoutError):
+                            await asyncio.wait_for(asyncio.shield(settlement), 0.05)
+
+                        self.assertEqual((controller,), claims.live_owners())
+
+                        # Release the original cleanup gate; no replacement
+                        # preparation, execution or retirement is needed.
                         session.release_retirement.set()
 
                         original_retirement = controller.operation._retirement_task
@@ -1046,15 +1051,15 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(asyncio.shield(original_retirement), 3)
                         self.assertTrue(session.retirement_completed)
 
-                        with self.assertRaises(ControllerFailed) as still_held:
-                            await asyncio.wait_for(controller.settle(), 3)
+                        observed = await asyncio.wait_for(settlement, 3)
 
-                        self.assertIs(still_held.exception, controller.last_failure)
+                        self.assertIs(observed, running.observation.stop.observation)
+                        self.assertIsNone(await controller.settle())
                         self.assertTrue(controller.work_settled)
                         self.assertTrue(controller.shutdown_ready)
-                        self.assertIsNone(await controller.settle_revocation(caught.exception))
-                        self.assertEqual((controller,), claims.live_owners())
-                        self.assertTrue(claims.owns_job(running.pending.scope, running.pending.input.job_ref))
+                        self.assertIs(await controller.settle_revocation(caught.exception), observed)
+                        self.assertEqual((), claims.live_owners())
+                        self.assertFalse(claims.owns_job(running.pending.scope, running.pending.input.job_ref))
                         self.assertIs(session.science.retired_handle, prepared)
                         self.assertEqual((1, 0), (session.science.retirements, session.science.executions))
                         self.assertTrue(session.interpreter.retirement_confirmed)
@@ -1064,6 +1069,10 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         session.release_execution.set()
                         session.release_retirement.set()
                         running.observation.resume.set()
+
+                        if settlement is not None:
+                            await asyncio.wait_for(asyncio.gather(settlement, return_exceptions=True), 3)
+
 
 class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
     """Released owners cannot mutate the successor occupying their former slot."""

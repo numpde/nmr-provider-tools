@@ -118,7 +118,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual([], controller.delivery.delivery_outcomes)
                     self.assertEqual((), claims.live_owners())
 
-    async def test_revocation_after_entry_retains_ownership_without_dispatching_the_handle(self):
+    async def test_revocation_after_entry_releases_only_after_session_retirement(self):
         for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
             with self.subTest(stop=stop):
                 (claims, session) = (AttemptClaims.live(), PreparedHandleSession())
@@ -141,13 +141,12 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(type(controller.operation._checkpoint), EnteredCheckpoint)
 
                 for _ in range(2):
-                    with self.assertRaises(ControllerFailed):
-                        await controller.settle()
+                    self.assertIsNone(await controller.settle())
 
-                self.assertIsNone(controller.operation.settled_revocation)
+                self.assertIs(controller.operation.settled_revocation, stopped.exception.cause.cause.observation)
                 self.assertIs(session.handle, session.returned_handle)
                 self.assertIs(session.handle, session.retired_handle)
                 self.assertEqual(1, session.retirement_calls)
                 self.assertEqual(["prepare", "retire"], session.events)
                 self.assertEqual([], controller.delivery.delivery_outcomes)
-                self.assertEqual((controller,), claims.live_owners())
+                self.assertEqual((), claims.live_owners())

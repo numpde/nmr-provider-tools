@@ -126,7 +126,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((controller,), claims.live_owners())
         self.assertEqual([], delivery.delivery_outcomes)
 
-    async def test_server_revocation_after_scientific_entry_keeps_an_unreturned_outcome_owned(self):
+    async def test_server_revocation_after_scientific_entry_releases_after_retirement_without_an_outcome(self):
         (claims, selected) = (AttemptClaims.live(), pending("a"))
         reference = "execution_attempt:sha256:" + "a" * 64
         revoked = reply(observation(job_ref=selected.input.job_ref, execution_attempt_ref=reference, job_state="cancelled"))
@@ -153,11 +153,11 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(failure.cause.cause), ExecutionStopped)
         self.assertIsNone(failure.cause.outcome)
 
-        with self.assertRaises(ControllerFailed):
-            await controller.settle()
+        self.assertIsNone(await controller.settle())
+        self.assertIs(failure.cause.cause.observation, await controller.settle_revocation(failure))
 
         self.assertEqual(["prepare", "execute", "retire"], [event[0] for event in session.events])
-        self.assertEqual((controller,), claims.live_owners())
+        self.assertEqual((), claims.live_owners())
         self.assertEqual([], delivery.delivery_outcomes)
 
     async def test_two_actual_controllers_retain_jobs_attempts_and_capacity_without_fail(self):

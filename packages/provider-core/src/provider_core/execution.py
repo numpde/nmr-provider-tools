@@ -502,7 +502,7 @@ class AttemptExecutor:
 
     @property
     def settled_revocation(self):
-        """Return the SDK's verified pre-entry server stop once this Attempt has no remaining work or report."""
+        """Return the verified server stop once this Attempt has no remaining work or report."""
 
         if not self.shutdown_ready:
             return None
@@ -512,8 +512,11 @@ class AttemptExecutor:
     def _revocation(self):
         """Identify the original server stop without granting resource release.
 
-        Joining a child can reobserve this same stop during retirement. It is
-        still necessary to confirm retirement before releasing the claim.
+        Joining a child can reobserve this same stop during retirement. Entry
+        records that science may have run; it does not create a report obligation
+        when no outcome was selected. Even after entry, release requires confirmed
+        session retirement and no independent failure. A shared-batch participant
+        must therefore join its calculation before this disposition is usable.
         """
         stop = self._server_revocation
 
@@ -521,7 +524,7 @@ class AttemptExecutor:
             (stop is not None) and
             (self.last_failure is not None) and
             (self.last_failure.cause is stop) and
-            (type(self._checkpoint) is AcknowledgedCheckpoint) and
+            (type(self._checkpoint) in (AcknowledgedCheckpoint, EnteredCheckpoint)) and
             (self._outcome is None) and
             (self._delivery_outcome is None) and
             all(
