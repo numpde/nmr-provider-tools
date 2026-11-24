@@ -1563,6 +1563,7 @@ class AttemptExecutor:
         suppression authority used by explicit disposition owns this decision;
         providers need not copy checkpoint and failure predicates.
         """
+
         if not (
             self.work_settled and
             (self.last_failure is not None) and

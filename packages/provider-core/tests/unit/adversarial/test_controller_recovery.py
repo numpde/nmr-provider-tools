@@ -71,6 +71,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         session = SingleRetirementSession(store)
         delivery = RecordingDelivery()
         transport = Transport(*lifecycle_replies()[:-1], reply(observation(job_state="closed")))
+
         controller = live_controller(
             api(transport, scope().api_origin),
             store,

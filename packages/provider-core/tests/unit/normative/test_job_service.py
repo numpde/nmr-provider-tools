@@ -35,11 +35,15 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
 
         service = JobService(
             provider_ref='provider:example',
-            offerings=(JobOffering(
-                announcement=AnalysisOffering('nmr_predict', 'Test science'),
-                host=ResidentWorker(), consumer_id='test-provider', generation='one',
-                new_session=lambda: session,
-            ),),
+            offerings=(
+                JobOffering(
+                    announcement=AnalysisOffering('nmr_predict', 'Test science'),
+                    host=ResidentWorker(),
+                    consumer_id='test-provider',
+                    generation='one',
+                    new_session=lambda: session,
+                ),
+            ),
             host_failure_policy=HostFailurePolicy.STOP,
             limits=LiveAttemptLimits(1, 262144, 131072),
             display_name='Test provider',

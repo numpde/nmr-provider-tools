@@ -931,6 +931,7 @@ class AttemptController:
         Refusal preserves this controller and its original evidence for the
         enclosing shutdown owner; it does not authorize resource release.
         """
+
         try:
             return await self.settle()
         except ControllerFailed:

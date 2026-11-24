@@ -45,8 +45,10 @@ async def retain_rejected_report(witness):
 
     try:
         await controller.run(record())
-    except ControllerFailed:
-        pass
+    except ControllerFailed as failure:
+        assert failure is controller.last_failure
+    else:
+        raise AssertionError("Rejected report must leave the original controller failure")
 
     observed = asyncio.Event()
 
@@ -57,14 +59,16 @@ async def retain_rejected_report(witness):
     await observed.wait()
 
     witness.write_text(
-        json.dumps({
-            "selected": isinstance(controller.operation._checkpoint, TerminalSelectedCheckpoint),
-            "retained_body": controller.operation._delivery_outcome.body_sha256,
-            "ready": controller.shutdown_ready,
-            "claims": len(claims.live_owners()),
-            "submissions": delivery.submit.await_count,
-            "science": [event[0] for event in science.events],
-        }),
+        json.dumps(
+            {
+                "selected": isinstance(controller.operation._checkpoint, TerminalSelectedCheckpoint),
+                "retained_body": controller.operation._delivery_outcome.body_sha256,
+                "ready": controller.shutdown_ready,
+                "claims": len(claims.live_owners()),
+                "submissions": delivery.submit.await_count,
+                "science": [event[0] for event in science.events],
+            }
+        ),
     )
 
     await shutdown

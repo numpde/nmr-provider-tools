@@ -79,7 +79,7 @@ def construct(*, startup):
 
 class Session:
     def __init__(self, call, *, has_input):
-        self.call, self.has_input = call, has_input
+        (self.call, self.has_input) = (call, has_input)
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.input = Number(**json.loads(instructions.specification_bytes))
@@ -87,6 +87,7 @@ class Session:
         return PreparedAnalysis(ProtectedEvidence("test.input.v1", instructions.specification_bytes))
 
     async def execute(self, prepared, *, report_condition):
+        # silent-defaults: allow-contract -- The runtime method has no input; calculate consumes the fixture number.
         arguments = {"scientific_input": self.input} if self.has_input else {}
 
         try:
@@ -136,27 +137,34 @@ class JobApi:
                     fixture.feed_requests.put_nowait(kind)
 
                     if fixture.unavailable:
-                        raise io_failure("The shared API transport is unavailable",
-                                         primary=ConnectionRefusedError(errno.ECONNREFUSED, "API fixture is offline"),
-                                         stage="connect")
+                        raise io_failure(
+                            "The shared API transport is unavailable",
+                            primary=ConnectionRefusedError(errno.ECONNREFUSED, "API fixture is offline"),
+                            stage="connect",
+                        )
 
                     jobs = [
                         {
                             **asdict(replace(facts(payload), job_ref=job)),
-                        "analysis_kind_ref": kind,
+                            "analysis_kind_ref": kind,
                             "created_at": "2026-10-18T00:00:00.123456Z",
                         }
                         for (job, (selected, payload)) in fixture.jobs.items()
                         if (selected == kind) and (job not in fixture.started)
                     ]
 
-                    return reply(json.dumps({
-                        "schema_id": "nmr.provider.jobs.list.response.v1",
-                        "analysis_kind_ref": kind,
-                        "has_provider_execution_attempt": False,
-                        "jobs": jobs,
-                        "next_cursor": None,
-                    }).encode())
+                    return reply(
+                        json.dumps(
+                            {
+                                "schema_id": "nmr.provider.jobs.list.response.v1",
+                                "analysis_kind_ref": kind,
+                                "has_provider_execution_attempt": False,
+                                "jobs": jobs,
+                                "next_cursor": None,
+                            }
+                        )
+                        .encode()
+                    )
 
                 if path.endswith("/input"):
                     job = path.split("/")[-2]
@@ -170,17 +178,25 @@ class JobApi:
 
                     fixture.started.append(job)
 
-                    return reply(start_response(execution_attempt_ref=reference,
-                    job_ref=job,
-                                                analysis_kind_ref=fixture.jobs[job][0]))
+                    return reply(
+                        start_response(
+                            execution_attempt_ref=reference,
+                            job_ref=job,
+                            analysis_kind_ref=fixture.jobs[job][0],
+                        )
+                    )
 
                 if path.endswith("/progress"):
                     reference = path.split("/")[-2]
                     progress = json.loads(request.content)
 
-                    return reply(progress_response(execution_attempt_ref=reference,
-                                                   phase=progress["phase"],
-                                                   condition_code=progress["condition_code"]))
+                    return reply(
+                        progress_response(
+                            execution_attempt_ref=reference,
+                            phase=progress["phase"],
+                            condition_code=progress["condition_code"],
+                        )
+                    )
 
                 reference = path.split("/")[-1]
 
@@ -226,7 +242,7 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             requirements=frozenset(),
         )
 
-        return host, hosted
+        return (host, hosted)
 
     async def close_host(self, host):
         if host is self.killed_host:
@@ -246,19 +262,21 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             error_policy=ErrorPolicy(),
         )
 
-        return JobOffering(AnalysisOffering(kind, f"Fixture {kind}"),
-        host,
-        kind,
-        "one",
-                           lambda: Session(call, has_input=method is Science.calculate))
+        return JobOffering(
+            AnalysisOffering(kind, f"Fixture {kind}"),
+            host,
+            kind,
+            "one",
+            lambda: Session(call, has_input=method is Science.calculate),
+        )
 
     async def test_shared_host_loss_withdraws_both_methods_and_preserves_healthy_delivery(self):
         root = Path(self.enterContext(TemporaryDirectory()))
-        shared, shared_science = await self.host(root / "shared")
-        healthy, healthy_science = await self.host(root / "healthy")
-        shared_pid, healthy_pid = shared.process_id, healthy.process_id
+        (shared, shared_science) = await self.host(root / "shared")
+        (healthy, healthy_science) = await self.host(root / "healthy")
+        (shared_pid, healthy_pid) = (shared.process_id, healthy.process_id)
         jobs = JobApi()
-        stopping, report_entered, release_report = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        (stopping, report_entered, release_report) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
         outcomes = []
 
         class Delivery(RecordingDelivery):
@@ -322,7 +340,7 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ControllerFailed) as caught:
                 await asyncio.wait_for(task, 10)
 
-            held, = service.claims.live_owners()
+            (held,) = service.claims.live_owners()
 
             self.assertIs(held.last_failure, caught.exception)
             self.assertIsInstance(caught.exception.cause.cause, AnalysisOutcomeUnresolved)
@@ -340,9 +358,9 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_shared_api_outage_pauses_all_offerings_without_failing_science(self):
         root = Path(self.enterContext(TemporaryDirectory()))
-        host, science = await self.host(root / "science")
+        (host, science) = await self.host(root / "science")
         jobs = JobApi()
-        jobs.jobs = {job: value for job, value in jobs.jobs.items() if job in {"job:runtime", "job:calculate"}}
+        jobs.jobs = {job: value for (job, value) in jobs.jobs.items() if job in {"job:runtime", "job:calculate"}}
         jobs.unavailable = True
         stopping = asyncio.Event()
         delivered = []
@@ -383,8 +401,10 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([], delivered)
             self.assertFalse((root / "science/calls").exists())
 
-            self.assertEqual({"runtime", "calculate"},
-                             {offering["analysis_kind_ref"] for offering in jobs.announcements[-1]})
+            self.assertEqual(
+                {"runtime", "calculate"},
+                {offering["analysis_kind_ref"] for offering in jobs.announcements[-1]},
+            )
 
             jobs.unavailable = False
 

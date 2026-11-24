@@ -118,13 +118,13 @@ def _configured_models(science_config: Mapping) -> dict[tuple[str, int], Configu
     predictor_families = {"hf": (Hf, "hf_prompt.txt"), "chf": (Chf, "chf_prompt.txt")}
     configured_models = {}
 
-    for family, configurations in science_config.items():
+    for (family, configurations) in science_config.items():
         if family not in predictor_families:
             raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
 
-        contribution_type, interpretation_prompt_file = predictor_families[family]
+        (contribution_type, interpretation_prompt_file) = predictor_families[family]
 
-        for index, configuration in enumerate(configurations):
+        for (index, configuration) in enumerate(configurations):
             configured_models[family, index] = ConfiguredModel(
                 contribution_type=contribution_type,
                 interpretation_prompt_file=interpretation_prompt_file,
@@ -178,6 +178,7 @@ async def open_offerings(
     execution_mode = execution_settings.backend
     host_options = execution_settings.host
     configured_models = _configured_models(provider_config["science"])
+
     interpreter_settings = InterpreterSettings(
         endpoint_factories,
         secrets=secrets,
@@ -205,6 +206,7 @@ async def open_offerings(
         # configured model; several entries can use the same contribution class.
         for (family, index), configured_model in configured_models.items():
             predictor_class = configured_model.contribution_type
+
             if execution_mode == "process":
                 (execution_host, hosted_predictor) = await lifetime.enter_async_context(
                     execution_settings.open_contribution(

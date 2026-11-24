@@ -295,13 +295,14 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_later_configuration_leaves_every_process_session_unopened(self):
         configure_backend(self.configuration, "process")
         original = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        hf_runner, hf_session = make_scientific_session(self)
-        chf_runner, chf_session = make_scientific_session(self)
+        (hf_runner, hf_session) = make_scientific_session(self)
+        (chf_runner, chf_session) = make_scientific_session(self)
         descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
 
         for defect in ("family", "settings", "digest", "checkpoint_path", "interpreter"):
             with self.subTest(defect=defect):
                 deployment = deepcopy(original)
+
                 if defect == "family":
                     deployment["science"]["unknown"] = deployment["science"].pop("chf")
                 elif defect == "settings":
@@ -320,7 +321,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         self.fail("Invalid deployment values must be rejected before either model starts")
 
                 self.assertEqual(descriptors, (hf_session.control.fileno(), chf_session.control.fileno()))
-                for runner, session in ((hf_runner, hf_session), (chf_runner, chf_session)):
+
+                for (runner, session) in ((hf_runner, hf_session), (chf_runner, chf_session)):
                     self.assertFalse(session.control_connected)
                     self.assertIsNone(session.retirement)
                     self.assertEqual([], list(runner.scratch.iterdir()))

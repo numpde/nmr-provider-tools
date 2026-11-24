@@ -12,6 +12,7 @@ class ProviderClientsTests(unittest.IsolatedAsyncioTestCase):
     async def test_clients_survive_removed_configuration_without_sharing_exchange_owners(self):
         credential_bytes = encoded(document())
         reader = Mock(return_value=credential_bytes)
+
         configuration = {
             "origin": "https://api.example",
             "profile": "dev-local",
@@ -21,6 +22,7 @@ class ProviderClientsTests(unittest.IsolatedAsyncioTestCase):
             "retirement_seconds": 1,
             "credential_file": "/selected/credential.json",
         }
+
         grants = SharedGrants("nmr-api", 1000)
         clients = ProviderClients.from_config(configuration, grants=grants, read_file=reader)
 
@@ -29,6 +31,7 @@ class ProviderClientsTests(unittest.IsolatedAsyncioTestCase):
         announcement = clients.new_api()
         first_delivery = clients.new_delivery()
         second_delivery = clients.new_delivery()
+
         independently_timed = ProviderClients(
             clients.settings, clients.publication, clients.endpoint,
             delivery_exchange_seconds=7, delivery_retirement_seconds=3,

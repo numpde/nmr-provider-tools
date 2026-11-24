@@ -350,10 +350,10 @@ class JobService:
             (self.host_failure_policy is HostFailurePolicy.WITHDRAW) and
             (len(self.unavailable_hosts) < len(self.hosts))
         ):
-            # silent-defaults: allow-contract -- A worker exit receipt is retained as evidence but only an exception can be a chained cause.
-            raise RuntimeError(f"Cannot continue the job service: {len(self.unavailable_hosts)=} of {len(self.hosts)=} scientific hosts are unavailable under {self.host_failure_policy=}") from (
-                cause if isinstance(cause, BaseException) else None
-            )
+            # silent-defaults: allow-contract -- Native exit receipts stay in unavailable_hosts; only exceptions can be chained.
+            exception_cause = cause if isinstance(cause, BaseException) else None
+
+            raise RuntimeError(f"Cannot continue the job service: {len(self.unavailable_hosts)=} of {len(self.hosts)=} scientific hosts are unavailable under {self.host_failure_policy=}") from exception_cause
 
     async def observe_worker(self, host):
         """Retain original worker loss, including uncertain monitor failures."""

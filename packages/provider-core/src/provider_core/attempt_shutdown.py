@@ -11,7 +11,6 @@ from provider_core.controller import AttemptController
 from provider_core.tools import require_positive_number
 
 
-# silent-defaults: allow-contract -- Diagnostics are optional; failures always propagate after the owned duties settle.
 async def drain_attempts(
     controllers: Iterable[AttemptController],
     *,
@@ -37,7 +36,7 @@ async def drain_attempts(
     interruption = None
 
     def remember(cause):
-        if any(cause is previous for previous in failures):
+        if any((cause is previous) for previous in failures):
             return
 
         failures.append(cause)
@@ -46,7 +45,7 @@ async def drain_attempts(
             try:
                 report_failure(cause)
             except BaseException as diagnostic:
-                if all(diagnostic is not previous for previous in failures):
+                if all((diagnostic is not previous) for previous in failures):
                     failures.append(diagnostic)
 
     for controller in controllers:

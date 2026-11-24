@@ -35,7 +35,12 @@ class HelloPublisherTests(unittest.IsolatedAsyncioTestCase):
         sent = asyncio.Event()
         acknowledge = asyncio.Event()
         stopping = asyncio.Event()
-        offerings = tuple(AnalysisOffering(kind, kind) for kind in ("first", "second", "independent"))
+
+        offerings = (
+            AnalysisOffering("first", "first"),
+            AnalysisOffering("second", "second"),
+            AnalysisOffering("independent", "independent"),
+        )
 
         class DelayedTransport(Transport):
             async def exchange(self, request, **options):
@@ -71,6 +76,7 @@ class HelloPublisherTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_retry_samples_current_inventory_after_retiring_the_failed_exchange(self):
         stopping = asyncio.Event()
+
         offerings = (AnalysisOffering("first", "First worker"),)
         transport = Transport(reply(b"upstream unavailable", status=503), reply(receipt()))
 
@@ -148,7 +154,9 @@ class HelloPublisherTests(unittest.IsolatedAsyncioTestCase):
 
                 try:
                     accepted = await publisher.refresh(retry_wait=wait)
+                    # silent-defaults: allow-contract -- Interrupted retry has only the first snapshot; recovery sends the empty replacement.
                     expected = [["first"]] if interrupted else [["first"], []]
+
 
                     self.assertEqual(self.kinds(transport), expected)
                     self.assertEqual(accepted is None, interrupted)
