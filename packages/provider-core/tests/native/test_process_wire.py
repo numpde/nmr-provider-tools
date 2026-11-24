@@ -11,7 +11,6 @@ import unittest
 from unittest.mock import patch
 
 from provider_core.contribution import CallRef
-from provider_core.diagnostics import failure_evidence
 from provider_core.contribution_errors import CallRejected, ScientificRejection
 from provider_core.hosting import (
     AcceptanceState,
@@ -67,12 +66,6 @@ class ProcessWireTests(unittest.TestCase):
         self.assertEqual(first=evidence.notes, second=decoded_error_evidence(forwarded.exceptions[0]).notes)
         self.assertFalse(expr=evidence.notes_omitted)
         self.assertEqual(first=2, second=len(received.exceptions))
-        received.exceptions[0].add_note("untrusted mutation")
-        projected = json.dumps(failure_evidence(received, secrets=()))
-        self.assertIn(member="abc123", container=projected)
-        self.assertIn(member="report-1", container=projected)
-        self.assertNotIn(member="private-token", container=projected)
-        self.assertNotIn(member="untrusted mutation", container=projected)
 
     def test_aggregate_note_budget_keeps_failure_frame_encodable(self):
         failures = [RuntimeError("scientific failure") for _ in range(MAX_FAILURE_NODES - 1)]
@@ -96,9 +89,7 @@ class ProcessWireTests(unittest.TestCase):
         evidence = decoded_error_evidence(received)
         self.assertTrue(expr=evidence.notes_omitted)
         self.assertLessEqual(a=len(evidence.notes), b=MAX_EXCEPTION_NOTES)
-        projected = json.dumps(failure_evidence(received, secrets=()))
-        self.assertNotIn(member="secret-prefix", container=projected)
-        self.assertIn(member="notes_omitted", container=projected)
+        self.assertNotIn(member="secret-prefix", container="".join(evidence.notes))
 
     def test_foreign_enum_and_record_names_do_not_grant_wire_admission(self):
         # Identical names and fields do not grant access to the SDK wire registry

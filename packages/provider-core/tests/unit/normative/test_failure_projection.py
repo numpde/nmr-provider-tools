@@ -112,7 +112,9 @@ class CoreFailureProjectionTests(unittest.TestCase):
             def __str__(self):
                 raise AssertionError("Foreign exception text was rendered")
 
-        received = decode_frame(frame(LookupError("Decoder-owned spectrum failure"))[4:])
+        failure = LookupError("Decoder-owned spectrum failure")
+        failure.add_note('completed_request_sha256=["abc123"]; artifact_id=report-1; token=private-token')
+        received = decode_frame(frame(failure)[4:])
         received.remote_type = "FORGED_REMOTE_TYPE"
         received.remote_frames = HostileEvidence()
         received.remote_frames_omitted = True
@@ -125,6 +127,9 @@ class CoreFailureProjectionTests(unittest.TestCase):
         self.assertEqual(evidence["remote_frames"], [])
         self.assertFalse(evidence["remote_frames_omitted"])
         self.assertNotIn("FORGED", repr(evidence))
+        self.assertIn("abc123", evidence["notes"][0])
+        self.assertIn("report-1", evidence["notes"][0])
+        self.assertNotIn("private-token", json.dumps(evidence))
 
         forged = RuntimeError("UNREVIEWED_MESSAGE")
         forged._process_error_evidence = HostileEvidence()
@@ -177,6 +182,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         try:
             child_opaque_calculation()
         except child_error_type as child_failure:
+            child_failure.add_note(secret)
             received = decode_frame(frame(child_failure)[4:])
 
         evidence = failure_evidence(received, secrets=(secret,))
@@ -187,6 +193,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         self.assertNotIn(member="wire-private-canary", container=rendered)
         self.assertNotIn(member=secret, container=rendered)
         self.assertIn(member="child_opaque_calculation", container=rendered)
+        self.assertTrue(evidence["notes_omitted"])
         self.assertEqual(
             first="Spectrum calibration is missing",
             second=evidence["relationships"][0]["failure"]["message"],
