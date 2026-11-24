@@ -17,6 +17,7 @@ from provider_core.conversation import ConversationRetirementFailed, ToolRejecte
 from provider_core.execution import ExecutionFailed
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.diagnostics import failure_evidence
+from provider_core.payload import PayloadRejected
 from provider_core.process_wire import MAX_TRACEBACK_FRAMES, RemoteScienceError, decode_frame, frame
 from provider_core.starting import StartFailed
 from provider_core.transport import ExchangeFailed, HttpResponse, HttpResponseHead
@@ -26,6 +27,24 @@ from tests.fakes.attempts import ATTEMPT_REF
 
 
 class CoreFailureProjectionTests(unittest.TestCase):
+    def test_local_payload_rejection_retains_reason_and_redacts_credentials(self):
+        error = PayloadRejected("Missing formula; token=private-token", code=PayloadRejected.Code.INVALID_VALUE)
+        projected = failure_evidence(error, secrets=())
+        self.assertIn("Missing formula", projected["message"])
+        self.assertEqual(error.code.value, projected["code"])
+        self.assertNotIn("private-token", json.dumps(projected))
+
+    def test_invalid_utf8_retains_location_without_source_bytes(self):
+        try:
+            b"private-input-\xff".decode("utf-8")
+        except UnicodeDecodeError as error:
+            projected = failure_evidence(error, secrets=())
+
+        self.assertEqual(14, projected["start"])
+        self.assertEqual("utf-8", projected["encoding"])
+        self.assertIn("reason", projected)
+        self.assertNotIn("private-input", json.dumps(projected))
+
     def test_decoded_child_failure_reaches_protected_evidence_with_redacted_locations(self):
         secret = "child-private-canary"
         child_error_type = type("ChildSpectrumFailure", (Exception,), {"__module__": "science." + secret})
@@ -326,7 +345,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
         self.assertEqual(first=len(expected_relationships), second=len(actual_relationships))
 
-        for (label, actual_cause), (expected_cause, context) in zip(actual_relationships, expected_relationships, strict=True):
+        for ((label, actual_cause), (expected_cause, context)) in zip(actual_relationships, expected_relationships, strict=True):
             self.assertIs(expr1=expected_cause, expr2=actual_cause)
 
             for term in context:

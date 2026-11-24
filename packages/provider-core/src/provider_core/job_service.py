@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 import logging
+import json
 import secrets
 
 from provider_core.adapters.nmr.v1.attempt_request import start_body
@@ -22,6 +23,7 @@ from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending
 from provider_core.attempt_shutdown import drain_attempts
 from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
+from provider_core.diagnostics import failure_evidence
 from provider_core.execution import ConditionRecovery, ExecutionFailed, ObservationRecovery
 from provider_core.failure_collection import FailureCollector
 from provider_core.hello_publisher import HelloPublisher
@@ -100,6 +102,7 @@ class JobService:
         new_delivery,
         stopping,
         maximum_preparations=1,
+        diagnostic_secrets=(),
     ):
         """Retain the API clients and Attempt claims for this provider lifetime."""
         require_type(maximum_preparations, int)
@@ -107,6 +110,7 @@ class JobService:
         if not (maximum_preparations >= 1):
             raise ValueError(f"Cannot configure preparation concurrency: {maximum_preparations=} must be positive")
 
+        self.diagnostic_secrets = tuple(diagnostic_secrets)
         self.preparations = asyncio.Semaphore(maximum_preparations)
         self.offerings = tuple(offerings)
 
@@ -185,7 +189,7 @@ class JobService:
             await drain_attempts(
                 controllers,
                 retry_seconds=self.policy.retry_max_seconds,
-                report_failure=lambda cause: log.warning(f"Attempt shutdown retains {type(cause)=}"),
+                report_failure=self.report_failure,
             )
 
         with failures.capture():
@@ -198,6 +202,13 @@ class JobService:
             await self.publisher.retire()
 
         failures.raise_if_any()
+
+    def report_failure(self, cause):
+        """Report retained causes; drain_attempts also retains any reporting failure."""
+        # todo: Review endpoint diagnostic disclosure and log retention; redaction
+        # removes supplied secrets and credential fields, not every private value.
+        diagnostic = failure_evidence(cause, secrets=self.diagnostic_secrets)
+        log.error(f"Provider operation failed; diagnostic={json.dumps(diagnostic, ensure_ascii=True)}")
 
     @property
     def available_offerings(self):
@@ -392,6 +403,10 @@ class JobService:
         ):
             # silent-defaults: allow-contract -- Native exit receipts stay in unavailable_hosts; only exceptions can be chained.
             exception_cause = cause if isinstance(cause, BaseException) else None
+
+            if exception_cause is None:
+                # Native exit receipts contain process identity and status, not scientific input.
+                log.error(f"Scientific host exited; {cause=}")
 
             raise RuntimeError(f"Cannot continue the job service: {len(self.unavailable_hosts)=} of {len(self.hosts)=} scientific hosts are unavailable under {self.host_failure_policy=}") from exception_cause
 

@@ -2,9 +2,11 @@
 
 import asyncio
 import json
+from itertools import chain, repeat
 import unittest
 
 from provider_core.analysis import AnalysisOutcomeUnresolved
+from provider_core.chat import ChatFailed
 from provider_core.api_errors import ApiFailure
 from provider_core.transport import ExchangeFailed
 from provider_core.job_service import JobOffering, JobService, JobServicePolicy, HostFailurePolicy
@@ -30,6 +32,9 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         jobs_page = page()
         jobs_page['next_cursor'] = None
         discovery = Transport(api_reply(json.dumps(jobs_page).encode()))
+        # A slower Attempt may allow another poll; the feed then has no new jobs.
+        empty_page = {**jobs_page, "jobs": []}
+        discovery.replies = chain(discovery.replies, repeat(api_reply(json.dumps(empty_page).encode())))
         hello = Transport(api_reply(receipt()), api_reply(receipt()))
         attempt = Transport(*lifecycle_replies())
         transports = iter((discovery, hello, attempt))
@@ -63,6 +68,25 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         return (service, hello)
+
+    def test_shutdown_report_preserves_redacted_original_failure_graph(self):
+        (service, _) = self.service(session=LiveSession(), delivery=RecordingDelivery(), stopping=asyncio.Event())
+        service.diagnostic_secrets = ("unlabelled-private-key",)
+        try:
+            raise ChatFailed("http_status", "Endpoint refused unlabelled-private-key")
+        except ChatFailed as cause:
+            failure = RuntimeError("Attempt shutdown incomplete")
+            failure.__cause__ = cause
+
+        with self.assertLogs("provider_core.job_service", level="ERROR") as captured:
+            service.report_failure(failure)
+
+        output = captured.output[0]
+        self.assertIn("ChatFailed", output)
+        self.assertIn("Endpoint refused", output)
+        self.assertIn("relationships", output)
+        self.assertIn("[redacted]", output)
+        self.assertNotIn("unlabelled-private-key", output)
 
     async def test_job_reaches_delivery_and_withdraws_on_stop(self):
         stopping = asyncio.Event()
@@ -225,14 +249,21 @@ class ConcurrentJobServiceTests(unittest.IsolatedAsyncioTestCase):
             offerings=(
                 JobOffering(
                     announcement=AnalysisOffering("nmr_predict", "Test science"),
-                    host=ResidentWorker(), consumer_id="test", generation="one", new_session=new_session,
+                    host=ResidentWorker(),
+                    consumer_id="test",
+                    generation="one",
+                    new_session=new_session,
                 ),
             ),
             host_failure_policy=HostFailurePolicy.STOP,
-            limits=limits, maximum_preparations=preparations,
-            display_name="Test", description="Concurrent service fixture",
+            limits=limits,
+            maximum_preparations=preparations,
+            display_name="Test",
+            description="Concurrent service fixture",
             policy=JobServicePolicy(0.01, 10, 1, 90, 0.02, 1),
-            new_api=fixture.new_api, new_delivery=new_delivery, stopping=stopping,
+            new_api=fixture.new_api,
+            new_delivery=new_delivery,
+            stopping=stopping,
         )
 
         return (service, fixture, sessions, deliveries, entered, gates)
@@ -251,7 +282,8 @@ class ConcurrentJobServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_progress_during_science_and_delivery_waits(self):
         (service, fixture, sessions, deliveries, entered, gates) = self.service(
-            limits=LiveAttemptLimits(3, 393216, 393216, 30), preparations=2,
+            limits=LiveAttemptLimits(3, 393216, 393216, 30),
+            preparations=2,
         )
 
         task = asyncio.create_task(service.serve())

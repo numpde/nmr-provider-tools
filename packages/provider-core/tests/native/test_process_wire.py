@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from provider_core.contribution import CallRef
+from provider_core.diagnostics import failure_evidence
 from provider_core.contribution_errors import CallRejected, ScientificRejection
 from provider_core.hosting import (
     AcceptanceState,
@@ -28,6 +29,8 @@ from provider_core.hosting import (
 )
 from provider_core.process_wire import (
     MAX_DIAGNOSTIC_CHARACTERS,
+    MAX_EXCEPTION_NOTES,
+    MAX_FAILURE_NOTE_CHARACTERS,
     MAX_FAILURE_DEPTH,
     MAX_FAILURE_NODES,
     MAX_FRAME_BYTES,
@@ -48,6 +51,55 @@ def roundtrip(sdk_value):
 
 
 class ProcessWireTests(unittest.TestCase):
+
+    def test_private_notes_survive_wire_with_causes_and_independent_cleanup(self):
+        cause = ValueError("geometry did not converge")
+        failed = RuntimeError("later geometry failed")
+        failed.__cause__ = cause
+        failed.add_note('failed_geometry=2; completed_request_sha256=["abc123"]; artifact_id=report-1; token=private-token')
+        cleanup = OSError("cleanup failed")
+        received = decode_frame(frame(ExceptionGroup("work and cleanup", [failed, cleanup]))[4:])
+        evidence = decoded_error_evidence(received.exceptions[0])
+        self.assertEqual(first="builtins.RuntimeError", second=evidence.original_type)
+        self.assertEqual(first="builtins.ValueError", second=evidence.cause.original_type)
+        self.assertIn(member="completed_request_sha256", container=evidence.notes[0])
+        forwarded = decode_frame(frame(received)[4:])
+        self.assertEqual(first=evidence.notes, second=decoded_error_evidence(forwarded.exceptions[0]).notes)
+        self.assertFalse(expr=evidence.notes_omitted)
+        self.assertEqual(first=2, second=len(received.exceptions))
+        received.exceptions[0].add_note("untrusted mutation")
+        projected = json.dumps(failure_evidence(received, secrets=()))
+        self.assertIn(member="abc123", container=projected)
+        self.assertIn(member="report-1", container=projected)
+        self.assertNotIn(member="private-token", container=projected)
+        self.assertNotIn(member="untrusted mutation", container=projected)
+
+    def test_aggregate_note_budget_keeps_failure_frame_encodable(self):
+        failures = [RuntimeError("scientific failure") for _ in range(MAX_FAILURE_NODES - 1)]
+        for failure in failures:
+            for _ in range(MAX_EXCEPTION_NOTES):
+                failure.add_note("\U00010400" * MAX_DIAGNOSTIC_CHARACTERS)
+        encoded = frame(ExceptionGroup("independent failures", failures))
+        self.assertLessEqual(a=len(encoded) - 4, b=MAX_FRAME_BYTES)
+        decoded = decode_frame(encoded[4:])
+        notes = [decoded_error_evidence(failure) for failure in decoded.exceptions]
+        self.assertLessEqual(a=sum(len(note) for evidence in notes for note in evidence.notes), b=MAX_FAILURE_NOTE_CHARACTERS)
+        self.assertTrue(expr=any(evidence.notes_omitted for evidence in notes))
+        self.assertEqual(first=len(failures), second=len(decoded.exceptions))
+
+    def test_note_limits_mark_omission_without_retaining_secret_prefixes(self):
+        failed = ValueError("calculation failed")
+        failed.add_note("secret-prefix" + "x" * MAX_DIAGNOSTIC_CHARACTERS)
+        for index in range(MAX_EXCEPTION_NOTES + 2):
+            failed.add_note(f"completed index={index}")
+        received = decode_frame(frame(failed)[4:])
+        evidence = decoded_error_evidence(received)
+        self.assertTrue(expr=evidence.notes_omitted)
+        self.assertLessEqual(a=len(evidence.notes), b=MAX_EXCEPTION_NOTES)
+        projected = json.dumps(failure_evidence(received, secrets=()))
+        self.assertNotIn(member="secret-prefix", container=projected)
+        self.assertIn(member="notes_omitted", container=projected)
+
     def test_foreign_enum_and_record_names_do_not_grant_wire_admission(self):
         # Identical names and fields do not grant access to the SDK wire registry
         @dataclass(frozen=True, slots=True)

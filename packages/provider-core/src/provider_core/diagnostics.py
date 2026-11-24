@@ -26,7 +26,8 @@ from collections import deque
 from provider_core.failure_projection import owned_details as core_owned_details
 from provider_core.failure_projection import owned_relationships as core_owned_relationships
 from provider_core.diagnostic_text import redact_credential_fields
-from provider_core.process_wire import decoded_error_evidence
+from provider_core.process_wire import decoded_error_evidence, exception_notes
+from provider_core.payload import PayloadRejected
 from provider_core.type_requirements import require_type
 
 # Bound protected failure-graph traversal and diagnostic output.
@@ -43,6 +44,13 @@ def describe_core_failure(error, text, diagnostic_window):
 
     if type(error) is DiagnosticOutputRefused:
         return {"message": str(error)}
+
+    if type(error) is PayloadRejected:
+        # The codec excludes values, Pydantic context and documentation URLs.
+        return {"message": error.message, "code": error.code.value}
+
+    if type(error) is UnicodeDecodeError:
+        return {"encoding": error.encoding, "start": error.start, "end": error.end, "reason": error.reason}
 
     return core_owned_details(error)
 
@@ -165,6 +173,18 @@ def _failure_evidence(error, *, secrets, describe_owner, owner_relationships, di
             ]
 
             evidence["remote_frames_omitted"] = remote.frames_omitted
+
+        if remote is not None:
+            (notes, notes_omitted) = (remote.notes, remote.notes_omitted)
+        else:
+            (notes, notes_omitted) = exception_notes(current)
+
+        if notes:
+            # todo: Review scientific note schemas; redact credentials before
+            # display, but never treat note text as outcome or retry authority.
+            evidence["notes"] = [diagnostic_text(text(note, 2048)) for note in notes]
+        if notes_omitted:
+            evidence["notes_omitted"] = True
 
         if isinstance(current, OSError) and (type(current.errno) is int):
             evidence["errno"] = current.errno

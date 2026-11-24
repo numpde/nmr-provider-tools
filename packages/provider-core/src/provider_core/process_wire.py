@@ -56,6 +56,8 @@ MAX_FRAME_BYTES = 8 * 1024 * 1024
 MAX_PAYLOAD_BYTES = 2 * 1024 * 1024
 MAX_FAILURE_NODES = 32
 MAX_FAILURE_DEPTH = 8
+MAX_EXCEPTION_NOTES = 8
+MAX_FAILURE_NOTE_CHARACTERS = 32768
 MAX_DIAGNOSTIC_CHARACTERS = 2048
 MAX_TRACEBACK_FRAMES = 8
 MAX_TRACEBACK_LOCATION_CHARACTERS = 512
@@ -74,6 +76,8 @@ class _DecodedErrorEvidence:
     code: str | None
     frames: tuple[tuple[str, str, int], ...]
     frames_omitted: bool
+    notes: tuple[str, ...]
+    notes_omitted: bool
     causes: tuple[_DecodedErrorEvidence, ...]
     cause: _DecodedErrorEvidence | None
     context: _DecodedErrorEvidence | None
@@ -160,6 +164,34 @@ def _diagnostic_text(diagnostic: str) -> str:
     return "Diagnostic text omitted: exceeds the wire character limit"
 
 
+def exception_notes(failure: BaseException) -> tuple[tuple[str, ...], bool]:
+    """Retain bounded note text, never custom attributes or referenced objects.
+
+    These notes are protected, unredacted evidence. Consumers redact before
+    display; an overlong note is omitted whole to avoid retaining a secret prefix.
+    """
+    decoded = decoded_error_evidence(failure)
+    if decoded is not None:
+        return (decoded.notes, decoded.notes_omitted)
+
+    attributes = BaseException.__getattribute__(failure, "__dict__")
+    notes = dict.get(attributes, "__notes__", [])
+
+    if type(notes) is not list:
+        return ((), True)
+
+    retained = []
+    omitted = len(notes) > MAX_EXCEPTION_NOTES
+
+    for note in notes[:MAX_EXCEPTION_NOTES]:
+        if (type(note) is str) and (len(note) <= MAX_DIAGNOSTIC_CHARACTERS):
+            retained.append(note)
+        else:
+            omitted = True
+
+    return (tuple(retained), omitted)
+
+
 def _pack_traceback(failure: BaseException) -> dict:
     """Keep innermost child locations without reading source, locals or globals."""
 
@@ -190,7 +222,7 @@ def _pack_traceback(failure: BaseException) -> dict:
     return {"frames": list(frames), "frames_omitted": frames_omitted}
 
 
-def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list[int]) -> dict:
+def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list[int], remaining_note_characters: list[int]) -> dict:
     original_type = f"{type(failure).__module__}.{type(failure).__qualname__}"  # machine-string: The wire original_type field and reconstructed remote_type retain a dotted Python type identity
     original_type = _diagnostic_text(original_type)
     limited = (id(failure) in seen) or (len(seen) >= MAX_FAILURE_DEPTH) or (remaining[0] == 0)
@@ -205,6 +237,8 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
             "message": "Further failure evidence omitted: cycle or diagnostic limit",
             "frames": [],
             "frames_omitted": True,
+            "notes": [],
+            "notes_omitted": True,
         }
 
     seen = seen | {id(failure)}
@@ -225,7 +259,19 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
         except BaseException as cause:
             message = f"Failure text unavailable: {type(cause)=} raised by __str__"
 
+    (notes, notes_omitted) = exception_notes(failure)
+    retained_notes = []
+
+    for note in notes:
+        if len(note) <= remaining_note_characters[0]:
+            retained_notes.append(note)
+            remaining_note_characters[0] -= len(note)
+        else:
+            notes_omitted = True
+
     error_fields = {
+        "notes": retained_notes,
+        "notes_omitted": notes_omitted,
         "error": name,
         "original_type": original_type,
         "message": _diagnostic_text(message),
@@ -239,7 +285,7 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
         causes = []
 
         for child in failure.exceptions:
-            causes.append(_pack_error(child, seen=seen, remaining=remaining))
+            causes.append(_pack_error(child, seen=seen, remaining=remaining, remaining_note_characters=remaining_note_characters))
 
             if remaining[0] == 0:
                 if len(causes) < len(failure.exceptions):
@@ -250,6 +296,8 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
                             "message": "Additional independent failures omitted by diagnostic limit",
                             "frames": [],
                             "frames_omitted": True,
+                            "notes": [],
+                            "notes_omitted": True,
                         }
                     )
 
@@ -258,9 +306,9 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
         error_fields["causes"] = causes
 
     if failure.__cause__ is not None:
-        error_fields["cause"] = _pack_error(failure.__cause__, seen=seen, remaining=remaining)
+        error_fields["cause"] = _pack_error(failure.__cause__, seen=seen, remaining=remaining, remaining_note_characters=remaining_note_characters)
     elif (failure.__context__ is not None) and (not failure.__suppress_context__):
-        error_fields["context"] = _pack_error(failure.__context__, seen=seen, remaining=remaining)
+        error_fields["context"] = _pack_error(failure.__context__, seen=seen, remaining=remaining, remaining_note_characters=remaining_note_characters)
 
     return error_fields
 
@@ -288,7 +336,7 @@ def pack(sdk_value: object) -> object:
         return {"enum": enum_name, "value": sdk_value.value}
 
     if isinstance(sdk_value, BaseException):
-        return _pack_error(sdk_value, seen=frozenset(), remaining=[MAX_FAILURE_NODES])
+        return _pack_error(sdk_value, seen=frozenset(), remaining=[MAX_FAILURE_NODES], remaining_note_characters=[MAX_FAILURE_NOTE_CHARACTERS])
 
     if is_dataclass(sdk_value) and not isinstance(sdk_value, type):
         record_name = type(sdk_value).__name__
@@ -372,12 +420,12 @@ def unpack(wire_value: object) -> object:
 
     if "error" in wire_value:
         # The sender can append explicit limit markers beyond its retained-node budget.
-        return _unpack_error(wire_value, depth=0, remaining_failure_nodes=[2 * MAX_FAILURE_NODES])
+        return _unpack_error(wire_value, depth=0, remaining_failure_nodes=[2 * MAX_FAILURE_NODES], remaining_note_characters=[MAX_FAILURE_NOTE_CHARACTERS])
 
     raise ValueError(f"{reprlib.repr(set(wire_value))=} should identify a scientific process record")
 
 
-def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: list[int]) -> BaseException:
+def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: list[int], remaining_note_characters: list[int]) -> BaseException:
     if not (depth <= MAX_FAILURE_DEPTH):
         raise ValueError(f"{depth=} should not exceed {MAX_FAILURE_DEPTH=}")
 
@@ -389,7 +437,7 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: li
     require_type(error_fields, dict, error_factory=ValueError)
     require_type(error_fields.get("error"), str, error_factory=ValueError)
 
-    required_error_fields = {"error", "message", "original_type", "frames", "frames_omitted"}
+    required_error_fields = {"error", "message", "original_type", "frames", "frames_omitted", "notes", "notes_omitted"}
     error_kind = error_fields["error"]
 
     if error_kind in ("CallRejected", "ScientificRejection"):
@@ -417,6 +465,23 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: li
     for description_field in ("message", "original_type"):
         if not (len(error_fields[description_field]) <= MAX_DIAGNOSTIC_CHARACTERS):
             raise ValueError(f"{description_field=}; {len(error_fields[description_field])=} should not exceed {MAX_DIAGNOSTIC_CHARACTERS=}")
+
+    notes = error_fields["notes"]
+    notes_omitted = error_fields["notes_omitted"]
+    require_type(notes, list, error_factory=ValueError)
+    require_type(notes_omitted, bool, error_factory=ValueError)
+
+    if not (len(notes) <= MAX_EXCEPTION_NOTES):
+        raise ValueError(f"{len(notes)=} should not exceed {MAX_EXCEPTION_NOTES=}")
+
+    for note in notes:
+        require_type(note, str, error_factory=ValueError)
+        if not (len(note) <= MAX_DIAGNOSTIC_CHARACTERS):
+            raise ValueError(f"{len(note)=} should not exceed {MAX_DIAGNOSTIC_CHARACTERS=}")
+
+    remaining_note_characters[0] -= sum(len(note) for note in notes)
+    if not (remaining_note_characters[0] >= 0):
+        raise ValueError(f"Failure notes exceed {MAX_FAILURE_NOTE_CHARACTERS=} across the causal graph")
 
     frames = error_fields["frames"]
     frames_omitted = error_fields["frames_omitted"]
@@ -461,7 +526,7 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: li
 
         # repo-check: allow-tuple-generator -- Retain reconstructed child failures for both the exception group and its immutable evidence
         group_failures = tuple(
-            _unpack_error(cause, depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes)
+            _unpack_error(cause, depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes, remaining_note_characters=remaining_note_characters)
             for cause in error_fields["causes"]
         )
 
@@ -475,6 +540,8 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: li
         message = error_fields["message"]
         failure = RemoteScienceError(f"Remote scientific failure: {original_type=}; {message=}")
 
+    # todo: Review recipients before adding private note text to default traceback
+    # output; the protected diagnostic renderer redacts the retained notes instead.
     failure.remote_type = error_fields["original_type"]
 
     if frames or frames_omitted:
@@ -490,9 +557,9 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: li
         failure.add_note(_diagnostic_text("\n".join(note_lines)))
 
     if "cause" in error_fields:
-        failure.__cause__ = _unpack_error(error_fields["cause"], depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes)
+        failure.__cause__ = _unpack_error(error_fields["cause"], depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes, remaining_note_characters=remaining_note_characters)
     elif "context" in error_fields:
-        failure.__context__ = _unpack_error(error_fields["context"], depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes)
+        failure.__context__ = _unpack_error(error_fields["context"], depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes, remaining_note_characters=remaining_note_characters)
 
     failure._process_error_evidence = _DecodedErrorEvidence(
         kind=error_kind,
@@ -501,6 +568,8 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: li
         code=error_fields["code"] if "code" in error_fields else None,
         frames=tuple((location["file"], location["function"], location["line"]) for location in frames),
         frames_omitted=frames_omitted,
+        notes=tuple(notes),
+        notes_omitted=notes_omitted,
         causes=tuple(child._process_error_evidence for child in group_failures),
         cause=failure.__cause__._process_error_evidence if failure.__cause__ is not None else None,
         context=failure.__context__._process_error_evidence if failure.__context__ is not None else None,
