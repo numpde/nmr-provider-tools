@@ -1,0 +1,11 @@
+# provider-core 0.7.7
+
+2026-11-24. An owning `ProcessCall` can now escalate cooperative stopping with optional `execution_stop_grace_seconds` in `[execution.operation_policy]`. For example, `execution_stop_request_seconds = 60` requests stopping after the execution allowance, and `execution_stop_grace_seconds = 10` starts worker retirement if the operation remains unfinished ten seconds after the first stop request. Omission preserves cooperative-only stopping.
+
+Caller cancellation requests stopping immediately and starts that same grace interval. The SDK carries the first monotonic stop timestamp across process observations; repeated requests and polling cannot renew it. Completion during grace keeps a successful result and leaves the worker reusable. Borrowed calls and thread hosts cannot enable worker retirement.
+
+Grace expiry raises `ExecutionStopGraceExpired`, retaining operation identity and both configured allowances in protected diagnostics. Retirement uses the existing process and runner owner and retains its separate cleanup allowances; grace expiry does not establish that the worker is already dead. Lost observation also retires the owned worker. Neither case authorizes replay, even when scientific failure retries are enabled. Independent cleanup failures remain available, and shared batch participants and input charges stay retained until cleanup is confirmed.
+
+Upgrade caller and worker together: the private operation policy and observation wire now include the grace setting and first stop timestamp. This release does not enable escalation in existing deployments automatically.
+
+Tests-first qualification demonstrated the missing setting and an early-cancellation timing defect before correction. Regression coverage includes real uncooperative workers, successful cooperative completion, early cancellation, lost replies, borrowed/thread refusal, and batch participation held across pending or failed retirement. The implementation passed 267 native tests, four batch integration tests, five transparency integration tests and 24 diagnostic-projection tests (five configured skips). Exact release-artifact qualification is recorded in the accompanying build and test logs. The repository convention report remains a separate dated, non-green snapshot in `notes/092_repo_checks_status.html`.
