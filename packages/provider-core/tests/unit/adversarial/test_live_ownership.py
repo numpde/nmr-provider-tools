@@ -40,6 +40,13 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(owner_type=owner_type.__name__), self.assertRaises(TypeError):
                 owner_type()
 
+    async def test_capacity_query_rejects_invalid_allowances_without_claiming(self):
+        claims = AttemptClaims.live()
+        for terminal_bytes, input_bytes in ((-1, 20), (2097153, 20), (16384, 0), (16384, -1), (16384, True)):
+            with self.subTest(terminal_bytes=terminal_bytes, input_bytes=input_bytes), self.assertRaises((TypeError, ValueError)):
+                claims.require_capacity(terminal_bytes=terminal_bytes, input_bytes=input_bytes)
+            self.assertEqual(claims.live_owners(), ())
+
     async def test_same_job_or_key_excludes_other_lanes_but_unrelated_work_can_run(self):
         (claims, owner) = (AttemptClaims.live(), Owner())
         pending = selected("job:a", "key:a")
@@ -69,6 +76,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
             LiveAttemptLimits(maximum_attempts=1),
             LiveAttemptLimits(maximum_control_bytes=131072),
             LiveAttemptLimits(maximum_pending_terminal_bytes=2097152),
+            LiveAttemptLimits(maximum_input_bytes=record().input.input_byte_length),
         ):
             with self.subTest(limits=limits):
                 (claims, owner) = (AttemptClaims.live(limits=limits), Owner())

@@ -9,7 +9,7 @@ import unittest
 from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.controller import ControllerRefused
-from provider_core.ownership import AttemptClaims, OwnershipRefused
+from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import start_response
@@ -19,6 +19,30 @@ from tests.fakes.api import api
 
 
 class ControllerTests(unittest.IsolatedAsyncioTestCase):
+
+    async def test_start_reserves_capacity_before_returning_without_waiting_for_science(self):
+        probe = LiveAttemptProbe()
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+        session = Session(probe)
+        transport = Transport(*lifecycle_replies())
+        controller = live_controller(
+            api(transport, scope().api_origin), probe, claims, session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1,
+        )
+
+        await controller.start(record())
+
+        self.assertEqual(claims.live_owners(), (controller,))
+        self.assertEqual(transport.calls, [])
+        with self.assertRaises(LiveCapacityFull):
+            claims.require_capacity(terminal_bytes=131072, input_bytes=record().input.input_byte_length)
+        confirmed = await controller.join()
+
+        self.assertIsInstance(confirmed, DeliveryAcceptedCheckpoint)
+        self.assertTrue(controller.shutdown_ready)
+        claims.require_capacity(terminal_bytes=131072, input_bytes=record().input.input_byte_length)
 
     async def test_claim_exposes_only_its_current_authoritative_operation_owner(self):
         claim = AttemptClaims.live().claim_live(record(), lifecycle_owner=LiveAttemptProbe())

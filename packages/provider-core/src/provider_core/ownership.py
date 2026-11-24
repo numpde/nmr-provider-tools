@@ -44,6 +44,7 @@ class LiveAttemptLimits:
     maximum_attempts: int = 8
     maximum_control_bytes: int = 1048576
     maximum_pending_terminal_bytes: int = 16777216
+    maximum_input_bytes: int = 16777216
 
     def __post_init__(self):
         require_type(self.maximum_attempts, int)
@@ -60,6 +61,11 @@ class LiveAttemptLimits:
 
         if not (0 < self.maximum_pending_terminal_bytes):
             raise ValueError(f"{self.maximum_pending_terminal_bytes=} should be positive")
+
+        require_type(self.maximum_input_bytes, int)
+
+        if not (0 < self.maximum_input_bytes):
+            raise ValueError(f"Cannot bound admitted Job inputs: {self.maximum_input_bytes=} should be positive")
 
 
 def _identity(scope, reference):
@@ -102,13 +108,6 @@ class AttemptClaims:
         if lifecycle_owner is None:
             raise ValueError(f"{lifecycle_owner=} should not be None")
 
-        require_type(maximum_terminal_bytes, int)
-
-        min_terminal_bytes = 16384
-
-        if not (min_terminal_bytes <= maximum_terminal_bytes <= MAX_COMPLETE_REQUEST_BYTES):
-            raise ValueError(f"{maximum_terminal_bytes=} should be between {min_terminal_bytes=} and {MAX_COMPLETE_REQUEST_BYTES=}")
-
         # Reject oversized control input before publishing indexes or allowing START.
         # The owner retains the original object; do not keep another encoded copy.
         _encode_pending(pending)
@@ -118,14 +117,31 @@ class AttemptClaims:
             (pending.scope.api_origin, pending.scope.provider_ref, "job", pending.input.job_ref),
         )
 
-        claim = self._reserve(identities, live_terminal_bytes=maximum_terminal_bytes)
+        claim = self._reserve(identities, live_terminal_bytes=maximum_terminal_bytes, input_bytes=pending.input.input_byte_length)
         claim._pending = pending
         claim._lifecycle_owner = lifecycle_owner
         claim._maximum_terminal_bytes = claim._pending_terminal_bytes = maximum_terminal_bytes
 
         return claim
 
-    def _require_live_capacity(self, terminal_bytes):
+    def require_capacity(self, *, terminal_bytes, input_bytes):
+        """Check prospective capacity without reserving or authorizing a Job.
+
+        claim_live still commits exclusion and capacity together. Callers that
+        preflight session construction must claim before yielding the event loop.
+        """
+        require_type(terminal_bytes, int)
+        require_type(input_bytes, int)
+
+        if not (16384 <= terminal_bytes <= MAX_COMPLETE_REQUEST_BYTES):
+            raise ValueError(
+                f"Cannot check Attempt capacity: {terminal_bytes=} must fit the terminal allowance of 16384 to {MAX_COMPLETE_REQUEST_BYTES} bytes"
+            )
+
+        if input_bytes < 1:
+            raise ValueError(f"Cannot check Attempt capacity: {input_bytes=} must describe a nonempty Job input")
+
+        self._require_live_view()
         existing_claims = set(self._claims.values())
         limits = self._limits
         prospective_attempt_count = len(existing_claims) + 1
@@ -145,6 +161,13 @@ class AttemptClaims:
 
         if not (prospective_pending_terminal_bytes <= limits.maximum_pending_terminal_bytes):
             raise LiveCapacityFull(f"{prospective_pending_terminal_bytes=} should not exceed {limits.maximum_pending_terminal_bytes=}")
+
+        prospective_input_bytes = sum(claim._pending.input.input_byte_length for claim in existing_claims) + input_bytes
+
+        if prospective_input_bytes > limits.maximum_input_bytes:
+            raise LiveCapacityFull(
+                f"Cannot admit another Job: {prospective_input_bytes=} exceeds {limits.maximum_input_bytes=}; existing inputs remain owned"
+            )
 
     def live_owners(self):
         """Keep held controllers reachable when composition selects unrelated work."""
@@ -167,7 +190,7 @@ class AttemptClaims:
         if (self._loop is not None) and ((caller_loop := asyncio.get_running_loop()) is not self._loop):
             raise OwnershipRefused(f"{id(caller_loop)=} should match {id(self._loop)=}")
 
-    def _reserve(self, identities, *, live_terminal_bytes):
+    def _reserve(self, identities, *, live_terminal_bytes, input_bytes):
         caller_loop = asyncio.get_running_loop()
 
         if (self._loop is not None) and (self._loop is not caller_loop):
@@ -177,7 +200,7 @@ class AttemptClaims:
             if identity in self._claims:
                 raise OwnershipRefused(f"{_OWNERSHIP_EVIDENCE.repr(identity)=} should be absent from the claim registry")
 
-        self._require_live_capacity(live_terminal_bytes)
+        self.require_capacity(terminal_bytes=live_terminal_bytes, input_bytes=input_bytes)
         self._loop = caller_loop
 
         claim = _AttemptClaim(self, identities)

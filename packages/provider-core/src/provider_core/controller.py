@@ -507,6 +507,18 @@ class AttemptController:
         withdraw future effects, then join before settling its original owners.
         """
 
+        await self.start(pending)
+
+        return await self.join()
+
+    async def start(self, pending):
+        """Reserve this Attempt and retain its driver before returning.
+
+        Successful admission does not suspend before claiming capacity. A service
+        can admit the next job after this returns and observe this one through
+        join(). Failed admission still settles the original session and clients.
+        """
+
         if not (self._lifetime is _Lifetime.NEW):
             raise ControllerRefused(f"{self._lifetime=} should be {_Lifetime.NEW=}")
 
@@ -545,8 +557,6 @@ class AttemptController:
                 raise BaseExceptionGroup("Attempt admission failed during cleanup", (cleanup_fatal, self.last_failure)) from None
 
             raise self.last_failure from None
-
-        return await self.join()
 
     async def join(self):
         """Observe the original driver; repeated or cancelled waits dispatch nothing."""
