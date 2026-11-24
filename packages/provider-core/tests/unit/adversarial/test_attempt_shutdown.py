@@ -28,6 +28,7 @@ async def retain_rejected_report(witness):
     science = SingleRetirementSession(probe)
     delivery = RecordingDelivery()
     delivery.submit = AsyncMock(side_effect=DeliveryRejected("Fixture receipt does not match the selected report"))
+
     controller = live_controller(
         api(Transport(*lifecycle_replies()), scope().api_origin),
         probe,
@@ -48,11 +49,13 @@ async def retain_rejected_report(witness):
         pass
 
     observed = asyncio.Event()
+
     shutdown = asyncio.create_task(
         drain_attempts((controller,), retry_seconds=0.01, report_failure=lambda _: observed.set()),
     )
 
     await observed.wait()
+
     witness.write_text(
         json.dumps({
             "selected": isinstance(controller.operation._checkpoint, TerminalSelectedCheckpoint),
@@ -96,6 +99,7 @@ class GatedController:
 
         if self.release.is_set():
             self.shutdown_ready = True
+
             return
 
         raise self.failure
@@ -130,7 +134,9 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
         fatal = SystemExit(17)
         first = GatedController(hold_join=False, failure=fatal)
         second = GatedController(hold_join=False, failure=RuntimeError("Unused fixture failure"))
+
         second.release.set()
+
         shutdown = asyncio.create_task(
             contain_task_exit(drain_attempts, (first, second), retry_seconds=0.01),
         )
@@ -144,6 +150,7 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
             # Use the SDK task boundary so a raw SystemExit cannot bypass the
             # parent observer and terminate asyncio's loop.
             result = await asyncio.gather(shutdown, return_exceptions=True)
+
             self.assertIsInstance(result[0], BaseExceptionGroup)
             self.assertIn(fatal, result[0].exceptions)
         finally:
@@ -152,6 +159,7 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
 
     def test_permanently_rejected_report_keeps_its_process_and_original_body(self):
         staged_root = pathlib.Path(__file__).resolve().parents[3]
+
         program = (
             "import asyncio, pathlib, sys\n"
             "sys.path.insert(0, sys.argv[1])\n"
@@ -161,6 +169,7 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             witness = pathlib.Path(temporary) / "retained.json"
+
             child = subprocess.Popen(
                 [sys.executable, "-I", "-B", "-c", program, str(staged_root), str(witness)],
                 stdout=subprocess.PIPE,
@@ -179,6 +188,7 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
                     time.sleep(0.01)
 
                 evidence = json.loads(witness.read_text())
+
                 self.assertTrue(evidence["selected"])
                 self.assertTrue(evidence["retained_body"])
                 self.assertFalse(evidence["ready"])
@@ -192,4 +202,5 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
                 # This case intentionally has no authorized delivery recovery.
                 # Terminate only the owned test process after proving retention.
                 child.kill()
+
                 child.communicate(timeout=5)

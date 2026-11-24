@@ -79,6 +79,7 @@ async def drain_attempts(
             except BaseException as cause:
                 if interruption is None:
                     interruption = cause
+
                     remember(cause)
 
     if len(failures) == 1:
