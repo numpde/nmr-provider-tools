@@ -6,7 +6,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from asyncio import get_running_loop, sleep, timeout_at
+from asyncio import CancelledError, get_running_loop, shield, sleep, timeout_at
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 import logging
@@ -25,6 +25,8 @@ from provider_core.hosting import (
     Outcome,
     ResultConsumption,
     settle_cleanup,
+    _join_settlement,
+    _start_owned_task,
 )
 
 from provider_core.process_host import ProcessExecutionHost
@@ -43,6 +45,21 @@ class AdmissionRejected(RuntimeError):
         self.refusal = refusal
 
         super().__init__(f"Scientific call was not admitted: {refusal.code.value=}, {refusal.message=}")
+
+
+class ExecutionStopGraceExpired(TimeoutError):
+    """Execution is unresolved; its process owner must settle worker retirement."""
+
+    def __init__(self, *, operation, execution_stop_request_seconds, execution_stop_grace_seconds):
+        self.operation = operation
+        self.execution_stop_request_seconds = execution_stop_request_seconds
+        self.execution_stop_grace_seconds = execution_stop_grace_seconds
+
+        super().__init__(
+            f"Scientific execution remains unfinished after cooperative stopping: {operation=}, "
+            f"{execution_stop_request_seconds=}, {execution_stop_grace_seconds=}; "
+            "retiring its worker without replaying the operation"
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -105,10 +122,21 @@ class ScientificCall[InputT, OutputT]:
         binding: CallBinding[InputT, object, OutputT],
         operation_policy: OperationPolicy,
         error_policy: ErrorPolicy,
+        _retire: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         if not (binding.description.state_inputs == binding.description.state_outputs == ()):
             raise ValueError(f"{binding.description.name=} exchanges state handles and requires a shared analysis")
 
+        if (
+            (operation_policy.execution_stop_grace_seconds is not None) and
+            ((_retire is None) or (not isinstance(host, ProcessExecutionHost)))
+        ):
+            raise ValueError(
+                f"{operation_policy.execution_stop_grace_seconds=} requires an owning ProcessCall; "
+                "a borrowed call cannot retire its shared host"
+            )
+
+        self._retire = _retire
         self.host = host
         self.allocation = allocation
         self.binding = binding
@@ -202,7 +230,7 @@ class ScientificCall[InputT, OutputT]:
 
                                 raise rejection
 
-                        observation = await submission.wait()
+                        observation = await self._wait_for_completion(submission)
 
                         try:
                             result_ref = observation.require_result()
@@ -234,7 +262,12 @@ class ScientificCall[InputT, OutputT]:
 
                 with failures.capture():
                     if analysis is not None:
-                        await settle_cleanup(control=analysis.close())
+                        # Escalation already owns retirement of this whole worker.
+                        # Reuse that receipt rather than send analysis cleanup to
+                        # a retired channel or release unconfirmed reservations.
+                        cleanup = self.host.retire() if (self._retire is not None) and self.host.retiring else analysis.close()
+
+                        await settle_cleanup(control=cleanup)
 
                     cleanup_succeeded = True
 
@@ -290,6 +323,61 @@ class ScientificCall[InputT, OutputT]:
                 raise terminal from BaseExceptionGroup("Earlier scientific attempts and terminal failure cause", earlier)
 
             raise
+
+    async def _wait_for_completion(self, submission):
+        if self.operation_policy.execution_stop_grace_seconds is None:
+            return await submission.wait()
+
+        # Keep the original deadline observer alive through caller cancellation.
+        # It owns no separate process: escalation uses ProcessCall.close().
+        observer = _start_owned_task(lambda: self._observe_execution_grace(submission.operation))
+
+        try:
+            return await shield(observer)
+        except CancelledError:
+            failures = FailureCollector(message="Scientific stopping, execution and retirement failed")
+
+            with failures.capture():
+                raise
+
+            with failures.capture():
+                submission.operation.request_stop()
+
+            with failures.capture():
+                await _join_settlement(task=observer)
+
+            failures.raise_if_any()
+
+    async def _observe_execution_grace(self, operation):
+        failures = FailureCollector(message="Scientific execution stopping and retirement failed")
+
+        with failures.capture():
+            observation = await operation.observe(after=None, wait_seconds=0)
+
+            while not observation.finished:
+                wait_seconds = 1
+
+                if observation.stop_requested_at is not None:
+                    deadline = observation.stop_requested_at + self.operation_policy.execution_stop_grace_seconds
+                    wait_seconds = min(1, max(0, deadline - get_running_loop().time()))
+
+                    if wait_seconds == 0:
+                        raise ExecutionStopGraceExpired(
+                            operation=operation.reference,
+                            execution_stop_request_seconds=self.operation_policy.execution_stop_request_seconds,
+                            execution_stop_grace_seconds=self.operation_policy.execution_stop_grace_seconds,
+                        )
+
+                observation = await operation.observe(after=observation.revision, wait_seconds=wait_seconds)
+
+            return observation
+
+        # Lost observation is unresolved too. The process owner retires once;
+        # no analysis-close wait can strand a worker whose reply was lost.
+        with failures.capture():
+            await self._retire()
+
+        failures.raise_if_any()
 
     async def _recover(self, *, delay, deadline, require_execution, scientific_failure):
         async with timeout_at(deadline):

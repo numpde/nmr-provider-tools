@@ -226,6 +226,9 @@ class OperationPolicy:
     the executor passes execution's cancellation and start-deadline checks;
     it includes initialization, decoding, science and result encoding. Expiry
     requests stopping but cannot force the scientific thread to exit.
+    execution_stop_grace_seconds optionally makes an owning ProcessCall retire
+    its worker if execution remains unfinished after that additional interval.
+    Omission keeps cooperative-only stopping; borrowed calls cannot opt in.
 
     Provider code starts cleanup by releasing a result or closing an analysis.
     Its cleanup clock only marks unfinished cleanup overdue; cleanup continues.
@@ -242,6 +245,7 @@ class OperationPolicy:
     cleanup_overdue_flag_seconds: float
     reject_encoded_input_over_bytes: int
     reject_encoded_result_over_bytes: int
+    execution_stop_grace_seconds: float | None = None
 
     def __post_init__(self):
         for policy_seconds in (
@@ -250,6 +254,9 @@ class OperationPolicy:
             self.cleanup_overdue_flag_seconds,
         ):
             require_positive_number(policy_seconds)
+
+        if self.execution_stop_grace_seconds is not None:
+            require_positive_number(self.execution_stop_grace_seconds)
 
         (
             reject_encoded_input_over_bytes,
@@ -443,6 +450,9 @@ class Observation:
     stop_requested: bool
     allowance_expired: bool
     resources: ResourceState
+    # Worker and supervisor share the host monotonic clock. Keep the first
+    # stop request so cancellation or repeated observations cannot renew grace.
+    stop_requested_at: float | None = None
 
     def require_result(self) -> ResultRef:
         """Return this observation's usable result or raise its original failures.

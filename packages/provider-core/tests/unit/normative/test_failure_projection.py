@@ -17,7 +17,9 @@ from provider_core.conversation import ConversationRetirementFailed, ToolRejecte
 from provider_core.execution import ExecutionFailed
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.diagnostics import failure_evidence
+from provider_core.hosting import OperationRef
 from provider_core.payload import PayloadRejected
+from provider_core.scientific_call import ExecutionStopGraceExpired
 from provider_core.process_wire import MAX_TRACEBACK_FRAMES, RemoteScienceError, decode_frame, frame
 from provider_core.starting import StartFailed
 from provider_core.transport import ExchangeFailed, HttpResponse, HttpResponseHead
@@ -27,6 +29,21 @@ from tests.fakes.attempts import ATTEMPT_REF
 
 
 class CoreFailureProjectionTests(unittest.TestCase):
+    def test_execution_stop_grace_retains_operation_and_allowances(self):
+        error = ExecutionStopGraceExpired(
+            operation=OperationRef("host", "analysis", "operation"),
+            execution_stop_request_seconds=60,
+            execution_stop_grace_seconds=10,
+        )
+
+        evidence = failure_evidence(error, secrets=())
+
+        self.assertEqual("operation", evidence["operation_id"])
+        self.assertEqual(60, evidence["execution_stop_request_seconds"])
+        self.assertEqual(10, evidence["execution_stop_grace_seconds"])
+        self.assertIn("unfinished", evidence["message"])
+        self.assertIn("without replaying", evidence["message"])
+
     def test_local_payload_rejection_retains_reason_and_redacts_credentials(self):
         error = PayloadRejected("Missing formula; token=private-token", code=PayloadRejected.Code.INVALID_VALUE)
         projected = failure_evidence(error, secrets=())

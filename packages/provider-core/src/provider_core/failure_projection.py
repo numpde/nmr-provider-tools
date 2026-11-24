@@ -45,6 +45,7 @@ from provider_core.execution import (
 from provider_core.ownership import LiveCapacityFull, OwnershipRefused
 from provider_core.lifetime import LifetimeRefused
 from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirmed
+from provider_core.scientific_call import ExecutionStopGraceExpired
 from provider_core.starting import StartFailed, StartRefused
 from provider_core.startup_file import StartupFileRejected
 from provider_core.transport_errors import ExchangeFailed
@@ -184,6 +185,14 @@ def owned_details(error):
     header admission. Redaction and display truncation remain with the consumer.
     """
     kind = type(error)
+
+    if kind is ExecutionStopGraceExpired:
+        return {
+            "message": str(error),
+            "operation_id": error.operation.operation_id,
+            "execution_stop_request_seconds": error.execution_stop_request_seconds,
+            "execution_stop_grace_seconds": error.execution_stop_grace_seconds,
+        }
 
     if kind is AnalysisOutcomeUnresolved:
         return {"message": "No publishable analysis outcome was established; retain this Attempt."}

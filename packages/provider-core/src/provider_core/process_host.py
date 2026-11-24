@@ -212,7 +212,7 @@ class _ProcessOperation:
         self.remote_observation = None
         self.observation = None
         self.communication_failure = None
-        self.stop_requested = False
+        self.stop_requested_at = None
         self.observation_task = None
         self.read_tasks = set()
         self.release = None
@@ -279,8 +279,11 @@ class _ProcessOperation:
                 resources=ResourceState.RELEASED if (host.retired or (observed.resources is ResourceState.RELEASED)) else ResourceState.UNKNOWN,
             )
 
-        if self.stop_requested and (not observed.stop_requested):
-            observed = replace(observed, stop_requested=True)
+        if (
+            (self.stop_requested_at is not None) and
+            ((observed.stop_requested_at is None) or (self.stop_requested_at < observed.stop_requested_at))
+        ):
+            observed = replace(observed, stop_requested=True, stop_requested_at=self.stop_requested_at)
 
         if self.observation is None:
             self.observation = observed
@@ -423,8 +426,8 @@ class _ProcessOperation:
     def request_stop(self):
         require_running_loop(self.analysis.host.loop)
 
-        if not self.stop_requested:
-            self.stop_requested = True
+        if self.stop_requested_at is None:
+            self.stop_requested_at = self.analysis.host.loop.time()
 
             if (not self.analysis.closed) and (not self._snapshot().finished):
                 self.analysis.host._exchange(self._message("stop_operation"), accept=_acknowledged)

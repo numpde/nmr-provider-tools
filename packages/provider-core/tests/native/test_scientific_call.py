@@ -121,6 +121,14 @@ class ScientificCallTests(unittest.IsolatedAsyncioTestCase):
             unpack=lambda prediction: (prediction,),
         )
 
+    async def test_thread_call_refuses_process_stop_escalation_before_science(self):
+        self.configuration["operation_policy"]["execution_stop_grace_seconds"] = 1
+
+        with self.assertRaisesRegex(ValueError, "owning ProcessCall"):
+            self.call(error_policy={}, method=Calculator.calculate)
+
+        self.assertEqual([], self.science.inputs)
+
     async def test_borrowed_call_cannot_grant_batch_retirement_of_shared_host(self):
         running_call = self.call(error_policy={}, method=Calculator.calculate)
         borrowed_call = self.call(error_policy={}, method=Calculator.calculate)

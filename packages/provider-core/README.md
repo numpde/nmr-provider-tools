@@ -355,6 +355,30 @@ Closing during startup prevents later dispatch and settles the original host;
 repeated closes keep reporting any unconfirmed retirement. The async context
 manager above is the convenience form of that same lifecycle.
 
+An owning process call can escalate cooperative stopping through its deployment:
+
+```toml
+[execution.operation_policy]
+execution_stop_request_seconds = 60
+execution_stop_grace_seconds = 10
+```
+
+Execution expiry requests stopping. If the operation is still unfinished ten
+seconds after the first stop request, the SDK retires that call's worker through
+its existing runner owner. Caller cancellation requests stopping immediately and
+starts the same grace interval; repeated requests do not renew it. Completion
+during grace keeps a successful result and leaves the worker reusable. Omit the
+grace setting to retain cooperative-only stopping. Borrowed calls and thread
+hosts cannot enable process retirement.
+
+Grace expiry raises `ExecutionStopGraceExpired` and forbids replay, including
+when scientific failure retries are enabled. The scientific outcome remains
+unresolved. Retirement has its own configured cleanup allowances: grace expiry
+starts retirement, rather than promising that the worker is dead at that instant.
+Cancellation still joins retirement; independent cleanup failures are retained.
+Shared batch participants and input charges release only after confirmed cleanup.
+Worker and caller must use matching SDK versions for the private observation wire.
+
 Examples with injected runner sessions or thread execution use
 `execution.open_contribution(contribution_type=..., constructor=..., startup=...,
 process_session=...)`. It yields the owned host and initialized contribution;

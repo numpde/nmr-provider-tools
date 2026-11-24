@@ -166,6 +166,7 @@ class ProcessCall:
                 binding=contribution.call(method=self.identity_method),
                 operation_policy=self.settings.operation_policy,
                 error_policy=ErrorPolicy(),
+                _retire=self.close,
             )
             value = await identity_call()
             identity = identity_call.binding.result_codec.encode(value)
@@ -192,6 +193,7 @@ class _ProcessInvocation(ScientificCall):
             binding=contribution.call(method=owner.method),
             operation_policy=owner.settings.operation_policy,
             error_policy=owner.settings.error_policy,
+            _retire=owner.close,
         )
 
         self.owner = owner

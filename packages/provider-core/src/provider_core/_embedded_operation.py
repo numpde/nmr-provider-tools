@@ -103,6 +103,7 @@ class _Operation(_Changes):
         self.result_allowance = invocation.policy.reject_encoded_result_over_bytes
         self.state_allowance = len(call.description.state_outputs)
         self.execution_timer = None
+        self.stop_requested_at = None
         self.resources = ResourceState.RESERVED
         self.control = _OperationControl(self)
 
@@ -140,6 +141,7 @@ class _Operation(_Changes):
 
         if not self.stop_requested:
             self.stop_requested = True
+            self.stop_requested_at = self.loop.time()
 
             self.stop_signal.set()
             self.changed()
@@ -473,6 +475,7 @@ class _Operation(_Changes):
             stop_requested=self.stop_requested,
             allowance_expired=self.expired,
             resources=self.resources,
+            stop_requested_at=self.stop_requested_at,
         )
 
     def _require_result(self, result_ref):
