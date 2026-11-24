@@ -27,13 +27,16 @@ class ProviderClients:
         self.delivery_retirement_seconds = delivery_retirement_seconds
 
     @classmethod
+    # silent-defaults: allow-contract -- Ordinary deployments read bounded startup files; captured deployments supply their snapshot reader.
     def from_config(cls, api, *, grants, read_file=read_startup_file):
         """Capture credentials and trust before opening any provider transport."""
         (settings, provider_ref, publication) = api_settings_with_material(api, read_file)
         settings = replace(settings, http=replace(settings.http, proxy_socket=str(grants.proxy_socket)))
 
         return cls(
-            settings, publication, grants.endpoint(settings.identity.origin, provider_ref),
+            settings,
+            publication,
+            grants.endpoint(settings.identity.origin, provider_ref),
             delivery_exchange_seconds=settings.http.exchange_seconds,
             delivery_retirement_seconds=settings.http.retirement_seconds,
         )
@@ -44,6 +47,7 @@ class ProviderClients:
 
     def new_api(self):
         """Create a separate exchange owner for discovery, Hello or an Attempt."""
+
         return ProviderAPI(
             self.settings.identity,
             self.settings.http.new_transport(),
@@ -52,6 +56,7 @@ class ProviderClients:
 
     def new_delivery(self):
         """Give an Attempt its own outbox exchange with the captured publication inputs."""
+
         return SharedDeliveryClient(
             self.endpoint,
             self.publication,

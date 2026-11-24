@@ -28,8 +28,18 @@ class HelloPublisher:
     admission or changes local readiness.
     """
 
-    def __init__(self, api, *, provider_ref, display_name, description, offerings, stopping,
-                 retry_policy=None, on_accepted=None):
+    def __init__(
+        self,
+        api,
+        *,
+        provider_ref,
+        display_name,
+        description,
+        offerings,
+        stopping,
+        retry_policy=None,
+        on_accepted=None,
+    ):
         self.api = api
         self.provider_ref = provider_ref
         self.display_name = display_name
@@ -59,6 +69,7 @@ class HelloPublisher:
             analysis_offerings=offerings,
             owner=self,
         )
+
         self._announced = offerings
         self.withdrawal_required = bool(offerings)
 
@@ -69,6 +80,7 @@ class HelloPublisher:
 
     async def refresh(self):
         """Publish current state; a permitted retry reads a new complete snapshot."""
+
         async with self._publication:
             while not self.stopping.is_set():
                 try:
@@ -76,24 +88,32 @@ class HelloPublisher:
                 except ApiFailure as failure:
                     await self.retire()
 
-                    if self.retry_policy is None:
+                    if not (self.retry_policy is not None):
                         raise
 
                     seconds = self.retry_policy(failure)
 
                     require_positive_number(seconds)
-                    await self.pause(max(seconds, failure.retry_after_seconds or 0))
+
+                    if failure.retry_after_seconds is not None:
+                        seconds = max(seconds, failure.retry_after_seconds)
+
+                    await self.pause(seconds)
 
     async def run(self, *, refresh_seconds, poll_seconds):
         """Refresh on inventory changes or heartbeat, with only one send in flight."""
         require_positive_number(refresh_seconds)
         require_positive_number(poll_seconds)
-        next_refresh = 0 if self._announced is None else monotonic() + refresh_seconds
+        next_refresh = monotonic()
+
+        if self._announced is not None:
+            next_refresh += refresh_seconds
 
         while not self.stopping.is_set():
-            if self.offerings() != self._announced or monotonic() >= next_refresh:
+            if (self.offerings() != self._announced) or (monotonic() >= next_refresh):
                 await self.refresh()
                 next_refresh = monotonic() + refresh_seconds
+
                 # A worker may have changed while the old snapshot was in flight.
                 # Recheck before sleeping so its replacement is sent immediately.
                 continue
@@ -107,9 +127,11 @@ class HelloPublisher:
         the old exchange ended before withdrawal can supersede it. A failed
         withdrawal retains the duty; it is not evidence of API acceptance.
         """
+
         async with self._publication:
             if self.withdrawal_required:
                 await self.retire()
+
                 return await self._send(())
 
     async def retire(self):
@@ -118,8 +140,10 @@ class HelloPublisher:
 
     async def pause(self, seconds):
         """Wait for the next observation or stop without admitting another send."""
+
         try:
             await asyncio.wait_for(self.stopping.wait(), timeout=seconds)
+        # silent-defaults: allow-exception-outcome -- Expiry schedules another observation; it does not report a successful publication.
         except TimeoutError:
             return False
 

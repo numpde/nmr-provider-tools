@@ -100,9 +100,10 @@ class JobService:
     ):
         """Retain the API clients and Attempt claims for this provider lifetime."""
         self.offerings = tuple(offerings)
-        kinds = tuple(offering.announcement.analysis_kind_ref for offering in self.offerings)
 
-        if not kinds or len(set(kinds)) != len(kinds):
+        kinds = [offering.announcement.analysis_kind_ref for offering in self.offerings]
+
+        if not (kinds and (len(set(kinds)) == len(kinds))):
             raise ValueError(f"Cannot configure the job service: offering references must be nonempty and unique; {kinds=}")
 
         self.host_failure_policy = HostFailurePolicy(host_failure_policy)
@@ -113,18 +114,29 @@ class JobService:
         self.new_api = new_api
         self.new_delivery = new_delivery
         self.api = new_api()
+
         self.publisher = HelloPublisher(
-            new_api(), provider_ref=provider_ref, display_name=display_name,
-            description=description, offerings=lambda: tuple(
+            new_api(),
+            provider_ref=provider_ref,
+            display_name=display_name,
+            description=description,
+            # repo-check: allow-tuple-generator -- Hello compares immutable complete snapshots across asynchronous publications.
+            offerings=lambda: tuple(
                 offering.announcement for offering in self.available_offerings
-            ), stopping=stopping,
+            ),
+            stopping=stopping,
         )
+
         self.scopes = {
             offering.announcement.analysis_kind_ref: RecoveryScope(
-                self.api.origin, provider_ref, offering.consumer_id, offering.generation,
+                self.api.origin,
+                provider_ref,
+                offering.consumer_id,
+                offering.generation,
             )
             for offering in self.offerings
         }
+
         self.stopping = stopping
         self.claims = AttemptClaims.live(limits=limits)
         self.active = None
@@ -138,20 +150,27 @@ class JobService:
                 # Observe each original host before the first availability snapshot.
                 # This detects an already lost worker; later exits are watched below.
                 await asyncio.gather(*(self.observe_worker(host) for host in self.hosts))
+
                 await self.publisher.refresh()
 
                 async with asyncio.TaskGroup() as tasks:
                     tasks.create_task(self.jobs())
-                    tasks.create_task(self.publisher.run(
-                        refresh_seconds=self.policy.hello_seconds, poll_seconds=self.policy.feed_seconds,
-                    ))
+
+                    tasks.create_task(
+                        self.publisher.run(
+                            refresh_seconds=self.policy.hello_seconds,
+                            poll_seconds=self.policy.feed_seconds,
+                        ),
+                    )
+
                     for host in self.hosts:
                         tasks.create_task(self.watch_worker(host))
 
         self.stopping.set()
-        controllers = tuple(dict.fromkeys((
-            *self.claims.live_owners(), *((self.active,) if self.active is not None else ()),
-        )))
+        controllers = dict.fromkeys(self.claims.live_owners())
+
+        if self.active is not None:
+            controllers[self.active] = None
 
         for controller in controllers:
             controller.request_stop()
@@ -162,16 +181,17 @@ class JobService:
 
         # Retained controllers own the original reports and failed Attempts even
         # after another offering runs. Settlement never starts replacement science.
-        while any(not controller.shutdown_ready for controller in controllers):
+        while any((not controller.shutdown_ready) for controller in controllers):
             for controller in controllers:
                 if controller.shutdown_ready:
                     continue
+
                 try:
                     await controller.settle()
                 except Exception:
                     log.exception("Attempt settlement failed; retaining its original work and result")
 
-            if any(not controller.shutdown_ready for controller in controllers):
+            if any((not controller.shutdown_ready) for controller in controllers):
                 await asyncio.sleep(self.policy.retry_max_seconds)
 
         with failures.capture():
@@ -188,14 +208,18 @@ class JobService:
     @property
     def available_offerings(self):
         """Project availability from the actual host associations."""
+
+        # repo-check: allow-tuple-generator -- One immutable inventory is traversed across awaits while host monitors may change availability.
         return tuple(offering for offering in self.offerings if offering.host not in self.unavailable_hosts)
 
     async def jobs(self):
         """Poll each available offering; a shared API backoff pauses all discovery."""
+
         while not self.stopping.is_set():
             for offering in self.available_offerings:
                 if offering.host in self.unavailable_hosts:
                     continue
+
                 kind = offering.announcement.analysis_kind_ref
                 scope = self.scopes[kind]
 
@@ -214,18 +238,26 @@ class JobService:
                         raise
 
                     log.warning(f"Job discovery failed; {error=}")
-                    await self.pause(max(self.policy.feed_seconds, error.retry_after_seconds or 0))
+                    seconds = self.policy.feed_seconds
+
+                    if error.retry_after_seconds is not None:
+                        seconds = max(seconds, error.retry_after_seconds)
+
+                    await self.pause(seconds)
                     break
 
                 if offering.host in self.unavailable_hosts:
                     continue
+
                 self.cursors[kind] = page.next_cursor
 
                 for job in page.jobs:
                     if self.stopping.is_set():
                         return
+
                     if offering.host in self.unavailable_hosts:
                         break
+
                     if self.claims.owns_job(scope, job.input.job_ref):
                         continue
 
@@ -239,6 +271,7 @@ class JobService:
 
         kind = offering.announcement.analysis_kind_ref
         scope = self.scopes[kind]
+
         pending = StartPending(
             scope,
             kind,
@@ -280,9 +313,11 @@ class JobService:
         try:
             outcome = await self.active.run(pending)
         except ControllerFailed as error:
-            if (self.host_failure_policy is HostFailurePolicy.WITHDRAW and
-                    type(error.cause) is ExecutionFailed and
-                    type(error.cause.cause) is AnalysisOutcomeUnresolved):
+            if (
+                (self.host_failure_policy is HostFailurePolicy.WITHDRAW) and
+                (type(error.cause) is ExecutionFailed) and
+                (type(error.cause.cause) is AnalysisOutcomeUnresolved)
+            ):
                 self.active.require_held_failure(pending, error)
                 self.withdraw_host(offering.host, error)
             elif type(error.cause) is LiveCapacityFull:
@@ -306,30 +341,37 @@ class JobService:
     @property
     def shutdown_ready(self):
         """Keep lifetime exclusion until Attempts, exchanges and withdrawal settle."""
+
         return (
-            (self.active is None or self.active.shutdown_ready) and
+            ((self.active is None) or self.active.shutdown_ready) and
             all(owner.shutdown_ready for owner in self.claims.live_owners()) and
             self.api.retirement_confirmed and
             self.publisher.retirement_confirmed and
-            not self.publisher.withdrawal_required
+            (not self.publisher.withdrawal_required)
         )
 
     def withdraw_host(self, host, cause):
         """Withdraw all dependent offerings without releasing their Attempt owners."""
-        self.unavailable_hosts.setdefault(host, cause)
+
+        if host not in self.unavailable_hosts:
+            self.unavailable_hosts[host] = cause
 
         for offering in self.offerings:
             if offering.host is host:
                 self.cursors[offering.announcement.analysis_kind_ref] = None
 
-        if (self.host_failure_policy is HostFailurePolicy.STOP or
-                len(self.unavailable_hosts) == len(self.hosts)):
+        if not (
+            (self.host_failure_policy is HostFailurePolicy.WITHDRAW) and
+            (len(self.unavailable_hosts) < len(self.hosts))
+        ):
+            # silent-defaults: allow-contract -- A worker exit receipt is retained as evidence but only an exception can be a chained cause.
             raise RuntimeError(f"Cannot continue the job service: {len(self.unavailable_hosts)=} of {len(self.hosts)=} scientific hosts are unavailable under {self.host_failure_policy=}") from (
                 cause if isinstance(cause, BaseException) else None
             )
 
     async def observe_worker(self, host):
         """Retain original worker loss, including uncertain monitor failures."""
+
         try:
             exited = await host.observe_exit(wait_seconds=self.policy.feed_seconds)
         except TimeoutError:
@@ -342,7 +384,8 @@ class JobService:
 
     async def watch_worker(self, host):
         """One passive observer covers every offering on the same native host."""
-        while not self.stopping.is_set() and host not in self.unavailable_hosts:
+
+        while (not self.stopping.is_set()) and (host not in self.unavailable_hosts):
             await self.observe_worker(host)
 
     async def pause(self, seconds):

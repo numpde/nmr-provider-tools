@@ -33,7 +33,7 @@ def termination_signals(request_stop):
 
         yield
 
-    for number, handler in reversed(tuple(previous.items())):
+    for (number, handler) in reversed(tuple(previous.items())):
         with failures.capture():
             signal.signal(number, handler)
 
