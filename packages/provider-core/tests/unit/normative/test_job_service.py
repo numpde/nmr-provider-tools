@@ -15,6 +15,7 @@ from tests.fakes.checkpoint_execution import RecordingDelivery, CausalDelivery
 from tests.fakes.controller import lifecycle_replies
 from tests.fakes.hello import receipt
 from tests.fakes.job_feed import page
+from tests.fakes.job_service import JobApi
 from tests.fakes.live_analysis import LiveSession
 
 
@@ -82,7 +83,7 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(['prepare', 'execute', 'retire'], session.events)
         self.assertEqual(1, len(delivery.delivery_outcomes))
         self.assertEqual((), service.claims.live_owners())
-        self.assertIsNone(service.active)
+        self.assertIsNone(service.admitting)
         self.assertFalse(service.publisher.withdrawal_required)
         self.assertEqual(2, len(hello.calls))
 
@@ -130,7 +131,7 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(1, session.events.count('execute'))
         self.assertEqual([], delivery.delivery_outcomes)
-        self.assertTrue(service.active.shutdown_ready)
+        self.assertTrue(all(owner.shutdown_ready for owner in service.claims.live_owners()))
         self.assertFalse(service.publisher.withdrawal_required)
 
     async def test_preexisting_stop_does_not_announce_or_start_work(self):
@@ -179,3 +180,140 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], session.events)
         self.assertEqual([], hello.calls)
         self.assertFalse(service.publisher.withdrawal_required)
+
+
+class ConcurrentJobServiceTests(unittest.IsolatedAsyncioTestCase):
+    def service(self, *, limits, preparations):
+        fixture = JobApi()
+        fixture.jobs = {f"job:{index}": ("nmr_predict", b"same input") for index in range(3)}
+        stopping = asyncio.Event()
+        sessions = []
+        deliveries = []
+        entered = asyncio.Queue()
+        gates = [(asyncio.Event(), asyncio.Event()) for _ in range(3)]
+
+        class Session(LiveSession):
+            async def prepare(self, *args, **kwargs):
+                entered.put_nowait(("prepare", self.index))
+                await gates[self.index][0].wait()
+
+                return await super().prepare(*args, **kwargs)
+
+            async def execute(self, *args, **kwargs):
+                entered.put_nowait(("execute", self.index))
+                await gates[self.index][1].wait()
+
+                return await super().execute(*args, **kwargs)
+
+        def new_session():
+            session = Session()
+            session.index = len(sessions)
+
+            sessions.append(session)
+
+            return session
+
+        def new_delivery():
+            delivery = CausalDelivery()
+
+            deliveries.append(delivery)
+
+            return delivery
+
+        service = JobService(
+            provider_ref="provider:example",
+            offerings=(
+                JobOffering(
+                    announcement=AnalysisOffering("nmr_predict", "Test science"),
+                    host=ResidentWorker(), consumer_id="test", generation="one", new_session=new_session,
+                ),
+            ),
+            host_failure_policy=HostFailurePolicy.STOP,
+            limits=limits, maximum_preparations=preparations,
+            display_name="Test", description="Concurrent service fixture",
+            policy=JobServicePolicy(0.01, 10, 1, 90, 0.02, 1),
+            new_api=fixture.new_api, new_delivery=new_delivery, stopping=stopping,
+        )
+
+        return (service, fixture, sessions, deliveries, entered, gates)
+
+    async def cleanup(self, service, task, deliveries, gates):
+        service.stopping.set()
+
+        for (prepare, execute) in gates:
+            prepare.set()
+            execute.set()
+
+        for delivery in deliveries:
+            delivery.release_for_teardown()
+
+        await asyncio.wait_for(task, timeout=3)
+
+    async def test_progress_during_science_and_delivery_waits(self):
+        (service, fixture, sessions, deliveries, entered, gates) = self.service(
+            limits=LiveAttemptLimits(3, 393216, 393216, 30), preparations=2,
+        )
+
+        task = asyncio.create_task(service.serve())
+
+        self.addAsyncCleanup(self.cleanup, service, task, deliveries, gates)
+        self.assertEqual(("prepare", 0), await asyncio.wait_for(entered.get(), 2))
+        self.assertEqual(("prepare", 1), await asyncio.wait_for(entered.get(), 2))
+        self.assertEqual(3, len(service.claims.live_owners()))
+        gates[0][0].set()
+        events = {await asyncio.wait_for(entered.get(), 2), await asyncio.wait_for(entered.get(), 2)}
+
+        self.assertEqual({("execute", 0), ("prepare", 2)}, events)
+        gates[1][0].set()
+        self.assertEqual(("execute", 1), await asyncio.wait_for(entered.get(), 2))
+
+        # Job 1 reaches delivery while Job 0 still owns blocked science.
+        gates[1][1].set()
+
+        await asyncio.wait_for(deliveries[1].wait_for_offers(1), 2)
+        self.assertFalse(gates[0][1].is_set())
+        gates[0][1].set()
+        await asyncio.wait_for(deliveries[0].wait_for_offers(1), 2)
+        gates[2][0].set()
+        self.assertEqual(("execute", 2), await asyncio.wait_for(entered.get(), 2))
+        gates[2][1].set()
+        await asyncio.wait_for(deliveries[2].wait_for_offers(1), 2)
+        self.assertEqual(3, len(service.claims.live_owners()))
+        self.assertEqual(["job:0", "job:1", "job:2"], fixture.started)
+
+        for delivery in deliveries:
+            delivery.answer("accepted")
+
+        service.stopping.set()
+        await asyncio.wait_for(task, 3)
+        self.assertEqual((), service.claims.live_owners())
+        self.assertTrue(all(session.events == ["prepare", "execute", "retire"] for session in sessions))
+
+    async def test_each_capacity_limit_keeps_page_tail_until_owner_releases(self):
+        for limits in (
+            LiveAttemptLimits(1, 393216, 393216, 30),
+            LiveAttemptLimits(3, 131072, 393216, 30),
+            LiveAttemptLimits(3, 393216, 131072, 30),
+            LiveAttemptLimits(3, 393216, 393216, 10),
+        ):
+            with self.subTest(limits=limits):
+                (service, fixture, sessions, deliveries, entered, gates) = self.service(limits=limits, preparations=1)
+                task = asyncio.create_task(service.serve())
+
+                try:
+                    for index in range(3):
+                        self.assertEqual(("prepare", index), await asyncio.wait_for(entered.get(), 2))
+                        self.assertEqual(index + 1, len(sessions))
+                        self.assertEqual(1, len(service.claims.live_owners()))
+                        self.assertEqual(1, fixture.feed_requests.qsize())
+                        gates[index][0].set()
+                        self.assertEqual(("execute", index), await asyncio.wait_for(entered.get(), 2))
+                        gates[index][1].set()
+                        await asyncio.wait_for(deliveries[index].wait_for_offers(1), 2)
+                        deliveries[index].answer("accepted")
+
+                    service.stopping.set()
+                    await asyncio.wait_for(task, 3)
+                    self.assertEqual(["job:0", "job:1", "job:2"], fixture.started)
+                finally:
+                    await self.cleanup(service, task, deliveries, gates)

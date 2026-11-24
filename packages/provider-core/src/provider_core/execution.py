@@ -376,6 +376,7 @@ class AttemptExecutor:
         observation_recovery=None,
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
+        preparation_slots=None,
     ):
         claim.require_live(scope)
 
@@ -424,6 +425,7 @@ class AttemptExecutor:
         self._observation_recovery = observation_recovery
         self._on_unconfirmed_phase_progress = on_unconfirmed_phase_progress
         self._condition_recovery = condition_recovery
+        self._preparation_slots = preparation_slots
         self._condition_failure = self._latest_condition_failure = self._condition_receipt = None
         self._task = None
         self._observation_wait = None
@@ -674,7 +676,13 @@ class AttemptExecutor:
         return self._checkpoint
 
     async def _prepare_session(self, acknowledged, instructions, *, report_condition):
-        prepared = await self.session.prepare(acknowledged, instructions, report_condition=report_condition)
+        if self._preparation_slots is None:
+            prepared = await self.session.prepare(acknowledged, instructions, report_condition=report_condition)
+        else:
+            async with self._preparation_slots:
+                # Permission can expire while another Attempt holds the slot.
+                report_condition.require_execution()
+                prepared = await self.session.prepare(acknowledged, instructions, report_condition=report_condition)
 
         if type(prepared) is AnalysisFailure:
             self._outcome = prepared

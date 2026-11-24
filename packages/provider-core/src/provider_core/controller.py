@@ -192,6 +192,7 @@ class AttemptController:
         observation_recovery=None,
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
+        preparation_slots=None,
         admission_stopping=None,
     ):
         claims._require_live_view()
@@ -245,6 +246,7 @@ class AttemptController:
         self._observation_recovery = observation_recovery
         self._on_unconfirmed_phase_progress = on_unconfirmed_phase_progress
         self._condition_recovery = condition_recovery
+        self._preparation_slots = preparation_slots
 
         (self.api, self._claims, self.session) = (api, claims, session)
         self.scope = scope
@@ -732,6 +734,7 @@ class AttemptController:
             observation_recovery=self._observation_recovery,
             on_unconfirmed_phase_progress=self._on_unconfirmed_phase_progress,
             condition_recovery=self._condition_recovery,
+            preparation_slots=self._preparation_slots,
         )
 
         return AttemptExecutor.live(

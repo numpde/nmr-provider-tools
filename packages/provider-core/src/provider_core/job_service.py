@@ -1,4 +1,4 @@
-"""Run serial API jobs across declared offerings and their original worker hosts.
+"""Run bounded concurrent API jobs across declared offerings and their original worker hosts.
 
 AttemptController owns START, phase observation, scientific permission and durable
 result handoff. This service selects work, announces availability, and keeps those
@@ -28,7 +28,7 @@ from provider_core.hello_publisher import HelloPublisher
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
-from provider_core.tools import require_positive_number
+from provider_core.tools import require_positive_number, require_type
 from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 
 
@@ -77,7 +77,7 @@ class JobOffering:
 
 
 class JobService:
-    """Run one job at a time while retaining independent failed-host Attempts.
+    """Admit jobs within shared capacity while retaining every original Attempt.
 
     Providers finish configuration and model startup before calling serve().
     WITHDRAW preserves healthy hosts after an unavailable worker; it never starts
@@ -98,8 +98,15 @@ class JobService:
         new_api,
         new_delivery,
         stopping,
+        maximum_preparations=1,
     ):
         """Retain the API clients and Attempt claims for this provider lifetime."""
+        require_type(maximum_preparations, int)
+
+        if not (maximum_preparations >= 1):
+            raise ValueError(f"Cannot configure preparation concurrency: {maximum_preparations=} must be positive")
+
+        self.preparations = asyncio.Semaphore(maximum_preparations)
         self.offerings = tuple(offerings)
 
         kinds = [offering.announcement.analysis_kind_ref for offering in self.offerings]
@@ -140,7 +147,7 @@ class JobService:
 
         self.stopping = stopping
         self.claims = AttemptClaims.live(limits=limits)
-        self.active = None
+        self.admitting = None
 
     async def serve(self):
         """Announce loaded science, consume jobs, then settle every acquired owner."""
@@ -170,8 +177,8 @@ class JobService:
         self.stopping.set()
         controllers = dict.fromkeys(self.claims.live_owners())
 
-        if self.active is not None:
-            controllers[self.active] = None
+        if self.admitting is not None:
+            controllers[self.admitting] = None
 
         with failures.capture():
             await drain_attempts(
@@ -199,6 +206,12 @@ class JobService:
         return tuple(offering for offering in self.offerings if offering.host not in self.unavailable_hosts)
 
     async def jobs(self):
+        """Keep join observers bounded by claims already committed by start()."""
+
+        async with asyncio.TaskGroup() as attempts:
+            await self._discover(attempts)
+
+    async def _discover(self, attempts):
         """Poll each available offering; a shared API backoff pauses all discovery."""
 
         while not self.stopping.is_set():
@@ -235,8 +248,6 @@ class JobService:
                 if offering.host in self.unavailable_hosts:
                     continue
 
-                self.cursors[kind] = page.next_cursor
-
                 for job in page.jobs:
                     if self.stopping.is_set():
                         return
@@ -247,12 +258,31 @@ class JobService:
                     if self.claims.owns_job(scope, job.input.job_ref):
                         continue
 
-                    await self.run_job(offering, job.input)
+                    # Keep this bounded page and its current entry while capacity
+                    # is held by science, retirement or delivery. Do not lose its tail.
+                    while True:
+                        try:
+                            self.claims.require_capacity(terminal_bytes=131072, input_bytes=job.input.input_byte_length)
+                        except LiveCapacityFull:
+                            if not self.claims.live_owners():
+                                raise
+
+                            if await self.pause(self.policy.feed_seconds):
+                                return
+
+                            if offering.host in self.unavailable_hosts:
+                                break
+                        else:
+                            await self.start_job(offering, job.input, attempts)
+                            break
+
+                if offering.host not in self.unavailable_hosts:
+                    self.cursors[kind] = page.next_cursor
 
             if not any(self.cursors.values()):
                 await self.pause(self.policy.feed_seconds)
 
-    async def run_job(self, offering, job_input):
+    async def start_job(self, offering, job_input, attempts):
         """The SDK confirms START before invoking this session's inference call."""
 
         kind = offering.announcement.analysis_kind_ref
@@ -265,7 +295,7 @@ class JobService:
             start_body(job_input.job_ref, scope.consumer_id + ":" + secrets.token_hex(32)),
         )
 
-        self.active = AttemptController.live(
+        self.admitting = AttemptController.live(
             self.new_api(),
             self.claims,
             offering.new_session(),
@@ -273,6 +303,7 @@ class JobService:
             stopping=self.stopping,
             start_policy=LiveStartPolicy(self.policy.feed_seconds, self.retry_notice, self.recovery_notice),
             maximum_terminal_bytes=131072,
+            preparation_slots=self.preparations,
             delivery=self.new_delivery(),
             on_delivery_retry=self.retry_notice,
             delivery_retry_initial_seconds=self.policy.feed_seconds,
@@ -296,21 +327,31 @@ class JobService:
 
         log.info(f"Selected {job_input.job_ref=}")
 
+        # Successful start reserves the claim and driver without yielding. Until
+        # then, retain the provisional owner even if admission cleanup fails.
+        controller = self.admitting
+
+        await controller.start(pending)
+        self.admitting = None
+
+        attempts.create_task(self.finish_job(offering, pending, controller))
+
+    async def finish_job(self, offering, pending, controller):
+        """Observe one retained driver; cancelling this waiter never drops it."""
+        job_input = pending.input
+
         try:
-            outcome = await self.active.run(pending)
+            outcome = await controller.join()
         except ControllerFailed as error:
             if (
                 (self.host_failure_policy is HostFailurePolicy.WITHDRAW) and
                 (type(error.cause) is ExecutionFailed) and
                 (type(error.cause.cause) is AnalysisOutcomeUnresolved)
             ):
-                self.active.require_held_failure(pending, error)
+                controller.require_held_failure(pending, error)
                 self.withdraw_host(offering.host, error)
-            elif type(error.cause) is LiveCapacityFull:
-                await self.active.settle()
-                await self.pause(self.policy.feed_seconds)
             else:
-                match await self.active.settle_revocation(error):
+                match await controller.settle_revocation(error):
                     case None:
                         raise
 
@@ -322,14 +363,12 @@ class JobService:
                 case _:
                     raise RuntimeError(f"Attempt did not reach durable delivery; {job_input.job_ref=}, {type(outcome)=}")
 
-        self.active = None
-
     @property
     def shutdown_ready(self):
         """Keep lifetime exclusion until Attempts, exchanges and withdrawal settle."""
 
         return (
-            ((self.active is None) or self.active.shutdown_ready) and
+            ((self.admitting is None) or self.admitting.shutdown_ready) and
             all(owner.shutdown_ready for owner in self.claims.live_owners()) and
             self.api.retirement_confirmed and
             self.publisher.retirement_confirmed and

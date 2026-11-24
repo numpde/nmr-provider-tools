@@ -6,9 +6,8 @@ local ownership and Hello snapshots, not remote API acceptance or model accuracy
 """
 
 import asyncio
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 from hashlib import sha256
-import errno
 import json
 import os
 from pathlib import Path
@@ -17,7 +16,6 @@ import sys
 from tempfile import TemporaryDirectory
 import time
 import unittest
-from urllib.parse import parse_qs, unquote, urlsplit
 
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess, PreparedAnalysis
 from provider_core.attempt_record import ProtectedEvidence
@@ -30,11 +28,8 @@ from provider_core.process_wire import RemoteScienceError
 from provider_core.scientific import Contribution, operation
 from provider_core.scientific_call import ErrorPolicy, ScientificCall
 from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
-from tests.fakes.api import Transport, api, io_failure, reply
-from tests.fakes.attempts import observation, progress_response, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
-from tests.fakes.hello import receipt
-from tests.fakes.job_input import facts, response
+from tests.fakes.job_service import JobApi
 from tests.fakes.runner import RunningSupervisor
 from tests.fakes.scientific_process import Number
 
@@ -78,11 +73,16 @@ def construct(*, startup):
 
 
 class Session:
-    def __init__(self, call, *, has_input):
+    def __init__(self, call, *, has_input, invocation, preceding_results=None):
         (self.call, self.has_input) = (call, has_input)
+        self.preceding_results = preceding_results
+        self.invocation = invocation
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.input = Number(**json.loads(instructions.specification_bytes))
+
+        if self.input.value < 0 and self.preceding_results is not None:
+            await self.preceding_results.wait()
 
         return PreparedAnalysis(ProtectedEvidence("test.input.v1", instructions.specification_bytes))
 
@@ -91,7 +91,8 @@ class Session:
         arguments = {"scientific_input": self.input} if self.has_input else {}
 
         try:
-            result = await self.call(**arguments, require_execution=report_condition.require_execution)
+            async with self.invocation:
+                result = await self.call(**arguments, require_execution=report_condition.require_execution)
         except Exception as cause:
             raise AnalysisOutcomeUnresolved("The native fixture returned no verified result") from cause
 
@@ -103,111 +104,10 @@ class Session:
         pass
 
 
-class JobApi:
-    def __init__(self):
-        self.jobs = {
-            "job:runtime": ("runtime", b'{"value":0}'),
-            "job:calculate": ("calculate", b'{"value":2}'),
-            "job:held": ("calculate", b'{"value":-1}'),
-            "job:healthy": ("healthy", b'{"value":3}'),
-        }
-
-        self.attempts = {}
-        self.started = []
-        self.announcements = []
-        self.unavailable = False
-        self.feed_requests = asyncio.Queue()
-
-    def new_api(self):
-        fixture = self
-
-        class Replies(Transport):
-            async def exchange(self, request, *, maximum_bytes, owner=None):
-                url = urlsplit(str(request.url))
-                path = unquote(url.path)
-
-                if path.endswith("/hello"):
-                    fixture.announcements.append(json.loads(request.content)["analysis_offerings"])
-
-                    return reply(receipt())
-
-                if path.endswith("/jobs"):
-                    kind = parse_qs(url.query)["analysis_kind_ref"][0]
-
-                    fixture.feed_requests.put_nowait(kind)
-
-                    if fixture.unavailable:
-                        raise io_failure(
-                            "The shared API transport is unavailable",
-                            primary=ConnectionRefusedError(errno.ECONNREFUSED, "API fixture is offline"),
-                            stage="connect",
-                        )
-
-                    jobs = [
-                        {
-                            **asdict(replace(facts(payload), job_ref=job)),
-                            "analysis_kind_ref": kind,
-                            "created_at": "2026-10-18T00:00:00.123456Z",
-                        }
-                        for (job, (selected, payload)) in fixture.jobs.items()
-                        if (selected == kind) and (job not in fixture.started)
-                    ]
-
-                    return reply(
-                        json.dumps(
-                            {
-                                "schema_id": "nmr.provider.jobs.list.response.v1",
-                                "analysis_kind_ref": kind,
-                                "has_provider_execution_attempt": False,
-                                "jobs": jobs,
-                                "next_cursor": None,
-                            }
-                        )
-                        .encode()
-                    )
-
-                if path.endswith("/input"):
-                    job = path.split("/")[-2]
-
-                    return reply(response(fixture.jobs[job][1], job_ref=job))
-
-                if path.endswith("/start"):
-                    job = json.loads(request.content)["job_ref"]
-                    reference = "execution_attempt:sha256:" + sha256(job.encode()).hexdigest()
-                    fixture.attempts[reference] = job
-
-                    fixture.started.append(job)
-
-                    return reply(
-                        start_response(
-                            execution_attempt_ref=reference,
-                            job_ref=job,
-                            analysis_kind_ref=fixture.jobs[job][0],
-                        )
-                    )
-
-                if path.endswith("/progress"):
-                    reference = path.split("/")[-2]
-                    progress = json.loads(request.content)
-
-                    return reply(
-                        progress_response(
-                            execution_attempt_ref=reference,
-                            phase=progress["phase"],
-                            condition_code=progress["condition_code"],
-                        )
-                    )
-
-                reference = path.split("/")[-1]
-
-                return reply(observation(execution_attempt_ref=reference, job_ref=fixture.attempts[reference]))
-
-        return api(Replies(), "https://api.example")
-
-
 class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.killed_host = None
+        self.invocations = {}
 
     async def host(self, root):
         root.mkdir()
@@ -253,7 +153,7 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
         else:
             await host.__aexit__(None, None, None)
 
-    def offering(self, kind, host, hosted, method):
+    def offering(self, kind, host, hosted, method, *, preceding_results=None):
         call = ScientificCall(
             host=host,
             allocation=hosted.allocation,
@@ -267,7 +167,11 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             host,
             kind,
             "one",
-            lambda: Session(call, has_input=method is Science.calculate),
+            lambda: Session(
+                call, has_input=method is Science.calculate,
+                invocation=self.invocations.setdefault(host, asyncio.Lock()),
+                preceding_results=preceding_results,
+            ),
         )
 
     async def test_shared_host_loss_withdraws_both_methods_and_preserves_healthy_delivery(self):
@@ -278,6 +182,7 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
         jobs = JobApi()
         (stopping, report_entered, release_report) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
         outcomes = []
+        preceding_results = asyncio.Event()
 
         class Delivery(RecordingDelivery):
             async def submit(self, item):
@@ -286,8 +191,12 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
                     await release_report.wait()
 
                 outcomes.append(item)
+                accepted = await super().submit(item)
 
-                return await super().submit(item)
+                if {outcome.job_ref for outcome in outcomes} >= {"job:runtime", "job:calculate"}:
+                    preceding_results.set()
+
+                return accepted
 
         service = JobService(
             provider_ref="provider:example",
@@ -295,7 +204,7 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             description="Native host composition",
             offerings=(
                 self.offering("runtime", shared, shared_science, Science.runtime),
-                self.offering("calculate", shared, shared_science, Science.calculate),
+                self.offering("calculate", shared, shared_science, Science.calculate, preceding_results=preceding_results),
                 self.offering("healthy", healthy, healthy_science, Science.calculate),
             ),
             host_failure_policy=HostFailurePolicy.WITHDRAW,
@@ -332,6 +241,20 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(["job:runtime", "job:calculate"], [item.job_ref for item in outcomes])
             os.kill(healthy_pid, 0)
 
+            # Withdrawal observes host exit independently of the Attempt. Wait
+            # for its retained failure before testing the later global shutdown.
+            (failed_controller,) = [
+                controller
+                for controller in service.claims.live_owners()
+                if controller.session.call.host is shared
+            ]
+
+            with self.assertRaises(ControllerFailed) as original_failure:
+                await asyncio.wait_for(failed_controller.join(), 5)
+
+            self.assertIsInstance(original_failure.exception.cause.cause, AnalysisOutcomeUnresolved)
+            self.assertFalse(release_report.is_set())
+
             stopping.set()
             await asyncio.sleep(0)
             self.assertFalse(task.done())
@@ -343,6 +266,7 @@ class JobServiceHostTests(unittest.IsolatedAsyncioTestCase):
             (held,) = service.claims.live_owners()
 
             self.assertIs(held.last_failure, caught.exception)
+            self.assertIs(caught.exception, original_failure.exception)
             self.assertIsInstance(caught.exception.cause.cause, AnalysisOutcomeUnresolved)
             self.assertEqual(["job:runtime", "job:calculate", "job:healthy"], [item.job_ref for item in outcomes])
             self.assertEqual(1, len(service.claims.live_owners()))
