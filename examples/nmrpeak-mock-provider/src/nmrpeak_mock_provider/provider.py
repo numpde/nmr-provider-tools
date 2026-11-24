@@ -8,7 +8,7 @@ service responses. Discovery and durable delivery belong to the surrounding serv
 
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 # Bind deployment options now; construct a fresh Interpreter for each request.
 
@@ -27,7 +27,7 @@ from provider_core.runner_session import RunnerSession
 from provider_core.scientific import HostedContribution
 
 from .application import PredictionWorkflow
-from .binding import Chf, Hf
+from .binding import Chf, Hf, PeakContribution
 from .fake_model import Model as InstalledMockModel
 from .science import Model, Settings
 from .process_factory import construct
@@ -104,6 +104,37 @@ class Offering:
         failure_collector.raise_if_any()
 
 
+@dataclass(frozen=True, slots=True)
+class ConfiguredModel:
+    """Validated deployment values, before a host takes a session or loads science."""
+
+    contribution_type: type[PeakContribution]
+    interpretation_prompt_file: str
+    settings: Settings
+    checkpoint_path: pathlib.Path
+
+
+def _configured_models(science_config: Mapping) -> dict[tuple[str, int], ConfiguredModel]:
+    predictor_families = {"hf": (Hf, "hf_prompt.txt"), "chf": (Chf, "chf_prompt.txt")}
+    configured_models = {}
+
+    for family, configurations in science_config.items():
+        if family not in predictor_families:
+            raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
+
+        contribution_type, interpretation_prompt_file = predictor_families[family]
+
+        for index, configuration in enumerate(configurations):
+            configured_models[family, index] = ConfiguredModel(
+                contribution_type=contribution_type,
+                interpretation_prompt_file=interpretation_prompt_file,
+                settings=Settings(**configuration["settings"]),
+                checkpoint_path=(PROVIDER_CONFIG_PATH.parent / configuration["checkpoint_path"]).resolve(),
+            )
+
+    return configured_models
+
+
 def _process_capacity_options(science_config: Mapping, host_options: Mapping) -> dict:
     """Partition aggregate capacities before any deployment session is acquired."""
     shares = {
@@ -146,6 +177,12 @@ async def open_offerings(
     execution_settings = ExecutionSettings(provider_config["execution"])
     execution_mode = execution_settings.backend
     host_options = execution_settings.host
+    configured_models = _configured_models(provider_config["science"])
+    interpreter_settings = InterpreterSettings(
+        endpoint_factories,
+        secrets=secrets,
+        policy=provider_config["interpreter"],
+    )
 
     if execution_mode == "thread":
         execution_settings.require_sessions(process_sessions=process_sessions, expected_keys=())
@@ -162,60 +199,48 @@ async def open_offerings(
             await lifetime.enter_async_context(execution_host)
         resource_requirements = execution_settings.resource_requirements
 
-        predictor_families = {"hf": (Hf, "hf_prompt.txt"), "chf": (Chf, "chf_prompt.txt")}
         offerings = {}
 
         # Family selects a scientific input shape. Each entry is an independently
         # configured model; several entries can use the same contribution class.
-        for (family, offering_configs) in provider_config["science"].items():
-            if not (family in predictor_families):
-                raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
+        for (family, index), configured_model in configured_models.items():
+            predictor_class = configured_model.contribution_type
+            if execution_mode == "process":
+                (execution_host, hosted_predictor) = await lifetime.enter_async_context(
+                    execution_settings.open_contribution(
+                        process_session=process_sessions[family, index],
+                        host=process_options[family, index],
+                        contribution_type=predictor_class,
+                        constructor=construct,
+                        startup={
+                            "contribution_class": predictor_class.__name__,
+                            "settings": asdict(configured_model.settings),
+                            "checkpoint_path": str(configured_model.checkpoint_path),
+                        },
+                    ),
+                )
+            else:
+                predictor = predictor_class(
+                    configuration=configured_model.settings,
+                    checkpoint_path=configured_model.checkpoint_path,
+                    create_model=create_model,
+                )
 
-            (predictor_class, interpretation_prompt_file) = predictor_families[family]
+                hosted_predictor = execution_host.adopt(
+                    contribution=predictor,
+                    requirements=resource_requirements,
+                )
 
-            for index, offering_config in enumerate(offering_configs):
-                if execution_mode == "process":
-                    (execution_host, hosted_predictor) = await lifetime.enter_async_context(
-                        execution_settings.open_contribution(
-                            process_session=process_sessions[family, index],
-                            host=process_options[family, index],
-                            contribution_type=predictor_class,
-                            constructor=construct,
-                            startup={
-                                "contribution_class": predictor_class.__name__,
-                                "settings": offering_config["settings"],
-                                "checkpoint_path": str((PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]).resolve()),
-                            },
-                        ),
-                    )
-                else:
-                    predictor = predictor_class(
-                        configuration=Settings(**offering_config["settings"]),
-                        checkpoint_path=PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"],
-                        create_model=create_model,
-                    )
+            preparation_call = hosted_predictor.call(method=predictor_class.prepare)
+            generation_call = hosted_predictor.call(method=predictor_class.generate)
 
-                    hosted_predictor = execution_host.adopt(
-                        contribution=predictor,
-                        requirements=resource_requirements,
-                    )
-
-                preparation_call = hosted_predictor.call(method=predictor_class.prepare)
-                generation_call = hosted_predictor.call(method=predictor_class.generate)
-
-                offerings[hosted_predictor] = (execution_host, family, interpretation_prompt_file, preparation_call, generation_call)
+            offerings[hosted_predictor] = (execution_host, family, configured_model.interpretation_prompt_file, preparation_call, generation_call)
 
         if execution_mode == "thread":
             for offering in offerings:
                 # The SDK loads each adopted model before advertising offerings.
                 # A timeout retains the original thread until host cleanup.
                 await execution_host.initialize(allocation=offering.allocation)
-
-        interpreter_settings = InterpreterSettings(
-            endpoint_factories,
-            secrets=secrets,
-            policy=provider_config["interpreter"],
-        )
 
         yield frozenset(
             Offering(

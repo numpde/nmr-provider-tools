@@ -292,6 +292,39 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], list(hf_runner.scratch.iterdir()))
         self.assertEqual([], list(chf_runner.scratch.iterdir()))
 
+    async def test_invalid_later_configuration_leaves_every_process_session_unopened(self):
+        configure_backend(self.configuration, "process")
+        original = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        hf_runner, hf_session = make_scientific_session(self)
+        chf_runner, chf_session = make_scientific_session(self)
+        descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
+
+        for defect in ("family", "settings", "digest", "checkpoint_path", "interpreter"):
+            with self.subTest(defect=defect):
+                deployment = deepcopy(original)
+                if defect == "family":
+                    deployment["science"]["unknown"] = deployment["science"].pop("chf")
+                elif defect == "settings":
+                    deployment["science"]["chf"][0]["settings"]["beam_size"] = 0
+                elif defect == "digest":
+                    deployment["science"]["chf"][0]["settings"]["checkpoint_sha256"] = "not-a-digest"
+                elif defect == "checkpoint_path":
+                    del deployment["science"]["chf"][0]["checkpoint_path"]
+                else:
+                    deployment["interpreter"]["interpretation_budget_seconds"] = 0
+
+                self.configuration.write_text(tomli_w.dumps(deployment), encoding="utf-8")
+
+                with self.assertRaises((ValueError, KeyError)):
+                    async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):
+                        self.fail("Invalid deployment values must be rejected before either model starts")
+
+                self.assertEqual(descriptors, (hf_session.control.fileno(), chf_session.control.fileno()))
+                for runner, session in ((hf_runner, hf_session), (chf_runner, chf_session)):
+                    self.assertFalse(session.control_connected)
+                    self.assertIsNone(session.retirement)
+                    self.assertEqual([], list(runner.scratch.iterdir()))
+
     async def test_failed_second_process_start_retires_the_first_model(self):
         deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
         deployment_config["execution"]["backend"] = "process"

@@ -7,6 +7,8 @@ contain scientific values, without Jobs, transports or execution handles.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
+import reprlib
 from typing import BinaryIO, Protocol
 
 from provider_core.contribution_errors import ScientificRejection
@@ -48,6 +50,11 @@ class Settings:
     maximum_candidate_characters: int
 
     def __post_init__(self) -> None:
+        require_type(self.checkpoint_sha256, str)
+
+        if re.fullmatch(r"[0-9a-f]{64}", self.checkpoint_sha256) is None:
+            raise ValueError(f"Cannot configure the checkpoint: {reprlib.repr(self.checkpoint_sha256)=} must contain 64 lowercase hexadecimal characters")
+
         for model_limit in (self.maximum_input_tokens, self.beam_size, self.maximum_candidate_characters):
             require_type(model_limit, int)
 
