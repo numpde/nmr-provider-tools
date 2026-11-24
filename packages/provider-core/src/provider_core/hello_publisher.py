@@ -25,7 +25,8 @@ class HelloPublisher:
     ProviderAPI.can_refresh_hello; deployments may separately permit catalog
     refusal refresh without claiming that their workers became unavailable.
     on_accepted receives the actual API receipt. Neither callback grants job
-    admission or changes local readiness.
+    admission or changes local readiness. An explicit owner lets enclosing
+    resource cleanup retire the same exchange after the publisher task exits.
     """
 
     def __init__(
@@ -39,8 +40,10 @@ class HelloPublisher:
         stopping,
         retry_policy=None,
         on_accepted=None,
+        owner=None,
     ):
         self.api = api
+        self.owner = self if owner is None else owner
         self.provider_ref = provider_ref
         self.display_name = display_name
         self.description = description
@@ -67,7 +70,7 @@ class HelloPublisher:
             display_name=self.display_name,
             description=self.description,
             analysis_offerings=offerings,
-            owner=self,
+            owner=self.owner,
         )
 
         self._announced = offerings
@@ -78,8 +81,14 @@ class HelloPublisher:
 
         return accepted
 
-    async def refresh(self):
-        """Publish current state; a permitted retry reads a new complete snapshot."""
+    async def refresh(self, *, retry_wait=None):
+        """Publish current state; each permitted retry samples a fresh snapshot.
+
+        An optional retry_wait receives the nominal seconds and the server's
+        minimum_delay_seconds separately, so jitter cannot shorten that floor.
+        It returns True when interrupted; refresh then returns without another
+        send. The default wait uses the larger delay and this publisher's stop.
+        """
 
         async with self._publication:
             while not self.stopping.is_set():
@@ -95,10 +104,19 @@ class HelloPublisher:
 
                     require_positive_number(seconds)
 
-                    if failure.retry_after_seconds is not None:
-                        seconds = max(seconds, failure.retry_after_seconds)
+                    if retry_wait is None:
+                        if failure.retry_after_seconds is not None:
+                            seconds = max(seconds, failure.retry_after_seconds)
 
-                    await self.pause(seconds)
+                        interrupted = await self.pause(seconds)
+                    else:
+                        interrupted = await retry_wait(
+                            seconds,
+                            minimum_delay_seconds=failure.retry_after_seconds,
+                        )
+
+                    if interrupted:
+                        return None
 
     async def run(self, *, refresh_seconds, poll_seconds):
         """Refresh on inventory changes or heartbeat, with only one send in flight."""
@@ -136,7 +154,7 @@ class HelloPublisher:
 
     async def retire(self):
         """Settle only this publisher's original transport exchange."""
-        await self.api.retire(owner=self)
+        await self.api.retire(owner=self.owner)
 
     async def pause(self, seconds):
         """Wait for the next observation or stop without admitting another send."""
