@@ -1190,18 +1190,38 @@ No separate fixture redistribution-rights verification is claimed here.
 
 ### Serial API job services
 
-`JobService` runs API discovery, availability announcements, AttemptController
-execution, result handoff, and shutdown around a loaded scientific host. Supply
-an `AnalysisSession` factory for scientific input and result handling, independent
-API-client factories, a shared-delivery factory, and an `asyncio.Event` for stop.
+`JobService` runs API discovery, aggregate availability announcements,
+AttemptController execution, result handoff, and shutdown for a tuple of
+`JobOffering` declarations. Each declaration associates its public
+`AnalysisOffering` with an already-started host, consumer/generation identity,
+and `AnalysisSession` factory. Several offerings may share one host and select
+different methods on its hosted contribution. Execution remains serial across
+all offerings; `LiveAttemptLimits` bounds retained claims and report bytes.
+
+Supply independent API-client factories, a shared-delivery factory, and an
+`asyncio.Event` for stop. `ProviderClients` captures their shared configuration;
+its `new_api` and `new_delivery` methods create fresh clients. At the process
+entrypoint, `termination_signals(stopping.set)` installs and restores handlers.
 `JobServicePolicy` makes polling, recovery, and settlement intervals explicit.
 
-The service selects jobs with no previous Attempt for this provider. Unknown
-scientific outcomes stop the service without fabricating a public failure.
-Shutdown retains an acquired Attempt and its selected result until the original
-work settles and delivery is confirmed; persistent delivery failure can therefore
-keep shutdown pending. Availability withdrawal is attempted even when the initial
-announcement reply was lost. An unavailable API can prevent confirmed withdrawal.
+The caller validates deployment configuration, chooses its model-load policy,
+and finishes model startup before entering this service. Keep its host contexts
+open until service settlement completes. `HostFailurePolicy.STOP` stops the
+service on host loss. `WITHDRAW` removes all offerings associated with that host
+and continues with independent healthy hosts; loss of the last host stops the
+service. An unresolved scientific outcome also withdraws its host under this
+policy, retaining the original Attempt and cause rather than inventing a public
+failure. Neither policy starts a replacement worker.
+
+The service selects jobs with no previous Attempt for this provider. A shared
+recoverable API failure pauses discovery across offerings without changing
+scientific outcomes. Shutdown retains every acquired Attempt and selected result
+until original work settles and delivery intake is confirmed; persistent delivery
+failure can keep shutdown pending. The relay's intake acknowledgement does not
+claim remote API acceptance. Held failures are surfaced after settlement, even
+when another host continued serving successfully. Availability withdrawal is
+attempted even when the initial announcement reply was lost. An unavailable API
+can prevent confirmed withdrawal.
 
 Pass `report_condition.require_execution` to `ScientificCall(require_execution=...)`
 from an API session. The SDK checks it before each attempt, including after retry

@@ -7,7 +7,8 @@ import unittest
 from provider_core.analysis import AnalysisOutcomeUnresolved
 from provider_core.api_errors import ApiFailure
 from provider_core.transport import ExchangeFailed
-from provider_core.job_service import JobService, JobServicePolicy
+from provider_core.job_service import JobOffering, JobService, JobServicePolicy, HostFailurePolicy
+from provider_core.ownership import LiveAttemptLimits
 from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 from tests.fakes.api import Transport, api, reply as api_reply
 from tests.fakes.checkpoint_execution import RecordingDelivery, CausalDelivery
@@ -34,12 +35,15 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
 
         service = JobService(
             provider_ref='provider:example',
-            consumer_id='test-provider',
-            generation='one',
-            offering=AnalysisOffering('nmr_predict', 'Test science'),
+            offerings=(JobOffering(
+                announcement=AnalysisOffering('nmr_predict', 'Test science'),
+                host=ResidentWorker(), consumer_id='test-provider', generation='one',
+                new_session=lambda: session,
+            ),),
+            host_failure_policy=HostFailurePolicy.STOP,
+            limits=LiveAttemptLimits(1, 262144, 131072),
             display_name='Test provider',
             description='A synthetic API provider',
-            host=ResidentWorker(),
             policy=JobServicePolicy(
                 feed_seconds=0.01,
                 hello_seconds=10,
@@ -48,7 +52,6 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
                 retry_max_seconds=0.02,
                 settle_seconds=1,
             ),
-            new_session=lambda: session,
             new_api=lambda: api(next(transports), 'https://api.example'),
             new_delivery=lambda: delivery,
             stopping=stopping,
@@ -163,12 +166,12 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         async def wait_for_stop():
             await stopping.wait()
 
-        service.host.observe_exit = exited
+        service.offerings[0].host.observe_exit = exited
         service.jobs = wait_for_stop
 
-        with self.assertRaises(ExceptionGroup):
+        with self.assertRaises(RuntimeError):
             await service.serve()
 
         self.assertEqual([], session.events)
-        self.assertEqual(2, len(hello.calls))
+        self.assertEqual([], hello.calls)
         self.assertFalse(service.publisher.withdrawal_required)
