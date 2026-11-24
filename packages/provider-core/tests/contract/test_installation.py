@@ -205,6 +205,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/api_config.py",
                 "provider_core/provider_clients.py",
                 "provider_core/process_signals.py",
+                "provider_core/hello_publisher.py",
                 "provider_core/delivery_client.py",
                 "provider_core/delivery_config.py",
                 "provider_core/delivery_discard.py",

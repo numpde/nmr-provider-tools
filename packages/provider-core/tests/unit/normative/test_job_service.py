@@ -76,7 +76,7 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(delivery.delivery_outcomes))
         self.assertEqual((), service.claims.live_owners())
         self.assertIsNone(service.active)
-        self.assertFalse(service.withdrawal_required)
+        self.assertFalse(service.publisher.withdrawal_required)
         self.assertEqual(2, len(hello.calls))
 
     async def test_stop_while_delivery_is_full_keeps_the_original_result(self):
@@ -124,7 +124,7 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, session.events.count('execute'))
         self.assertEqual([], delivery.delivery_outcomes)
         self.assertTrue(service.active.shutdown_ready)
-        self.assertFalse(service.withdrawal_required)
+        self.assertFalse(service.publisher.withdrawal_required)
 
     async def test_preexisting_stop_does_not_announce_or_start_work(self):
         stopping = asyncio.Event()
@@ -150,7 +150,7 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], session.events)
         self.assertEqual(2, len(hello.calls))
         self.assertEqual([], json.loads(hello.calls[1][0].content)["analysis_offerings"])
-        self.assertFalse(service.withdrawal_required)
+        self.assertFalse(service.publisher.withdrawal_required)
 
     async def test_worker_exit_withdraws_availability(self):
         stopping = asyncio.Event()
@@ -171,4 +171,4 @@ class JobServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([], session.events)
         self.assertEqual(2, len(hello.calls))
-        self.assertFalse(service.withdrawal_required)
+        self.assertFalse(service.publisher.withdrawal_required)

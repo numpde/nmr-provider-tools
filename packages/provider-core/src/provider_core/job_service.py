@@ -20,6 +20,7 @@ from provider_core.attempt_record import RecoveryScope, StartPending
 from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
 from provider_core.execution import ConditionRecovery, ObservationRecovery
 from provider_core.failure_collection import FailureCollector
+from provider_core.hello_publisher import HelloPublisher
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.tools import require_positive_number
@@ -75,12 +76,14 @@ class JobService:
         self.new_api = new_api
         self.new_delivery = new_delivery
         self.api = new_api()
-        self.hello_api = new_api()
+        self.publisher = HelloPublisher(
+            new_api(), provider_ref=provider_ref, display_name=display_name,
+            description=description, offerings=lambda: (self.offering,), stopping=stopping,
+        )
         self.scope = RecoveryScope(self.api.origin, provider_ref, consumer_id, generation)
         self.stopping = stopping
         self.claims = AttemptClaims.live(limits=LiveAttemptLimits(1, 262144, 131072))
         self.active = None
-        self.withdrawal_required = False
 
     async def serve(self):
         """Announce loaded science, consume jobs, then settle every acquired owner."""
@@ -90,11 +93,13 @@ class JobService:
             if self.stopping.is_set():
                 return
 
-            await self.announce(available=True)
+            await self.publisher.refresh()
 
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(self.jobs())
-                tasks.create_task(self.heartbeats())
+                tasks.create_task(self.publisher.run(
+                    refresh_seconds=self.policy.hello_seconds, poll_seconds=self.policy.feed_seconds,
+                ))
                 tasks.create_task(self.watch_worker())
 
         self.stopping.set()
@@ -118,14 +123,10 @@ class JobService:
             await self.api.retire(owner=self)
 
         with failures.capture():
-            await self.hello_api.retire(owner=self)
-
-        if self.withdrawal_required:
-            with failures.capture():
-                await self.announce(available=False)
+            await self.publisher.withdraw()
 
         with failures.capture():
-            await self.hello_api.retire(owner=self)
+            await self.publisher.retire()
 
         failures.raise_if_any()
 
@@ -229,33 +230,16 @@ class JobService:
 
         self.active = None
 
-    async def announce(self, *, available):
-        """Publish the current offering snapshot and remember uncertain availability."""
-
-        # The API may accept availability even if its reply never reaches us.
-        # Withdraw after settling that exchange, including a failed first Hello
-        if available:
-            self.withdrawal_required = True
-
-        # silent-defaults: allow-contract -- Empty offerings explicitly withdraw this provider's availability
-        offerings = (self.offering,) if available else ()
-
-        await self.hello_api.publish_hello(
-            provider_ref=self.scope.provider_ref,
-            display_name=self.display_name,
-            description=self.description,
-            analysis_offerings=offerings,
-            owner=self,
+    @property
+    def shutdown_ready(self):
+        """Keep lifetime exclusion until Attempts, exchanges and withdrawal settle."""
+        return (
+            (self.active is None or self.active.shutdown_ready) and
+            all(owner.shutdown_ready for owner in self.claims.live_owners()) and
+            self.api.retirement_confirmed and
+            self.publisher.retirement_confirmed and
+            not self.publisher.withdrawal_required
         )
-
-        if not available:
-            self.withdrawal_required = False
-
-    async def heartbeats(self):
-        """Refresh availability until service shutdown starts."""
-
-        while not await self.pause(self.policy.hello_seconds):
-            await self.announce(available=True)
 
     async def watch_worker(self):
         """Stop offering inference when the original model process exits."""
