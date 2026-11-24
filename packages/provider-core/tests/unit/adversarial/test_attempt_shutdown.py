@@ -51,18 +51,31 @@ async def retain_rejected_report(witness):
         raise AssertionError("Rejected report must leave the original controller failure")
 
     observed = asyncio.Event()
+    cancelled = asyncio.Event()
+    original_body = controller.operation._delivery_outcome.body_sha256
+
+    def report_failure(failure):
+        observed.set()
+
+        if isinstance(failure, asyncio.CancelledError):
+            cancelled.set()
 
     shutdown = asyncio.create_task(
-        drain_attempts((controller,), retry_seconds=0.01, report_failure=lambda _: observed.set()),
+        drain_attempts((controller,), retry_seconds=0.01, report_failure=report_failure),
     )
 
     await observed.wait()
+    shutdown.cancel("Fixture shutdown observer cancelled after report rejection")
+    await cancelled.wait()
 
     witness.write_text(
         json.dumps(
             {
                 "selected": isinstance(controller.operation._checkpoint, TerminalSelectedCheckpoint),
                 "retained_body": controller.operation._delivery_outcome.body_sha256,
+                "original_body": original_body,
+                "cancellation_observed": cancelled.is_set(),
+                "drain_pending": not shutdown.done(),
                 "ready": controller.shutdown_ready,
                 "claims": len(claims.live_owners()),
                 "submissions": delivery.submit.await_count,
@@ -161,7 +174,7 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
             first.release.set()
             await asyncio.gather(shutdown, return_exceptions=True)
 
-    def test_permanently_rejected_report_keeps_its_process_and_original_body(self):
+    def test_cancelled_shutdown_retains_the_permanently_rejected_report_and_process(self):
         staged_root = pathlib.Path(__file__).resolve().parents[3]
 
         program = (
@@ -195,6 +208,9 @@ class AttemptShutdownTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertTrue(evidence["selected"])
                 self.assertTrue(evidence["retained_body"])
+                self.assertEqual(evidence["retained_body"], evidence["original_body"])
+                self.assertTrue(evidence["cancellation_observed"])
+                self.assertTrue(evidence["drain_pending"])
                 self.assertFalse(evidence["ready"])
                 self.assertEqual(evidence["claims"], 1)
                 self.assertEqual(evidence["submissions"], 1)
