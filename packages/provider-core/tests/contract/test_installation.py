@@ -202,6 +202,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/nmr/v1/attempt_request.py",
                 "provider_core/validation/evidence.py",
                 "provider_core/attempt_record.py",
+                "provider_core/attempt_shutdown.py",
                 "provider_core/api_config.py",
                 "provider_core/provider_clients.py",
                 "provider_core/process_signals.py",
