@@ -1556,6 +1556,24 @@ class AttemptExecutor:
             self._refresh_failure()
             self._finish_if_settled()
 
+    async def _retain_shutdown_disposition(self):
+        """Dispose only an interrupted, unreported value after its work settles.
+
+        A selected terminal report keeps its exact delivery obligation. The same
+        suppression authority used by explicit disposition owns this decision;
+        providers need not copy checkpoint and failure predicates.
+        """
+        if not (
+            self.work_settled and
+            (self.last_failure is not None) and
+            (type(self._outcome) in (AnalysisSuccess, AnalysisFailure)) and
+            (type(self._checkpoint) in (AcknowledgedCheckpoint, EnteredCheckpoint)) and
+            (_suppression_reason(self.last_failure.cause) is not None)
+        ):
+            return None
+
+        return await self.retain_suppressed_disposition()
+
     async def retain_suppressed_disposition(self):
         """Retain why returned evidence was suppressed, without scientific bytes.
 

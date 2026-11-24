@@ -187,7 +187,7 @@ class JobService:
                     continue
 
                 try:
-                    await controller.settle()
+                    await controller.settle_for_shutdown()
                 except Exception:
                     log.exception("Attempt settlement failed; retaining its original work and result")
 

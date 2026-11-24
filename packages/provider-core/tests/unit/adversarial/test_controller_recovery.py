@@ -4,16 +4,17 @@ from tests.fakes.execution import live_controller
 from tests.fakes.execution import LiveAttemptProbe
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.delivery_client import DeliveryRejected, DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull
 from provider_core.execution import ExecutionFailed
 from provider_core.ownership import AttemptClaims
-from provider_core.producer_checkpoint import TerminalSelectedCheckpoint
+from provider_core.producer_checkpoint import SuppressedCheckpoint, TerminalSelectedCheckpoint
 from provider_core.transport import ExchangeFailed
-from tests.fakes.api import Transport, api
+from tests.fakes.api import Transport, api, reply
+from tests.fakes.attempts import observation
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from tests.fakes.controller import SingleRetirementSession, cancel_task, lifecycle_replies
@@ -53,6 +54,64 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 retry.assert_not_called()
                 self.assertIs(type((store.records)[0]), TerminalSelectedCheckpoint)
                 self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
+
+                selected = controller.operation._delivery_outcome
+
+                with self.assertRaises(ControllerFailed):
+                    await controller.settle_for_shutdown()
+
+                self.assertIs(controller.operation._delivery_outcome, selected)
+                self.assertFalse(controller.shutdown_ready)
+                self.assertIs(type((store.records)[0]), TerminalSelectedCheckpoint)
+                delivery.submit.assert_awaited_once()
+
+    async def test_shutdown_disposes_stopped_unreported_value_without_repeating_science(self):
+        store = LiveAttemptProbe()
+        claims = AttemptClaims.live()
+        session = SingleRetirementSession(store)
+        delivery = RecordingDelivery()
+        transport = Transport(*lifecycle_replies()[:-1], reply(observation(job_state="closed")))
+        controller = live_controller(
+            api(transport, scope().api_origin),
+            store,
+            claims,
+            session,
+            delivery=delivery,
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.001,
+            delivery_retry_max_seconds=0.002,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
+        )
+
+        with self.assertRaises(ControllerFailed) as stopped:
+            await controller.run(record())
+
+        original_outcome = controller.operation._outcome
+        refusal = RuntimeError("Fixture disposition could not complete")
+
+        with (
+            patch.object(controller.operation, "retain_suppressed_disposition", AsyncMock(side_effect=refusal)),
+            self.assertRaises(RuntimeError) as refused,
+        ):
+            await controller.settle_for_shutdown()
+
+        self.assertIs(refused.exception, refusal)
+        self.assertIs(refusal.__context__, stopped.exception)
+        self.assertIs(controller.last_failure, stopped.exception)
+        self.assertIs(controller.operation._outcome, original_outcome)
+        self.assertEqual(claims.live_owners(), (controller,))
+        self.assertFalse(controller.shutdown_ready)
+        await controller.settle_for_shutdown()
+        await controller.settle_for_shutdown()
+
+        self.assertTrue(controller.shutdown_ready)
+        self.assertIs(controller.last_failure, stopped.exception)
+        self.assertIsInstance(controller.operation._checkpoint, SuppressedCheckpoint)
+        self.assertEqual(claims.live_owners(), ())
+        self.assertEqual(delivery.delivery_outcomes, [])
+        self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
 
     async def test_failed_retry_recipient_keeps_original_send_evidence_without_new_submission(self):
         store = LiveAttemptProbe()

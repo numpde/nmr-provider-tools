@@ -923,6 +923,25 @@ class AttemptController:
 
         return None
 
+    async def settle_for_shutdown(self):
+        """Settle original work, recording any permitted pre-report suppression.
+
+        The executor owns permission to suppress an interrupted returned value.
+        Selected terminal reports are never suppressed or resubmitted here.
+        Refusal preserves this controller and its original evidence for the
+        enclosing shutdown owner; it does not authorize resource release.
+        """
+        try:
+            return await self.settle()
+        except ControllerFailed:
+            if isinstance(self._operation, AttemptExecutor):
+                disposition = await self._operation._retain_shutdown_disposition()
+
+                if disposition is not None:
+                    return await self.settle()
+
+            raise
+
     async def settle(self):
         """Settle exact owners and release only after confirmed session retirement."""
         revocation = self._revocation_settlement
