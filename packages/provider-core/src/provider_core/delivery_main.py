@@ -12,7 +12,6 @@ require_container()
 import argparse
 import asyncio
 import os
-import signal
 import sys
 import pathlib
 
@@ -21,21 +20,14 @@ from provider_core.delivery_logging import DeliveryNotices
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
 from provider_core.shared_delivery_ipc import SharedDeliverySocket
 from provider_core.shared_delivery_service import SharedDeliveryService
+from provider_core.process_signals import termination_signals
 from provider_core.transport import require_unix_socket_path
 
 
 async def _serve_delivery(service, notices):
-    loop = asyncio.get_running_loop()
-
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signum, service.request_stop)
-
-    try:
+    with termination_signals(service.request_stop):
         await service.run()
         notices(None, {"event": "delivery_stopped", "retirement_confirmed": service.retirement_confirmed})
-    finally:
-        for signum in (signal.SIGINT, signal.SIGTERM):
-            loop.remove_signal_handler(signum)
 
 
 def main():
