@@ -20,6 +20,7 @@ from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSession
 from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending
+from provider_core.attempt_shutdown import drain_attempts
 from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
 from provider_core.execution import ConditionRecovery, ExecutionFailed, ObservationRecovery
 from provider_core.failure_collection import FailureCollector
@@ -172,27 +173,12 @@ class JobService:
         if self.active is not None:
             controllers[self.active] = None
 
-        for controller in controllers:
-            controller.request_stop()
-
-        for controller in controllers:
-            with failures.capture():
-                await controller.join()
-
-        # Retained controllers own the original reports and failed Attempts even
-        # after another offering runs. Settlement never starts replacement science.
-        while any((not controller.shutdown_ready) for controller in controllers):
-            for controller in controllers:
-                if controller.shutdown_ready:
-                    continue
-
-                try:
-                    await controller.settle_for_shutdown()
-                except Exception:
-                    log.exception("Attempt settlement failed; retaining its original work and result")
-
-            if any((not controller.shutdown_ready) for controller in controllers):
-                await asyncio.sleep(self.policy.retry_max_seconds)
+        with failures.capture():
+            await drain_attempts(
+                controllers,
+                retry_seconds=self.policy.retry_max_seconds,
+                report_failure=lambda cause: log.warning(f"Attempt shutdown retains {type(cause)=}"),
+            )
 
         with failures.capture():
             await self.api.retire(owner=self)
