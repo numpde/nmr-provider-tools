@@ -59,7 +59,7 @@ acquisition_compose_worker() {
 }
 
 _acq_compose_worker() {
-    [[ $# == 4 && -v _acq_active && $_acq_active == true && $_acq_compose_state == idle ]] || return 2
+    [[ ( $# == 4 || $# == 5 ) && -v _acq_active && $_acq_active == true && $_acq_compose_state == idle ]] || return 2
     local _acq_mode=$1 _acq_result_name=$2 _acq_caller=$3 _acq_service=$4
     [[ $_acq_mode == online || $_acq_mode == offline ]] || return 2
     [[ $_acq_service == worker-"$_acq_mode" && $_acq_caller == /* && -f $_acq_caller && ! -L $_acq_caller ]] || return 2
@@ -68,6 +68,7 @@ _acq_compose_worker() {
     _acq_sequence=$((_acq_sequence + 1))
     _acq_compose_project="acq-${_acq_scratch##*.}-$_acq_sequence"
     _acq_compose_project=${_acq_compose_project,,}
+    local _acq_worker_name=${5:-$_acq_compose_project-worker}
     _acq_compose_directory=$_acq_scratch/compose-$_acq_sequence
     mkdir -m 700 -- "$_acq_compose_directory" || return 2
     cp -- "$_acq_caller" "$_acq_compose_directory/caller.yml" || return 2
@@ -78,8 +79,7 @@ _acq_compose_worker() {
     local _acq_status=0 _acq_worker_exit= _acq_running= _acq_extra=
     if [[ $_acq_mode == online ]]; then
         [[ -n $_acq_route ]] || { _acq_fail 'Select an acquisition route before online Compose work.'; return 2; }
-        _acq_native 'acquisition Compose resolver' 10 stdio python3 -I -S -B "$_acq_bundle/acquisition_tool/dns.py" \
-            --interface "$_acq_route" --output "$_acq_compose_directory/resolv.conf" || return 2
+        _acq_capture_resolver "$_acq_compose_directory/resolv.conf" || return 2
         mkdir -m 700 -- "$_acq_compose_directory/gateway-socket" \
             "$_acq_compose_directory/gateway-ready" "$_acq_compose_directory/relay-ready" || return 2
         _acq_native 'acquisition Compose gateway' 30 discard "${_acq_compose[@]}" up -d --no-build --pull never gateway || return 2
@@ -94,9 +94,9 @@ _acq_compose_worker() {
         _acq_compose_command
     fi
     _acq_native 'acquisition Compose worker' untimed stdio "${_acq_compose[@]}" run -T --no-deps --pull never \
-        --name "$_acq_compose_project-worker" "$_acq_service" || _acq_status=$?
+        --name "$_acq_worker_name" "$_acq_service" || _acq_status=$?
     "$_acq_native_retired" || return 2
-    _acq_inspect_container_state "$_acq_compose_directory/result" "$_acq_compose_project-worker" || return 2
+    _acq_inspect_container_state "$_acq_compose_directory/result" "$_acq_worker_name" || return 2
     read -r _acq_running _acq_worker_exit _acq_extra < "$_acq_compose_directory/result" || return 2
     _acq_docker_state_matches "$_acq_running" "$_acq_worker_exit" "$_acq_extra" false "$_acq_status" || {
         _acq_fail 'Cannot admit acquisition Compose worker result: client and terminal state disagree.'

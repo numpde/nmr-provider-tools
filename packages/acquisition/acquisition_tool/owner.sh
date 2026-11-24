@@ -364,6 +364,16 @@ _acq_scope_identity() {
     acquisition_map_owner _acq_scope_uid _acq_scope_gid "$_acq_bootstrap_image"
 }
 
+_acq_capture_resolver() {
+    # Proxy transport owns DNS selection; interface DNS capture does not apply.
+    if [[ $_acq_route == *://* ]]; then
+        : > "$1"
+    else
+        _acq_native 'acquisition resolver capture' 10 stdio python3 -I -S -B "$_acq_bundle/acquisition_tool/dns.py" \
+            --interface "$_acq_route" --output "$1"
+    fi
+}
+
 _acq_start_route() {
     if [[ -v '_acq_cids[relay]' ]]; then
         [[ -n ${_acq_cids[relay]} ]] || return 2
@@ -375,19 +385,18 @@ _acq_start_route() {
     fi
     [[ -n $_acq_route ]] || { _acq_fail 'Select an explicit acquisition route before online work.'; return 2; }
     _acq_scope_identity || { _acq_failed=true; return 2; }
-    _acq_native 'acquisition resolver capture' 10 stdio python3 -I -S -B "$_acq_bundle/acquisition_tool/dns.py" \
-        --interface "$_acq_route" --output "$_acq_scratch/resolv.conf" || { _acq_failed=true; return 2; }
+    _acq_capture_resolver "$_acq_scratch/resolv.conf" || { _acq_failed=true; return 2; }
     mkdir -m 700 -- "$_acq_scratch/gateway-socket" "$_acq_scratch/gateway-ready" "$_acq_scratch/relay-ready" || return 2
     local -a _acq_base_options=(--pull never --read-only --user "$_acq_scope_uid:$_acq_scope_gid"
         --cap-drop ALL --security-opt no-new-privileges:true --cpus 1 --memory 128m --memory-swap 128m --pids-limit 64
         --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m --env PROVIDER_CORE_IN_CONTAINER=1
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/bootstrap
-        --mount "type=bind,src=$_acq_bundle/provider_core,dst=/bootstrap/provider_core,readonly" --entrypoint python3)
+        --mount "type=bind,src=$_acq_bundle,dst=/bootstrap,readonly" --entrypoint python3)
     local -a _acq_gateway_options=("${_acq_base_options[@]}" --network host
         --mount "type=bind,src=$_acq_scratch/gateway-socket,dst=/gateway"
         --mount "type=bind,src=$_acq_scratch/gateway-ready,dst=/ready")
     _acq_gateway_options+=(--mount "type=bind,src=$_acq_scratch/resolv.conf,dst=/gateway-resolv.conf,readonly")
-    local -a _acq_gateway_args=(-P -B -m provider_core.bound_http_proxy --interface "$_acq_route"
+    local -a _acq_gateway_args=(-P -B -m acquisition_tool.gateway --route "$_acq_route"
         --resolver-file /gateway-resolv.conf
         --unix-socket /gateway/proxy.sock --ready-file /ready/socket)
     _acq_create gateway "$_acq_bootstrap_image" _acq_gateway_options _acq_gateway_args || return "$?"

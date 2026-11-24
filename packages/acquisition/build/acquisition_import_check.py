@@ -16,6 +16,7 @@ def main(root: Path) -> None:
     sys.path.insert(0, str(root))
     importlib.import_module("linux_idmap.probe")
     importlib.import_module("provider_core.bound_http_proxy")
+    importlib.import_module("acquisition_tool.gateway")
 
 
 if __name__ == "__main__":

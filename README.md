@@ -29,6 +29,14 @@ existing proxy running. `make delivery/deployment/proxy/restart DOCKER_CONTEXT=s
 updates the proxy separately. Status, logs, and down use `PROJECT` from the
 settings file so they remain available for recovery without a prepared image.
 
+The acquisition owner also accepts an upstream `http://`, `socks5://` or
+`socks5h://` URL through `acquisition_set_route`. The shared gateway owns that
+connection; workers keep their isolated loopback HTTP proxy and cannot fall
+back to direct egress. `socks5h` delegates destination DNS to the upstream proxy.
+Proxy URLs require an explicit port and do not accept embedded credentials.
+The bootstrap bundle includes the hash-pinned `python-socks` transport, so
+consumer launchers need no installed SDK or SOCKS implementation on the host.
+
 Acquisition captures DNS configuration once per operation. A named interface
 uses its configured NetworkManager DNS first, then systemd-resolved link DNS;
 if neither supplies usable IPv4 resolvers, it uses the host's configured global

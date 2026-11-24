@@ -36,11 +36,11 @@ services:
   gateway:
     <<: *helper
     network_mode: host
-    command: [-P, -B, -m, provider_core.bound_http_proxy, --interface, "${NMR_ACQ_INTERFACE:?}", --resolver-file, /gateway-resolv.conf, --unix-socket, /gateway/proxy.sock, --ready-file, /ready/socket]
+    command: [-P, -B, -m, acquisition_tool.gateway, --route, "${NMR_ACQ_INTERFACE:?}", --resolver-file, /gateway-resolv.conf, --unix-socket, /gateway/proxy.sock, --ready-file, /ready/socket]
     volumes:
       - type: bind
-        source: ${NMR_ACQ_BUNDLE:?}/provider_core
-        target: /bootstrap/provider_core
+        source: ${NMR_ACQ_BUNDLE:?}
+        target: /bootstrap
         read_only: true
         bind: {create_host_path: false}
       - type: bind
@@ -62,8 +62,8 @@ services:
     command: [-P, -B, -m, provider_core.bound_http_proxy, --relay-socket, /gateway/proxy.sock, --port, "0", --ready-file, /ready/port]
     volumes:
       - type: bind
-        source: ${NMR_ACQ_BUNDLE:?}/provider_core
-        target: /bootstrap/provider_core
+        source: ${NMR_ACQ_BUNDLE:?}
+        target: /bootstrap
         read_only: true
         bind: {create_host_path: false}
       - type: bind

@@ -29,6 +29,7 @@ from tools.installer import release as installer_release, wheel_bytes
 # repo-check: allow-module-constant
 SOURCE_FILES = (
     "acquisition_tool/owner.sh",
+    "acquisition_tool/gateway.py",
     "acquisition_tool/compose.sh",
     "acquisition_tool/source_update.py",
     "acquisition_tool/source_download.py",
@@ -95,36 +96,20 @@ def _add(files, member_name, member_bytes):
 
 
 def dependency_files(pool, pin):
-    (package,) = pylock.packages(tomllib.loads(pin.read_text()))
-    (wheel,) = pylock.wheels(package)
-
-    package_name = pylock.package_name(package)
-    expected_package_name = "linux-idmap"
-
-    if package_name != expected_package_name:
-        raise ValueError(f"{reprlib.repr(package_name)=} should match {expected_package_name=}")
-
-    wheel_name = PurePosixPath(urlsplit(pylock.artifact_url(wheel)).path).name
-    expected_wheel_name = f"linux_idmap-{pylock.package_version(package)}-py3-none-any.whl"  # machine-string: qualified wheel filename
-
-    if wheel_name != expected_wheel_name:
-        raise ValueError(f"{reprlib.repr(wheel_name)=} should match {reprlib.repr(expected_wheel_name)=}")
-
-    wheel_bytes = (pool / wheel_name).read_bytes()
-    wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
-    expected_sha256 = pylock.artifact_sha256(wheel)
-
-    if not (wheel_sha256 == expected_sha256):
-        raise ValueError(f"For {wheel_name=}, {wheel_sha256=} should match {expected_sha256=}")
-
-    files = {}
-
-    with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
-        for member in archive.infolist():
-            if not member.is_dir():
-                _add(files, member.filename, archive.read(member))
-
-    return (files, {wheel_name: wheel_sha256})
+    files, dependencies = {}, {}
+    for package in pylock.packages(tomllib.loads(pin.read_text())):
+        (wheel,) = pylock.wheels(package)
+        wheel_name = PurePosixPath(urlsplit(pylock.artifact_url(wheel)).path).name
+        wheel_bytes = (pool / wheel_name).read_bytes()
+        wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
+        if wheel_sha256 != pylock.artifact_sha256(wheel):
+            raise ValueError(f"Cannot bundle {wheel_name=}: its SHA-256 differs from the acquisition lock")
+        with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
+            for member in archive.infolist():
+                if not member.is_dir():
+                    _add(files, member.filename, archive.read(member))
+        dependencies[wheel_name] = wheel_sha256
+    return (files, dependencies)
 
 
 def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):

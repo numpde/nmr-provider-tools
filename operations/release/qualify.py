@@ -376,6 +376,14 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         check=True,  # Reject any manifest or source mismatch
     )
 
+    proxy_tests = pathlib.Path(__file__).resolve().parents[2] / "tests/acquisition_network"
+    subprocess.run(
+        ["python3", "-I", "-S", "-B", "-c",
+         "import sys, unittest; sys.path[:0] = sys.argv[1:]; unittest.main(module='test_upstream_proxy', argv=['unittest'])",
+         str(destination), str(proxy_tests)],
+        check=True,
+    )
+
     cold_import_check = pathlib.Path(__file__).resolve().parents[2] / "packages/acquisition/build/acquisition_import_check.py"
 
     subprocess.run(
