@@ -81,7 +81,7 @@ class Session:
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.input = Number(**json.loads(instructions.specification_bytes))
 
-        if self.input.value < 0 and self.preceding_results is not None:
+        if (self.input.value < 0) and (self.preceding_results is not None):
             await self.preceding_results.wait()
 
         return PreparedAnalysis(ProtectedEvidence("test.input.v1", instructions.specification_bytes))

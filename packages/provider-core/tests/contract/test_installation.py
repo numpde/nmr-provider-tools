@@ -108,6 +108,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/state_slots.py",
                 "provider_core/scientific.py",
                 "provider_core/scientific_call.py",
+                "provider_core/batch_call.py",
                 "provider_core/scientific_invocation.py",
                 "provider_core/process_call.py",
                 "provider_core/interpreter_settings.py",

@@ -138,7 +138,7 @@ class AttemptClaims:
                 f"Cannot check Attempt capacity: {terminal_bytes=} must fit the terminal allowance of 16384 to {MAX_COMPLETE_REQUEST_BYTES} bytes"
             )
 
-        if input_bytes < 1:
+        if not (input_bytes >= 1):
             raise ValueError(f"Cannot check Attempt capacity: {input_bytes=} must describe a nonempty Job input")
 
         self._require_live_view()

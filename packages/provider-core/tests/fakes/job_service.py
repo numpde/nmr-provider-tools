@@ -26,6 +26,7 @@ class JobApi:
         self.started = []
         self.announcements = []
         self.unavailable = False
+        self.cancelled_jobs = set()
         self.feed_requests = asyncio.Queue()
 
     def new_api(self):
@@ -110,6 +111,10 @@ class JobApi:
 
                 reference = path.split("/")[-1]
 
-                return reply(observation(execution_attempt_ref=reference, job_ref=fixture.attempts[reference]))
+                return reply(observation(
+                    execution_attempt_ref=reference,
+                    job_ref=fixture.attempts[reference],
+                    job_state="cancelled" if fixture.attempts[reference] in fixture.cancelled_jobs else "open",
+                ))
 
         return api(Replies(), "https://api.example")

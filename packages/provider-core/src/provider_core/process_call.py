@@ -23,6 +23,8 @@ class ProcessCall:
     Enter as an async context manager, or explicitly start and close from a
     surrounding lifecycle owner. Closing also settles interrupted startup and
     replacement; repeated closes retain any unconfirmed retirement failure.
+    The host is exposed for service health observation. Scientific invocation
+    goes through this owner; lending its host to other callers breaks custody.
     """
 
     def __init__(self, *, settings, runner, contribution_type, constructor, startup, method, identity_method):
@@ -36,6 +38,8 @@ class ProcessCall:
         self.host = None
         self.closed = False
         self._invocation = None
+        self._batch_owner = None
+        self._active_calls = 0
 
     def require_open(self) -> None:
         if self.closed:
@@ -69,6 +73,12 @@ class ProcessCall:
         return self
 
     @property
+    def error_policy(self):
+        """Expose the configured retry policy before the worker starts."""
+
+        return self.settings.error_policy
+
+    @property
     def binding(self):
         """Expose the started method's codecs to manual scientific callers."""
         return self._started_call().binding
@@ -84,20 +94,47 @@ class ProcessCall:
 
         return self._invocation
 
+    def _claim_batch(self, owner):
+        self.require_open()
+        self._started_call()
+
+        if not ((self._batch_owner is None) and (self._active_calls == 0)):
+            raise RuntimeError(f"Cannot attach a batch dispatcher: {self._active_calls=} or an existing dispatcher owns this process call")
+
+        self._batch_owner = owner
+
+    def _release_batch(self, owner):
+        if self._batch_owner is None:
+            return
+
+        if not ((self._batch_owner is owner) and (self._active_calls == 0)):
+            raise RuntimeError(f"Cannot release the batch reservation: {self._batch_owner is owner=}, {self._active_calls=}")
+
+        self._batch_owner = None
+
     async def __call__(
         self,
         *,
         scientific_input=NoInput(),
         receive: Callable[[bytes], Awaitable[None]] | None = None,
         require_execution: Callable[[], None] | None = None,
+        _batch_owner: object | None = None,
     ):
         self.require_open()
 
-        return await self._started_call()(
-            scientific_input=scientific_input,
-            receive=receive,
-            require_execution=require_execution,
-        )
+        if not (self._batch_owner is _batch_owner):
+            raise RuntimeError(f"Cannot invoke this process call outside its active batch dispatcher: {self._batch_owner is _batch_owner=}")
+
+        self._active_calls += 1
+
+        try:
+            return await self._started_call()(
+                scientific_input=scientific_input,
+                receive=receive,
+                require_execution=require_execution,
+            )
+        finally:
+            self._active_calls -= 1
 
     async def _start_worker(self):
         self.require_open()

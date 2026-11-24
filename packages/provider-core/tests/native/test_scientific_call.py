@@ -12,6 +12,7 @@ from threading import Event
 import unittest
 from unittest.mock import patch
 
+from provider_core.batch_call import BatchCall, BatchPolicy
 from provider_core.execution_setup import ExecutionSettings
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, settle_cleanup
 from provider_core.payload import JsonDataclassCodec
@@ -105,6 +106,40 @@ class ScientificCallTests(unittest.IsolatedAsyncioTestCase):
         self.configuration["error_policy"] = error_policy
 
         return ExecutionSettings(self.configuration).bind_call(host=self.host, contribution=self.hosted, method=method)
+
+    def batches(self, calculate):
+        return BatchCall(
+            call=calculate,
+            policy=BatchPolicy(
+                maximum_entries=1,
+                collection_seconds=0.01,
+                maximum_queued_input_bytes=1024,
+                maximum_entry_input_bytes=1024,
+            ),
+            entry_codec=JsonDataclassCodec(format="test.sample.v1", value_type=Sample),
+            pack=lambda participants: participants[0],
+            unpack=lambda prediction: (prediction,),
+        )
+
+    async def test_borrowed_call_cannot_grant_batch_retirement_of_shared_host(self):
+        running_call = self.call(error_policy={}, method=Calculator.calculate)
+        borrowed_call = self.call(error_policy={}, method=Calculator.calculate)
+
+        self.science.release.clear()
+        direct = asyncio.create_task(running_call(scientific_input=Sample(count=1)))
+
+        try:
+            self.assertTrue(await asyncio.to_thread(self.science.entered.wait, 2))
+
+            with self.assertRaises(TypeError):
+                self.batches(borrowed_call)
+
+            self.assertFalse(direct.done())
+        finally:
+            self.science.release.set()
+            self.assertEqual(Sample(count=2), await direct)
+
+        self.assertEqual(Sample(count=4), await borrowed_call(scientific_input=Sample(count=3)))
 
     async def test_success_releases_results_and_analyses_between_calls(self):
         calculate = self.call(error_policy={}, method=Calculator.calculate)

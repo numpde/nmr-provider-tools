@@ -85,6 +85,7 @@ class JobService:
     service. The caller keeps every host alive until service settlement finishes.
     """
 
+    # silent-defaults: allow-contract -- One preparation preserves sequential preparation for existing callers; deployments can explicitly increase this bound.
     def __init__(
         self,
         *,
@@ -327,8 +328,8 @@ class JobService:
 
         log.info(f"Selected {job_input.job_ref=}")
 
-        # Successful start reserves the claim and driver without yielding. Until
-        # then, retain the provisional owner even if admission cleanup fails.
+        # Successful start reserves the claim and driver without yielding.
+        # Retain the provisional owner until then, including failed admission cleanup.
         controller = self.admitting
 
         await controller.start(pending)

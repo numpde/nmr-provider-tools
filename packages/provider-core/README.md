@@ -1188,15 +1188,23 @@ The manifest's declared source revision is excluded from that release digest;
 content matching does not authenticate the publisher or prove live support.
 No separate fixture redistribution-rights verification is claimed here.
 
-### Serial API job services
+### Bounded API job services
 
 `JobService` runs API discovery, aggregate availability announcements,
 AttemptController execution, result handoff, and shutdown for a tuple of
 `JobOffering` declarations. Each declaration associates its public
 `AnalysisOffering` with an already-started host, consumer/generation identity,
 and `AnalysisSession` factory. Several offerings may share one host and select
-different methods on its hosted contribution. Execution remains serial across
-all offerings; `LiveAttemptLimits` bounds retained claims and report bytes.
+different methods on its hosted contribution. `LiveAttemptLimits` bounds active
+and held claims, control bytes, declared input bytes, and reserved report bytes.
+Admission commits a claim before another job can start; discovery retains its
+current bounded page while capacity is full. `maximum_preparations` separately
+bounds concurrent session preparation (one by default). Model execution and
+result delivery can wait while other admitted jobs prepare.
+
+The scientific owner still decides execution concurrency. `ProcessCall` serializes
+its invocations; direct low-level calls sharing a host must respect that host's
+admission limits. An Attempt limit of one preserves a serial service.
 
 Supply independent API-client factories, a shared-delivery factory, and an
 `asyncio.Event` for stop. `ProviderClients` captures their shared configuration;
@@ -1227,6 +1235,48 @@ Pass `report_condition.require_execution` to `ScientificCall(require_execution=.
 from an API session. The SDK checks it before each attempt, including after retry
 backoff; refusal propagates without another retry. The session continues to own
 cancellation and cleanup of the original scientific call.
+
+### Shared scientific batches
+
+`BatchCall` reserves one `ProcessCall` and its privately owned worker for its
+lifetime. A borrowed `ScientificCall` cannot grant host-retirement authority and
+is rejected before dispatch. Keep scientific invocation through the ProcessCall;
+its exposed host supports service health observation. Independent batches need
+separate process owners. Direct invocations, competing dispatchers and attachment
+during an existing call are rejected. Successful close releases the reservation.
+The provider supplies an entry codec and `pack`/`unpack` functions for its typed
+batch method. Different dispatcher instances never combine inputs, so worker,
+model and execution settings follow their existing call owner.
+
+Enter the dispatcher inside its host scope and outside `JobService.serve()`.
+In `AnalysisSession.prepare`, retain `await batches.prepare(scientific_input)`.
+In `execute`, await that participation's `execute(require_execution=...)`.
+In `retire`, join its `retire()`. The SDK handles collection, permission checks,
+ordered result routing and shared cleanup. The four maintained scientific
+examples do not consume API jobs; their existing direct-call interfaces remain
+appropriate. ChefNMR2 demonstrates the API-session batching composition.
+
+`BatchPolicy` specifies maximum entries, collection seconds from the first
+activated input, maximum encoded entry bytes and a shared queued/running byte
+budget. Input snapshots are immutable. Preparations waiting for queue space each
+hold at most one entry-sized snapshot, so use the service's preparation bound.
+The call's frame limits bound assembled input/results; Attempt reservations bound
+result and delivery retention. These are serialized-byte allowances, not heap
+size measurements.
+
+Set the underlying call to one attempt. Revocation at its pre-effect permission
+callback removes that member and repacks survivors before any analysis starts.
+Once dispatched, cancelling one participant suppresses its publication and waits
+for shared settlement; it cannot stop siblings. A sequential worker may still
+execute its entry. The dispatcher alone stops a batch when all participants retire
+or its enclosing scope closes. Selected delivery obligations remain unchanged.
+
+The complete typed reply and its cardinality must validate before any result is
+routed. A whole-call failure never authorizes replay or prefix recovery: it closes
+the dispatcher and retires the shared host. Confirmed host settlement lets each
+participation retire while retaining original failure evidence; an unconfirmed
+retirement keeps its bytes and Attempt ownership. `close()` reports the original
+call and cleanup failures even when resources have settled.
 
 ### Configured interpretation
 

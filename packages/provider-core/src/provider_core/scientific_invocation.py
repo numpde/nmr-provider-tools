@@ -25,6 +25,7 @@ class ScientificInvocation[ResultT]:
     def __init__(self, task: asyncio.Task[ResultT]) -> None:
         self._task = task
         self._settlement: asyncio.Task[None] | None = None
+        self._requested_stop = False
 
     async def wait(self) -> ResultT:
         """Wait for the original sequence; cancelling this wait leaves it running."""
@@ -38,6 +39,12 @@ class ScientificInvocation[ResultT]:
             if not (requested_stop):
                 raise
 
+    def request_stop(self) -> None:
+        """Request cancellation once; close() still owns the required settlement."""
+
+        if not self._task.done() and not self._task.cancelling():
+            self._requested_stop = self._task.cancel()
+
     async def close(self) -> None:
         """Stop once and join cleanup before propagating observer cancellation.
 
@@ -47,12 +54,8 @@ class ScientificInvocation[ResultT]:
         """
 
         if self._settlement is None:
-            requested_stop = False
-
-            if (not self._task.done()) and (not self._task.cancelling()):
-                requested_stop = self._task.cancel()
-
-            self._settlement = _start_owned_task(operation=partial(self._settle, requested_stop=requested_stop))
+            self.request_stop()
+            self._settlement = _start_owned_task(operation=partial(self._settle, requested_stop=self._requested_stop))
 
         await _join_settlement(task=self._settlement)
 
