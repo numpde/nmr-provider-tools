@@ -970,6 +970,69 @@ class WheelhouseTests(unittest.TestCase):
 
         return (digest, url)
 
+    def test_locator_projects_compatible_cached_wheel_from_source_base(self):
+        from packaging.tags import sys_tags
+        tag = next(sys_tags())
+        compatible = f"torch-2.3.0+cpu-{tag}.whl"
+        incompatible = "torch-2.3.0+cpu-cp27-cp27m-linux_x86_64.whl"
+        corrupt = "torch-2.3.0+cpu-1-py3-none-any.whl"
+        hashes = {}
+
+        for filename in (compatible, incompatible, corrupt):
+            contents = filename.encode()
+            hashes[filename] = hashlib.sha256(contents).hexdigest()
+            (self.pool / filename).write_bytes(contents)
+
+        (self.pool / corrupt).write_bytes(b"unlocked bytes")
+
+        self.lock.write_text(
+            "torch==2.3.0+cpu " + "\\\n"
+            + " \\\n".join(f"    --hash=sha256:{digest}" for digest in hashes.values())
+            + "\n"
+        )
+
+        base = "torch=https://example.invalid/whl/cpu"
+        output = io.StringIO()
+
+        with (
+            patch("wheelhouse_tool.locate.urllib.request.build_opener", side_effect=AssertionError("No index lookup for an explicit source base")),
+            patch.object(sys, "argv", ["locate", "--lock", str(self.lock), "--pool", str(self.pool), "--source-base", base]),
+            redirect_stdout(output),
+        ):
+            self.assertEqual(0, locate_main())
+
+        derived = self.root / "pylock.source-base.toml"
+        derived.write_text(output.getvalue())
+        (artifact,) = tool.selected(derived, [], source_lock=self.lock)
+        self.assertEqual(compatible, artifact[0])
+        self.assertEqual(hashes[compatible], artifact[1])
+        self.assertEqual("https://example.invalid/whl/cpu/" + compatible.replace("+", "%2B"), artifact[2])
+        self.assertEqual(b"unlocked bytes", (self.pool / corrupt).read_bytes())
+
+        (self.pool / compatible).unlink()
+
+        with self.assertRaisesRegex(ValueError, "no compatible cached wheel"):
+            locate(self.lock, pool=self.pool, source_bases=[base])
+
+    def test_locator_source_base_does_not_override_source_authority(self):
+        (_, direct) = self._pinned_direct_source()
+        base = "torch=https://example.invalid/whl/cpu"
+
+        with self.assertRaisesRegex(ValueError, "cached wheel pool"):
+            locate(self.lock, source_bases=[base])
+
+        with self.assertRaisesRegex(ValueError, "conflicts"):
+            locate(self.lock, pool=self.pool, source_bases=[base], direct_sources=[direct])
+
+        with self.assertRaisesRegex(ValueError, "conflicts"):
+            locate(self.lock, pool=self.pool, source_bases=[base], required_sources=["torch"])
+
+        with self.assertRaisesRegex(ValueError, "more than one source base"):
+            locate(self.lock, pool=self.pool, source_bases=[base, base])
+
+        with self.assertRaisesRegex(ValueError, "source base must be HTTPS"):
+            locate(self.lock, pool=self.pool, source_bases=[base + "?private=1"])
+
     def test_locator_accepts_existing_direct_source_only_when_it_matches_the_pin(self):
         (digest, url) = self._pinned_direct_source()
         projected = tomllib.loads(locate(self.lock, direct_sources=[url]))

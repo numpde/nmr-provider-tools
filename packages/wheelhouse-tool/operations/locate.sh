@@ -19,9 +19,11 @@ if [[ -v WHEELHOUSE_INPUT_ORIGIN && $WHEELHOUSE_INPUT_ORIGIN == 'command line' ]
     arguments+=(--pool /wheelhouse)
 fi
 if [[ -v LOCATE_INDEX_INPUT && -n $LOCATE_INDEX_INPUT ]]; then arguments+=(--index-url "$LOCATE_INDEX_INPUT"); fi
-[[ -v LOCATE_SOURCES_INPUT && -v LOCATE_REQUIRED_INPUT ]] || { printf '%s\n' 'Source-selection inputs were not supplied by the Make owner.' >&2; exit 2; }
+[[ -v LOCATE_SOURCES_INPUT && -v LOCATE_BASES_INPUT && -v LOCATE_REQUIRED_INPUT ]] || { printf '%s\n' 'Source-selection inputs were not supplied by the Make owner.' >&2; exit 2; }
 read -r -a sources <<< "$LOCATE_SOURCES_INPUT"
 for source in "${sources[@]}"; do arguments+=(--source "$source"); done
+read -r -a bases <<< "$LOCATE_BASES_INPUT"
+for base in "${bases[@]}"; do arguments+=(--source-base "$base"); done
 read -r -a required <<< "$LOCATE_REQUIRED_INPUT"
 for source in "${required[@]}"; do arguments+=(--require-source "$source"); done
 command=(bash "$root/operations/docker/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \

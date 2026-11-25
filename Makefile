@@ -155,9 +155,10 @@ override LOCK_INPUT := $(value LOCK)
 export LOCK_INPUT
 endif
 
-unexport INDEX_URL SOURCE_URLS REQUIRE_SOURCE
+unexport INDEX_URL SOURCE_URLS SOURCE_BASES REQUIRE_SOURCE
 override export LOCATE_INDEX_INPUT := $(if $(filter command line,$(origin INDEX_URL)),$(value INDEX_URL))
 override export LOCATE_SOURCES_INPUT := $(if $(filter command line,$(origin SOURCE_URLS)),$(value SOURCE_URLS))
+override export LOCATE_BASES_INPUT := $(if $(filter command line,$(origin SOURCE_BASES)),$(value SOURCE_BASES))
 override export LOCATE_REQUIRED_INPUT := $(if $(filter command line,$(origin REQUIRE_SOURCE)),$(value REQUIRE_SOURCE))
 unexport SOURCE_LOCK
 override export SOURCE_LOCK_INPUT := $(if $(filter command line,$(origin SOURCE_LOCK)),$(value SOURCE_LOCK))
@@ -318,7 +319,7 @@ help:
 	  'make tests/acquisition/identity WHEELHOUSE=<cache-dir> Test cold identity mapping and retirement receipts offline.' \
 	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
 	  'make tests/acquisition/compose Test Compose worker results, cancellation and retirement offline.' \
-	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
+	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [SOURCE_BASES=<package=url ...>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=<file> [SOURCE_LOCK=<file>] WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked artifacts.' \
 	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
 	  'make checks/bootstrap/build Build the checker bootstrap offline from the pinned base.' \

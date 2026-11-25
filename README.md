@@ -178,7 +178,11 @@ one exact wheel URL and hash per package, so another Python version or platform
 requires regeneration. Keep the portable release lock as the authority, rather
 than copying its cross-platform hash inventory into every deployment. For the
 SDK wheel, supply `locate --source <release-wheel-URL>#sha256=<release-wheel-hash>`;
-the selector checks it against the SDK pin in the release lock.
+the selector checks it against the SDK pin in the release lock. For wheels hosted
+in a known artifact directory, such as PyTorch, supply `--pool <cache-dir>` and
+`--source-base torch=https://download.pytorch.org/whl/cpu`. The locator projects
+only cached wheels that match the pinned version, hashes and target tags; it
+constructs their URLs from that directory, without falling back to the index.
 
 `packages/provider-core/sdk_build/` acquires SDK dependencies, builds distributions
 and runs tests against the installed SDK. `operations/release/` qualifies the

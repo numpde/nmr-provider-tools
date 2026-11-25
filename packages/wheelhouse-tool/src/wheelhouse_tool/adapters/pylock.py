@@ -1,6 +1,7 @@
 """Decode and serialize the standalone wheelhouse tool's pylock documents."""
 
 import tomllib
+import urllib.parse
 from collections.abc import Callable, Iterable
 from dataclasses import replace
 from pathlib import Path
@@ -62,7 +63,18 @@ def project_index_record(
     """Encode the selected index wheels and optional source distribution."""
 
     package: dict[str, object] = {"name": name, "version": str(version)}
-    wheel_records = [_artifact_record(url, sha256) for (url, sha256) in wheels]
+    wheel_records = []
+
+    for (url, sha256) in wheels:
+        wheel = _artifact_record(url, sha256)
+        url_filename = urllib.parse.urlsplit(url).path.rsplit("/", 1)[-1]
+        filename = urllib.parse.unquote(url_filename)
+
+        # PEP 751 wheel names must be literal filenames, not URL escapes.
+        if filename != url_filename:
+            wheel["name"] = filename
+
+        wheel_records.append(wheel)
 
     if wheel_records:
         package["wheels"] = wheel_records

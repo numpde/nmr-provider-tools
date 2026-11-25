@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import os
 import reprlib
 import sys
 import urllib.parse
@@ -101,13 +102,80 @@ def read_requirements(path, configured_index=None):
     return (requirement_records, index_base, hashlib.sha256(source).hexdigest())
 
 
+def project_cached_wheels(requirement, hashes, base, pool):
+    """Project locked compatible wheels already present under a declared source base."""
+    from wheelhouse_tool.__main__ import pool_lock, sha256
+
+    package_name = canonicalize_name(requirement.name)
+    compatible = set(sys_tags())
+    candidates = []
+
+    with pool_lock(pool, exclusive=False) as directory_fd:
+        for filename in sorted(os.listdir(directory_fd)):
+            try:
+                (distribution, version, _, tags) = parse_wheel_filename(filename)
+            except InvalidWheelFilename:
+                continue
+
+            if (
+                (distribution != package_name) or
+                (not requirement.specifier.contains(version, prereleases=True)) or
+                (not tags.intersection(compatible))
+            ):
+                continue
+
+            checksum = sha256(filename, directory_fd)
+
+            if checksum in hashes:
+                candidates.append((version, base + "/" + urllib.parse.quote(filename, safe=""), checksum))
+
+    if not candidates:
+        raise ValueError(f"Cannot locate {package_name=}: no compatible cached wheel matches its locked hashes.")
+
+    version = max(candidate[0] for candidate in candidates)
+
+    return project_index_record(
+        package_name,
+        version,
+        wheels=((url, checksum) for (candidate_version, url, checksum) in candidates if candidate_version == version),
+        sdist=None,
+    )
+
+
 # silent-defaults: allow-contract -- The caller selects an optional HTTPS index and source preferences; absent preferences are immutable empty tuples, not inferred sources.
-def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sources=(), pool=None):
+def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sources=(), pool=None, *, source_bases=()):
     (records, index, source_sha256) = read_requirements(path, index)
     packages = []
     required_sources = {canonicalize_name(name) for name in required_sources}
     allowed_sources = {canonicalize_name(name) for name in allowed_sources} | required_sources
     direct = {}
+    bases = {}
+
+    for source_base in source_bases:
+        name, separator, base = source_base.partition("=")
+
+        if not separator:
+            raise ValueError("Specify a source base as PACKAGE=HTTPS_URL.")
+
+        package_name = canonicalize_name(name, validate=True)
+        parsed = urllib.parse.urlsplit(base)
+
+        if (
+            (parsed.scheme != "https") or
+            (not parsed.hostname) or
+            (parsed.username is not None) or
+            parsed.query or
+            parsed.fragment
+        ):
+            raise ValueError(f"Cannot locate {package_name=}: source base must be HTTPS without credentials, a query or fragment.")
+
+        if package_name in bases:
+            raise ValueError(f"Cannot locate {package_name=}: more than one source base was supplied.")
+
+        bases[package_name] = base.rstrip("/")
+
+    if bases and (pool is None):
+        raise ValueError("Source bases require a cached wheel pool.")
 
     for direct_source_url in direct_sources:
         parsed = urllib.parse.urlsplit(direct_source_url)
@@ -148,6 +216,12 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
 
         if package_name in direct:
             supplied = direct.pop(package_name)
+
+        if package_name in bases:
+            if requirement.url or supplied or (package_name in required_sources):
+                raise ValueError(f"Cannot locate {package_name=}: its source base conflicts with another explicit source.")
+            packages.append(project_cached_wheels(requirement, hashes, bases.pop(package_name), pool))
+            continue
 
         if requirement.url or supplied:
             if requirement.url and supplied:
@@ -303,6 +377,9 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
 
         raise ValueError(f"{reprlib.repr(unmatched_direct_packages)=} should be empty after matching {reprlib.repr(path)=}")
 
+    if bases:
+        raise ValueError(f"Cannot locate source bases for packages outside the lock: {sorted(bases)}.")
+
     missing_required_sources = required_sources - {canonicalize_name(requirement.name) for (requirement, _) in records}
 
     if missing_required_sources:
@@ -324,6 +401,7 @@ def main():
     parser.add_argument("--allow-source", action="append")
     parser.add_argument("--require-source", action="append")
     parser.add_argument("--source", action="append")
+    parser.add_argument("--source-base", action="append", help="PACKAGE=HTTPS_URL directory for compatible cached wheels matching the lock.")
     parser.add_argument("--pool", type=Path, help="Prefer compatible, verified wheels already in this pool.")
     args = parser.parse_args()
     allowed = []
@@ -340,7 +418,7 @@ def main():
         sources = args.source
 
     try:
-        print(locate(args.lock, args.index_url, allowed, required, sources, args.pool), end="")
+        print(locate(args.lock, args.index_url, allowed, required, sources, args.pool, source_bases=args.source_base or ()), end="")
     # silent-defaults: allow-exception-outcome -- Invalid metadata or an unreachable selected index produces a nonzero source-projection CLI result.
     except (OSError, ValueError, KeyError, TypeError, PylockSelectError, PylockValidationError) as error:
         print(str(error), file=sys.stderr)
