@@ -1048,7 +1048,7 @@
   },
   {
     "method": "ChefNMR2",
-    "integrated": false,
+    "integrated": true,
     "year": "2026",
     "publications": [
       {
@@ -1056,7 +1056,7 @@
         "url": "https://doi.org/10.64898/2026.10.29.762711"
       }
     ],
-    "description": "Atomic flow matching constructs candidate molecular structures from molecular formula and ¹H/¹³C peak lists. Its LLM reasoning agent is described in the paper but not included in the released inference code.",
+    "description": "The Hub offering uses ChefNMR2’s ten-checkpoint atomic-flow model to generate candidate atomic coordinates from a molecular formula and unassigned ¹H/¹³C peak lists, assign bonds and rank candidate SMILES by sampling frequency, ignoring stereo. ChefNMR2-Agent is a separate system.",
     "datasets": [
       {
         "id": "nmrexp-chefnmr2",
@@ -1075,6 +1075,10 @@
       {
         "text": "GitHub",
         "url": "https://github.com/ml-struct-bio/chefnmr2"
+      },
+      {
+        "text": "Hub integration",
+        "url": "https://github.com/numpde/chefnmr2-repro"
       }
     ],
     "checkpoints": [
