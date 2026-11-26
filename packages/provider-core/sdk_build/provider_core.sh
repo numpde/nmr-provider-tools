@@ -181,6 +181,7 @@ case "$action" in
             --mount "type=bind,src=$root/containers,dst=/workspace/containers,readonly"
             --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
             --mount "type=bind,src=$root/operations,dst=/workspace/operations,readonly"
+            --mount "type=bind,src=$root/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
             --entrypoint python3 "$tool_image" -B -m operations.release.qualify --artifacts /artifacts --revision "$revision")
         budget=untimed
@@ -237,7 +238,7 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     operation_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition packages/type-requirements host operations containers requirements
+        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition packages/type-requirements host operations containers requirements tests/acquisition_network
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
@@ -255,6 +256,8 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly" ;;
             "type=bind,src=$root/operations,dst=/workspace/operations,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/operations,dst=/workspace/operations,readonly" ;;
+            "type=bind,src=$root/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly" ;;
             "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly" ;;
             "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")

@@ -244,6 +244,19 @@ class PackageArtifactTests(unittest.TestCase):
                     ],
                     check=True
                 ),
+                call(
+                    [
+                        "python3",  # Use the qualification interpreter
+                        "-I",  # Ignore ambient Python configuration
+                        "-S",  # Load dependencies only from the extracted bundle
+                        "-B",  # Leave the extracted source unchanged
+                        "-c",  # Run the acquisition proxy tests against those bytes
+                        "import sys, unittest; sys.path[:0] = sys.argv[1:]; unittest.main(module='test_upstream_proxy', argv=['unittest'])",
+                        str(extracted),  # Select the extracted acquisition package and dependencies
+                        str(ROOT / "tests/acquisition_network"),  # Use the committed qualification tests
+                    ],
+                    check=True,
+                ),
                 call(["python3", "-I", "-S", "-B", str(ROOT / "packages/acquisition/build/acquisition_import_check.py"), str(extracted)], check=True),
                 call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
             ],
@@ -285,7 +298,7 @@ class PackageArtifactTests(unittest.TestCase):
     def test_cold_import_check_uses_the_extracted_source_tree(self):
         source = self.root / "cold-import"
 
-        for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py"):
+        for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py", "acquisition_tool/gateway.py"):
             source_file_path = source / name
 
             source_file_path.parent.mkdir(parents=True, exist_ok=True)

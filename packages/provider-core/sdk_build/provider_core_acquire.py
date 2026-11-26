@@ -98,18 +98,18 @@ def tool_present(pool, pin):
 
 
 def bootstrap_present(pool, lock):
-    (package,) = pylock.packages(tomllib.loads(lock.read_text()))
-    (wheel,) = pylock.wheels(package)
-    wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(pylock.artifact_url(wheel)).path).name
+    for package in pylock.packages(tomllib.loads(lock.read_text())):
+        (wheel,) = pylock.wheels(package)
+        wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(pylock.artifact_url(wheel)).path).name
 
-    if (not wheel_path.exists()) and (not wheel_path.is_symlink()):
-        return False
+        if (not wheel_path.exists()) and (not wheel_path.is_symlink()):
+            return False
 
-    wheel_sha256 = digest(wheel_path)
-    bootstrap_sha256 = pylock.artifact_sha256(wheel)
+        wheel_sha256 = digest(wheel_path)
+        bootstrap_sha256 = pylock.artifact_sha256(wheel)
 
-    if wheel_sha256 != bootstrap_sha256:
-        raise ValueError(f"{wheel_path=}, {wheel_sha256=} ≠ {bootstrap_sha256=}")
+        if wheel_sha256 != bootstrap_sha256:
+            raise ValueError(f"{wheel_path=}, {wheel_sha256=} ≠ {bootstrap_sha256=}")
 
     return True
 

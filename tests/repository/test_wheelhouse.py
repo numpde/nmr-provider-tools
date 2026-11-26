@@ -164,6 +164,12 @@ class WheelhouseTests(unittest.TestCase):
 
         lock.write_text(
             '[[packages]]\n'
+            'name = "cached-fixture"\n'
+            'version = "1.0"\n'
+            '[[packages.wheels]]\n'
+            'url = "https://example.invalid/' + self.cached.name + '"\n'
+            'hashes = {sha256 = "' + wheelhouse.digest(self.cached) + '"}\n'
+            '[[packages]]\n'
             'name = "identity-fixture"\n'
             'version = "1.0"\n'
             '[[packages.wheels]]\n'
