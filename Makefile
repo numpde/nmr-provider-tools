@@ -298,7 +298,7 @@ help:
 	  ''
 	@printf '%s\n' \
 	  '== Provider-core package and installed tests ==' \
-	  'make packages/provider-core/locks/refresh WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Resolve four SDK roles from direct intent; review resulting locks.' \
+	  'make packages/provider-core/locks/refresh NETWORK_INTERFACE=<system|interface> Resolve runtime, build and test requirements from direct intent; review resulting locks.' \
 	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire checker/bootstrap tools, then locked SDK wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Run one unit file when selected; otherwise run all unit and native tests.' \

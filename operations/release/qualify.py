@@ -27,7 +27,7 @@ from pathlib import PurePosixPath
 
 from tools.artifacts import regular_file
 from tools.artifact_metadata import metadata_mismatch
-from build_acquisition_bundle import build as build_acquisition_bundle, wheelhouse_release
+from build_acquisition_bundle import build as build_acquisition_bundle
 from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, package_listing
 from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE, native_requirements
 from tools.wheelhouse import digest, requirements
@@ -46,58 +46,6 @@ def artifact_names(version):
     acquisition_name = f"acquisition-owner-{version}.tar.gz"  # machine-string: The release inventory matches this exact bootstrap archive filename
 
     return {(prefix + suffix) for suffix in ("-py3-none-any.whl", "-py3-none-any.whl.metadata", "-simple.html", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {acquisition_name}
-
-
-def qualify_wheelhouse_bundle(bundle, scratch):
-    """Verify the independently published tool consumes the captured build lock."""
-
-    (build_version, accepted_hashes) = next(
-        (version, hashes)
-        for ((name, version), hashes) in requirements(pathlib.Path("/core-build.lock")).items()
-        if name == "setuptools"
-    )
-
-    build_wheel = pathlib.Path("/wheelhouse") / f"setuptools-{build_version}-py3-none-any.whl"  # machine-string: SDK build qualification opens the exact pinned setuptools wheel filename.
-    build_sha256 = digest(build_wheel)
-
-    if not (build_sha256 in accepted_hashes):
-        raise ValueError(f"Cannot qualify Wheelhouse: {build_wheel=} does not match the pinned SDK build dependency")
-
-    lock = pathlib.Path("/workspace/requirements/provider-core-build.wheelhouse.json")
-    installation = scratch / "wheelhouse-build-install.txt"
-
-    command = [
-        "python3",  # Run the independent bundle with the SDK target interpreter.
-        "-I",  # Ignore host Python paths and environment configuration.
-        "-S",  # Use the bundle's embedded dependencies.
-        "-B",  # Keep the read-only source free of bytecode.
-        str(bundle),  # Execute the authenticated external Wheelhouse artifact.
-    ]
-
-    for arguments in (
-        [
-            "acquire",  # Follow the captured complete build selection.
-            "--lock",  # Select the SDK-owned build environment lock.
-            str(lock),  # Read the committed lock captured for this release.
-            "--pool",  # Use the shared artifact cache.
-            "/wheelhouse",  # Require the mounted read-only pool to be complete.
-        ],
-        [
-            "check",  # Verify selected bytes without resolving dependencies.
-            "--lock",  # Use the same complete selection as acquisition.
-            str(lock),  # Read the captured build environment lock.
-            "--pool",  # Locate the selected wheels in the shared cache.
-            "/wheelhouse",  # Keep the release input cache read-only.
-            "--requirements",  # Render hashed offline installation input.
-            str(installation),  # Write only to private qualification scratch.
-        ],
-    ):
-        subprocess.run(command + arguments, check=True, stdout=subprocess.DEVNULL)
-
-    expected_installation = f"{build_wheel.as_uri()} --hash=sha256:{build_sha256}\n"  # machine-string: Compare exact pip installation syntax, including the selected wheel URI and hash.
-
-    if not (installation.read_text() == expected_installation):
-        raise ValueError(f"Cannot qualify Wheelhouse: {installation=} does not select the pinned SDK build wheel with its SHA-256")
 
 
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
@@ -591,21 +539,6 @@ def check(artifacts, revision):
                 )
             )
 
-        (tool_release, wheelhouse_bundle) = wheelhouse_release(
-            pathlib.Path("/wheelhouse"),
-            pathlib.Path("/workspace/requirements/wheelhouse-tool-release.json"),
-        )
-
-        if not (release_record["wheelhouse_release"] == tool_release):
-            raise ValueError(
-                f"{release_record_path=}: " + metadata_mismatch(
-                    recorded_metadata=release_record["wheelhouse_release"],
-                    captured_metadata=tool_release,
-                )
-            )
-
-        qualify_wheelhouse_bundle(wheelhouse_bundle, scratch)
-
         acquisition_bundle = artifacts / f"acquisition-owner-{release_version}.tar.gz"  # machine-string: Release qualification opens this exact published bootstrap archive
         rebuilt_acquisition_bundle = scratch / acquisition_bundle.name
 
@@ -614,7 +547,7 @@ def check(artifacts, revision):
             rebuilt_acquisition_bundle,
             pathlib.Path("/workspace"),
             captured_wheels[0],
-            pathlib.Path("/acquisition-bootstrap.wheelhouse.json"),
+            pathlib.Path("/acquisition-bootstrap.pylock.toml"),
             revision=revision,
         )
 

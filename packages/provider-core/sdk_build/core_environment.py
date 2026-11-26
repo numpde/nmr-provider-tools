@@ -468,14 +468,13 @@ def package_listing(wheel, version):
 
 
 def release(source, runtime_lock, build_lock, pool, output, revision):
-    from build_acquisition_bundle import build as build_acquisition_bundle, wheelhouse_release
+    from build_acquisition_bundle import build as build_acquisition_bundle
 
     expected_revision_pattern = r"[0-9a-f]{40}"
 
     if not re.fullmatch(expected_revision_pattern, revision):
         raise ValueError(f"{_BUILD_EVIDENCE.repr(revision)=} should match {expected_revision_pattern=}")
 
-    wheelhouse_release(pool, pathlib.Path("/workspace/requirements/wheelhouse-tool-release.json"))
     source_files = source_inventory(source)
     source_files[SDK_TYPE_REQUIREMENTS.as_posix()] = source_file_identity(TYPE_REQUIREMENTS_SOURCE)
 
@@ -498,7 +497,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         output=acquisition_bundle,
         source=pathlib.Path("/workspace"),
         core_wheel=wheel,
-        pin=pathlib.Path("/requirements/acquisition-bootstrap.wheelhouse.json"),
+        pin=pathlib.Path("/requirements/acquisition-bootstrap.pylock.toml"),
         revision=revision,
     )
 
@@ -518,7 +517,6 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
                 "source_revision": revision,
                 "dependency_inputs": dependency_inputs,
                 "source_files": source_files,
-                "wheelhouse_release": acquisition_record["wheelhouse_release"],
                 "acquisition_source_files": acquisition_record["source_files"],
                 "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
                 "files": {artifact.name: digest(artifact) for artifact in release_files},

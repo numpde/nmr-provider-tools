@@ -23,7 +23,7 @@ subprocess.run(
         "--no-deps",  # Preserve the checked complete selection.
         "--require-hashes",  # Verify bytes again at installation.
         "--no-cache-dir",  # Keep image layers free of installer caches.
-        "--requirement",  # Consume Wheelhouse-rendered direct references.
+        "--requirement",  # Consume captured hashed direct references.
         str(lock),  # Read the captured installation projection.
     ],
     check=True,

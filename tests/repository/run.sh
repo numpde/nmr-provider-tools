@@ -113,7 +113,8 @@ else
 fi
 if [[ $suite == release ]]; then
     arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_acquisition_bundle tests.repository.test_acquisition_source_update
-                tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
+                tests.repository.test_delivery_release tests.repository.test_wheelhouse
+                tests.repository.test_provider_core_acquire tests.repository.test_provider_core_refresh -v)
 elif [[ $suite == installer ]]; then
     arguments+=(tests.repository.test_installer_image tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)
 elif [[ $suite == bytecode ]]; then

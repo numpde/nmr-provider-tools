@@ -1,22 +1,19 @@
-"""Resolve complete SDK roles from their maintained direct dependency intent."""
+"""Refresh SDK requirements locks from their maintained direct dependency intent."""
 
 from tools.container_guard import require_container
 
 require_container()
 
 import argparse
-import json
 import pathlib
 import subprocess
 import sys
 import tempfile
 import tomllib
 
-from sdk_build.provider_core_acquire import acquire_tool
-
 
 def projects(source):
-    """Derive runtime, build and test roles; keep exact bootstrap intent intact."""
+    """Derive each environment from its maintained direct requirements."""
     package = tomllib.loads((source / "packages/provider-core/pyproject.toml").read_text())
     project = package["project"]
     runtime = project["dependencies"] + project["optional-dependencies"]["api"]
@@ -30,64 +27,39 @@ def projects(source):
 
     roles = {}
 
-    for (role, dependencies) in (("runtime", runtime), ("build", build), ("test", runtime + test)):
-        roles["provider-core-" + role] = (
-            "[project]\n"
-            + "dependencies = " + json.dumps(dependencies) + "\n"
-            + "requires-python = " + json.dumps(project["requires-python"]) + "\n"
-            + "\n"
-            + "[tool.wheelhouse]\n"
-            + 'index = "https://pypi.org/simple"\n'
-        )
-
-    roles["acquisition-bootstrap"] = (source / "requirements/acquisition-bootstrap.toml").read_text()
+    for (role, dependencies) in (("runtime", runtime), ("build", build), ("test", test)):
+        roles["provider-core-" + role] = "\n".join(dependencies) + "\n"
 
     return roles
 
 
-def refresh(source, pool, output):
-    """Stage every complete role before the host publishes any maintained lock."""
-    pin = json.loads((source / "requirements/wheelhouse-tool-release.json").read_text())
-    tool = acquire_tool(pool, pin)
-    command = [sys.executable, "-I", "-B", str(tool)]
-
+def refresh(source, output):
+    """Stage every requirements lock before the host publishes any of them."""
     with tempfile.TemporaryDirectory(prefix="sdk-lock-intent-") as temporary:
         work = pathlib.Path(temporary)
 
         for (role, content) in projects(source).items():
-            project = work / (role + ".toml")
-
+            project = work / (role + ".in")
             project.write_text(content)
-
-            # Exact bootstrap wheels must be prepared before metadata-only locking.
-            if role == "acquisition-bootstrap":
-                bootstrap_sources = tomllib.loads(content)["tool"]["wheelhouse"]["sources"]
-
-                for name in bootstrap_sources:
-                    subprocess.run(
-                        [
-                            *command,
-                            "acquire",
-                            "--project",
-                            str(project),
-                            "--package",
-                            name,
-                            "--pool",
-                            str(pool),
-                        ],
-                        check=True,
-                    )
-
             subprocess.run(
                 [
-                    *command,
-                    "lock",
-                    "--project",
+                    "uv",
+                    "--no-config",
+                    "--no-cache",
+                    "pip",
+                    "compile",
                     str(project),
-                    "--pool",
-                    str(pool),
-                    "--lock",
-                    str(output / (role + ".wheelhouse.json")),
+                    "--python",
+                    sys.executable,
+                    "--no-python-downloads",
+                    "--only-binary=:all:",
+                    "--default-index",
+                    "https://pypi.org/simple",
+                    "--generate-hashes",
+                    "--no-header",
+                    "--no-annotate",
+                    "--output-file",
+                    str(output / (role + ".lock")),
                 ],
                 check=True,
             )
@@ -97,11 +69,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("--source", type=pathlib.Path, required=True)
-    parser.add_argument("--pool", type=pathlib.Path, required=True)
     parser.add_argument("--output", type=pathlib.Path, required=True)
     arguments = parser.parse_args()
 
-    refresh(arguments.source, arguments.pool, arguments.output)
+    refresh(arguments.source, arguments.output)
 
 
 if __name__ == "__main__":

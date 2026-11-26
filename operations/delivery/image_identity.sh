@@ -2,7 +2,7 @@
 # Identity of the committed recipe, independent of any caller's wheelhouse path.
 source "$root/operations/docker/image_fingerprint.sh"
 delivery_recipe_inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/artifact_metadata.py tools/wheelhouse.py
-    tools/adapters/__init__.py tools/adapters/pip_install.py
+    tools/adapters/__init__.py tools/adapters/pip_install.py tools/adapters/http_download.py tools/adapters/github_release.py
     tools/validation/__init__.py tools/validation/upstream/__init__.py
     tools/validation/upstream/pip_installation_report.py tools/validation/upstream/pip_requirements.py
     tools/installer.py requirements/installer-release.json
@@ -10,7 +10,7 @@ delivery_recipe_inputs=(operations/docker/base_image.sh tools/container_guard.py
     packages/provider-core/src/provider_core/validation/upstream/docker_ids.py operations/delivery/image/delivery_support/__init__.py
     packages/type-requirements/src/type_requirements.py
     operations/delivery/build_inputs.py operations/delivery/image/delivery_deployment.py packages/provider-core/sdk_build/provider_core_acquire.py operations/delivery/build_context.py packages/acquisition/acquisition_tool/context.py
-    requirements/delivery.wheelhouse.json requirements/wheelhouse-tool-release.json
+    requirements/delivery-release.json requirements/delivery-runtime.lock
     operations/delivery/image/Dockerfile operations/delivery/image/install_runtime.py operations/delivery/image/check_runtime.py)
 delivery_recipe_identity() {
     image_fingerprint checker "${delivery_recipe_inputs[@]}"

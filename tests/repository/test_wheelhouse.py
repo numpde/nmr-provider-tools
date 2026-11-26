@@ -11,6 +11,7 @@ import tempfile
 import unittest
 import zipfile
 import pathlib
+import urllib.request
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
@@ -105,7 +106,7 @@ class WheelhouseTests(unittest.TestCase):
 
         return wheel_path
 
-    def test_pinned_tool_bootstrap_downloads_once_and_reuses(self):
+    def test_pinned_bootstrap_wheel_downloads_once_and_reuses(self):
         content = b"synthetic tool release"
         requests = []
 
@@ -131,10 +132,10 @@ class WheelhouseTests(unittest.TestCase):
                 "url": f"http://127.0.0.1:{server.server_port}/synthetic-tool.pyz"
             }
 
-            with patch.object(provider_core_acquire, "require_download_proxy"):
-                acquired_tool_path = provider_core_acquire.acquire_tool(self.pool, pin)
+            with patch.object(provider_core_acquire, "require_download_proxy"), patch.object(provider_core_acquire, "https_download_opener", return_value=urllib.request.build_opener()):
+                acquired_tool_path = provider_core_acquire.acquire_artifact(self.pool, pin)
 
-                provider_core_acquire.acquire_tool(self.pool, pin)
+                provider_core_acquire.acquire_artifact(self.pool, pin)
 
             self.assertEqual(content, acquired_tool_path.read_bytes())
             self.assertEqual(["/synthetic-tool.pyz"], requests)
@@ -144,7 +145,7 @@ class WheelhouseTests(unittest.TestCase):
             thread.join()
             server.server_close()
 
-    def test_cached_tool_is_reusable_during_shared_pool_access(self):
+    def test_cached_artifact_is_reusable_during_shared_pool_access(self):
         content = b"synthetic tool release"
         pin = {"name": "synthetic-tool.pyz", "sha256": hashlib.sha256(content).hexdigest()}
 
@@ -154,7 +155,7 @@ class WheelhouseTests(unittest.TestCase):
 
         def acquire():
             try:
-                provider_core_acquire.acquire_tool(self.pool, pin)
+                provider_core_acquire.acquire_artifact(self.pool, pin)
             except Exception as error:
                 errors.append(error)
             finally:

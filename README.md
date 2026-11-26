@@ -119,12 +119,9 @@ The release includes the wheel's exact `.metadata` sidecar and a generated
 `provider_core-VERSION-simple.html` listing with wheel and metadata hashes.
 After verified publication, the publisher copies that listing into
 `simple/provider-core.html`. Commit and push this generated file as a separate
-commit after publication; its raw GitHub URL can then be pinned to that commit:
-
-```toml
-[tool.wheelhouse.sources.provider-core]
-page = "https://raw.githubusercontent.com/numpde/nmr-provider-tools/<commit>/simple/provider-core.html"
-```
+commit after publication. Consumers can give pip or uv the commit-pinned
+listing as a `--find-links` URL:
+`https://raw.githubusercontent.com/numpde/nmr-provider-tools/<commit>/simple/provider-core.html`.
 
 Replace `<commit>` with the listing commit. The page describes that one SDK
 release, and the sidecar stays beside its wheel in GitHub Releases. Publishing
@@ -178,25 +175,31 @@ provisioning check live alongside their suites in `tests/repository/`.
 deployment. Its `image/` directory contains the Dockerfile, the deployment
 entry point installed in the image and the runtime check used during its build.
 
-SDK workflows use the independently versioned [Wheelhouse](https://github.com/numpde/wheelhouse)
-CLI pinned by `requirements/wheelhouse-tool-release.json`. This repository
-consumes that bundle; SDK releases do not build or publish it.
+SDK acquisition, offline checks, installed tests and release builds use the same
+hashed requirements locks: `requirements/provider-core.lock`,
+`requirements/provider-core-build.lock`, and
+`packages/provider-core/tests/requirements.lock`. The checker image supplies
+pinned pip and uv; no separately released dependency-management tool is needed.
+Bootstrap dependencies have exact URLs and hashes in
+`requirements/acquisition-bootstrap.pylock.toml`.
 
-Acquire the pinned tool and the complete SDK runtime, build, test and bootstrap
-wheel selections into a shared cache, then verify them offline:
+Refresh the runtime, build and test locks from the package's direct declarations,
+then review the version and hash changes before committing:
 
 ```sh
+make packages/provider-core/locks/refresh DOCKER_CONTEXT=science \
+  NETWORK_INTERFACE=system
 make packages/provider-core/download DOCKER_CONTEXT=science \
   WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
 make packages/provider-core/check DOCKER_CONTEXT=science \
   WHEELHOUSE=/path/to/wheelhouse
 ```
 
-The `requirements/*.wheelhouse.json` files record complete selections for the
-SDK's Python target. Acquisition follows those selections without resolving
-again. Dependency or target changes require regenerating and reviewing the
-corresponding lock in the intended Python environment. SDK installation locks
-remain release qualification evidence; they are not Wheelhouse inputs.
+Acquisition uses pip to download hash-locked wheels into private staging, then
+publishes verified files without replacing existing cache files. Bootstrap and
+delivery SDK wheels use their exact declared HTTPS sources. Offline checks and
+builds read the shared cache with networking disabled. Lock refresh is explicit;
+acquisition and builds never update dependency selections.
 
 `packages/provider-core/sdk_build/` acquires SDK dependencies, builds distributions
 and runs tests against the installed SDK. `operations/release/` qualifies the

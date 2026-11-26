@@ -16,12 +16,10 @@ import pathlib
 from pathlib import PurePosixPath
 import tarfile
 import tempfile
-import subprocess
-import sys
 import zipfile
 
 from tools.artifacts import fsync_directory, regular_file
-from tools.wheelhouse import digest, read_json
+from sdk_build.provider_core_acquire import bootstrap_wheels
 from tools.installer import release as installer_release, wheel_bytes
 
 
@@ -96,32 +94,14 @@ def _add(files, member_name, member_bytes):
     files[member_name] = member_bytes
 
 
-def dependency_files(pool, pin, tool):
-    selection = subprocess.run(
-        [
-            sys.executable,  # Match the bootstrap lock's target interpreter.
-            "-I",  # Ignore user Python paths and environment settings.
-            "-B",  # Keep bytecode out of captured source directories.
-            str(tool),  # Execute the independently verified tool bundle.
-            "check",  # Verify the complete bootstrap selection without networking.
-            "--lock",  # Read the captured environment lock.
-            str(pin),
-            "--pool",  # Read the caller's shared wheel directory.
-            str(pool),
-        ],
-        check=True,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-
+def dependency_files(pool, pin):
     (files, dependencies) = ({}, {})
 
-    for wheel in json.loads(selection.stdout)["artifact_entries"]:
-        wheel_name = wheel["filename"]
+    for wheel in bootstrap_wheels(pin):
+        wheel_name = wheel["name"]
 
-        # Selection has been verified; authenticate the bytes captured for this
-        # archive as well, so a subsequent pool mutation cannot enter its payload.
-        with regular_file(pathlib.Path(wheel["source_path"])) as stream:
+        # Hash the captured bytes so pool replacement cannot rebind the payload.
+        with regular_file(pool / wheel_name) as stream:
             wheel_bytes = stream.read()
 
         wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
@@ -129,7 +109,7 @@ def dependency_files(pool, pin, tool):
         if not (wheel_sha256 == wheel["sha256"]):
             raise ValueError(
                 f"Cannot bundle {wheel_name=!s}: captured SHA-256 {wheel_sha256=!s} "
-                f"differs from checked acquisition SHA-256 {wheel['sha256']=!s}"
+                f"differs from locked acquisition SHA-256 {wheel['sha256']=!s}"
             )
 
         with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
@@ -140,22 +120,6 @@ def dependency_files(pool, pin, tool):
         dependencies[wheel_name] = wheel_sha256
 
     return (files, dependencies)
-
-
-def wheelhouse_release(pool, pin):
-    """Authenticate the independently published tool used by SDK workflows."""
-
-    record = read_json(pin)
-    bundle = pool / record["name"]
-    observed_sha256 = digest(bundle)
-
-    if not (observed_sha256 == record["sha256"]):
-        raise ValueError(
-            f"Cannot use Wheelhouse dependency {bundle=!s}: SHA-256 {observed_sha256=!s} "
-            f"differs from {record['sha256']=!s} in {pin=!s}"
-        )
-
-    return (record, bundle)
 
 
 def contents(pool, source, core_wheel, pin, *, revision):
@@ -171,8 +135,7 @@ def contents(pool, source, core_wheel, pin, *, revision):
     if not re.fullmatch(expected_version_pattern, version):
         raise ValueError(f"{reprlib.repr(version)=} should match {expected_version_pattern=} for {reprlib.repr(core_wheel.name)=}")
 
-    (tool_release, tool) = wheelhouse_release(pool, source / "requirements/wheelhouse-tool-release.json")
-    (files, dependencies) = dependency_files(pool, pin, tool)
+    (files, dependencies) = dependency_files(pool, pin)
 
     for name in SOURCE_FILES:
         source_path = source / "host" / name
@@ -200,14 +163,6 @@ def contents(pool, source, core_wheel, pin, *, revision):
     )
 
     dependencies[installer["name"]] = installer["sha256"]
-
-    dependencies[tool_release["name"]] = tool_release["sha256"]
-
-    _add(
-        files,
-        "acquisition_tool/requirements/wheelhouse-release.json",
-        (json.dumps(tool_release, sort_keys=True, indent=2) + "\n").encode(),
-    )
 
     with zipfile.ZipFile(core_wheel) as archive:
         member_names = archive.namelist()
@@ -273,7 +228,7 @@ def contents(pool, source, core_wheel, pin, *, revision):
         "mode": 0o644,
     }
 
-    return (files, {"source_files": source_inventory, "dependency_inputs": dependencies, "wheelhouse_release": tool_release})
+    return (files, {"source_files": source_inventory, "dependency_inputs": dependencies})
 
 
 def build(pool, output, source, core_wheel, pin, *, revision):

@@ -58,20 +58,12 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --mount "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly"
     --mount "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
     --mount "type=bind,src=$root/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly"
-    --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
-if [[ $action == download || $action == check ]]; then
-    worker+=(
-        --mount "type=bind,src=$root/requirements/provider-core-runtime.wheelhouse.json,dst=/core-runtime.wheelhouse.json,readonly"
-        --mount "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/core-build.wheelhouse.json,readonly"
-        --mount "type=bind,src=$root/requirements/provider-core-test.wheelhouse.json,dst=/core-test.wheelhouse.json,readonly"
-        --mount "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
-else
-    worker+=(
-        --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
-        --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
-        --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
-        --mount "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
-fi
+)
+worker+=(
+    --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
+    --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
+    --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
+    --mount "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
 if [[ $action == download ]]; then
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
     network=(bash "$root/operations/docker/docker.sh")
@@ -83,23 +75,20 @@ if [[ $action == download ]]; then
         tool_image=$checker_image
         operation_host_identity "$tool_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
         mkdir -- "$operation_directory/locks"
-        cp -- "$root/requirements/provider-core-runtime.wheelhouse.json" "$operation_directory/locks/core-runtime.wheelhouse.json"
-        cp -- "$root/requirements/provider-core-build.wheelhouse.json" "$operation_directory/locks/core-build.wheelhouse.json"
-        cp -- "$root/requirements/provider-core-test.wheelhouse.json" "$operation_directory/locks/core-test.wheelhouse.json"
-        cp -- "$root/requirements/wheelhouse-tool-release.json" "$operation_directory/locks/wheelhouse-tool-release.json"
-        cp -- "$root/requirements/acquisition-bootstrap.wheelhouse.json" "$operation_directory/locks/acquisition-bootstrap.wheelhouse.json"
+        cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
+        cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
+        cp -- "$root/packages/provider-core/tests/requirements.lock" "$operation_directory/locks/core-test.lock"
+        cp -- "$root/requirements/acquisition-bootstrap.pylock.toml" "$operation_directory/locks/acquisition-bootstrap.pylock.toml"
         for index in "${!worker[@]}"; do
             case ${worker[index]} in
-                "type=bind,src=$root/requirements/provider-core-runtime.wheelhouse.json,dst=/core-runtime.wheelhouse.json,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/core-runtime.wheelhouse.json,dst=/core-runtime.wheelhouse.json,readonly" ;;
-                "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/core-build.wheelhouse.json,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/core-build.wheelhouse.json,dst=/core-build.wheelhouse.json,readonly" ;;
-                "type=bind,src=$root/requirements/provider-core-test.wheelhouse.json,dst=/core-test.wheelhouse.json,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/core-test.wheelhouse.json,dst=/core-test.wheelhouse.json,readonly" ;;
-                "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" ;;
-                "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly" ;;
+                "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-runtime.lock,dst=/core-runtime.lock,readonly" ;;
+                "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-build.lock,dst=/core-build.lock,readonly" ;;
+                "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-test.lock,dst=/core-test.lock,readonly" ;;
+                "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
             esac
         done
     fi
@@ -172,8 +161,7 @@ case "$action" in
             --mount "type=bind,src=$root/operations,dst=/workspace/operations,readonly"
             --mount "type=bind,src=$root/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
-            --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly"
-            --mount "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/workspace/requirements/provider-core-build.wheelhouse.json,readonly"
+            --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/workspace/requirements/provider-core-build.lock,readonly"
             --entrypoint python3 "$tool_image" -B -m operations.release.qualify --artifacts /artifacts --revision "$revision")
         budget=untimed
         ;;
@@ -233,10 +221,8 @@ if [[ $action == package ]]; then
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
-            "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/workspace/requirements/provider-core-build.wheelhouse.json,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core-build.wheelhouse.json,dst=/workspace/requirements/provider-core-build.wheelhouse.json,readonly" ;;
-            "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly" ;;
+            "type=bind,src=$root/requirements/provider-core-build.lock,dst=/workspace/requirements/provider-core-build.lock,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core-build.lock,dst=/workspace/requirements/provider-core-build.lock,readonly" ;;
             "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly" ;;
             "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly")
@@ -255,8 +241,8 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly" ;;
             "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly" ;;
-            "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly" ;;
+            "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
             "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" ;;
             "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
@@ -285,7 +271,6 @@ if [[ $action == build ]]; then
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements,dst=/requirements,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
-        --mount "type=bind,src=$operation_directory/source/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly"
         --mount "type=bind,src=$release_output,dst=/output"
         --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
         --entrypoint python3 "$tool_image" -B -m sdk_build.core_environment release --pool /wheelhouse

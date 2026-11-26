@@ -47,12 +47,12 @@ operation_run 120 --pull never --network none --read-only --user "$operation_hos
     --mount "type=bind,src=$context/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$context/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$context/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$context/requirements/delivery.wheelhouse.json,dst=/delivery.wheelhouse.json,readonly" \
-    --mount "type=bind,src=$context/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
+    --mount "type=bind,src=$context/requirements/delivery-release.json,dst=/delivery-release.json,readonly" \
+    --mount "type=bind,src=$context/requirements/delivery-runtime.lock,dst=/delivery-runtime.lock,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
-    --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs capture --lock /delivery.wheelhouse.json --pool /wheelhouse --destination /capture --tool-pin /wheelhouse-tool-release.json
-for path in delivery.wheelhouse.json provider-core-install.lock provider-core-destinations.json provider-core-stream.json operations/delivery/image/Dockerfile.selected; do
+    --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs capture --pin /delivery-release.json --runtime-lock /delivery-runtime.lock --pool /wheelhouse --destination /capture
+for path in delivery-release.json delivery-runtime.lock provider-core-install.lock provider-core-stream.json operations/delivery/image/Dockerfile.selected; do
     [[ -f $context/$path && ! -L $context/$path ]] || exit 2
     inputs+=("$path")
 done

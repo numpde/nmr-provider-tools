@@ -26,11 +26,11 @@ bash "$root/operations/docker/docker.sh" run --image "$checker_image" --retired-
     --mount "type=bind,src=$root/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$root/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$root/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$root/requirements/delivery.wheelhouse.json,dst=/delivery.wheelhouse.json,readonly" \
-    --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
+    --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/delivery-release.json,readonly" \
+    --mount "type=bind,src=$root/requirements/delivery-runtime.lock,dst=/delivery-runtime.lock,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
     --entrypoint python3 -- -B -m operations.delivery.build_inputs acquire \
-    --lock /delivery.wheelhouse.json --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json
+    --pin /delivery-release.json --runtime-lock /delivery-runtime.lock --pool /wheelhouse
 WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT=$wheelhouse_directory bash "$root/operations/delivery/build_image.sh"
 
 # A nested image builder may defer retirement while this outer borrower runs.

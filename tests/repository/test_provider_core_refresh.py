@@ -4,11 +4,9 @@ from tools.container_guard import require_container
 
 require_container()
 
-import json
 import pathlib
 import subprocess
 import tempfile
-import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -43,65 +41,46 @@ class ProviderCoreRefreshTests(unittest.TestCase):
 
         (self.package / "tests/requirements.in").write_text("# direct tests\n" "hypothesis==6.150.0\n")
 
-        (self.requirements / "acquisition-bootstrap.toml").write_text(
-            '[project]\n'
-            'dependencies = ["bootstrap==1"]\n'
-            '[tool.wheelhouse]\n'
-            'index = "https://pypi.org/simple"\n'
-            '[tool.wheelhouse.sources]\n'
-            'bootstrap = { wheel = "https://example.invalid/bootstrap-1-py3-none-any.whl", sha256 = "' + "a" * 64 + '" }\n',
-        )
+    def test_roles_follow_actual_direct_declarations(self):
+        projects = {role: content.splitlines() for (role, content) in refresh_locks.projects(self.root).items()}
 
-        (self.requirements / "wheelhouse-tool-release.json").write_text(json.dumps({"name": "wheelhouse.pyz"}))
+        self.assertEqual(["model==4", "transport==5"], projects["provider-core-runtime"])
+        self.assertEqual(["backend==2"], projects["provider-core-build"])
+        self.assertEqual(["hypothesis==6.150.0"], projects["provider-core-test"])
 
-    def test_roles_follow_actual_direct_declarations_and_preserve_bootstrap_sources(self):
-        projects = {role: tomllib.loads(content) for (role, content) in refresh_locks.projects(self.root).items()}
-
-        self.assertEqual(["model==4", "transport==5"], projects["provider-core-runtime"]["project"]["dependencies"])
-        self.assertEqual(["backend==2"], projects["provider-core-build"]["project"]["dependencies"])
-        self.assertEqual(["model==4", "transport==5", "hypothesis==6.150.0"], projects["provider-core-test"]["project"]["dependencies"])
-        self.assertEqual("a" * 64, projects["acquisition-bootstrap"]["tool"]["wheelhouse"]["sources"]["bootstrap"]["sha256"])
-
-    def test_legacy_hash_locks_do_not_control_refresh(self):
-        for legacy_lock in (self.requirements / "provider-core.lock", self.package / "tests/requirements.lock"):
-            legacy_lock.write_text("obsolete-or-invalid-release-evidence")
+    def test_existing_locks_do_not_control_refresh(self):
+        for lock in (self.requirements / "provider-core.lock", self.package / "tests/requirements.lock"):
+            lock.write_text("obsolete-or-invalid-pins")
 
         package = self.package / "pyproject.toml"
-
         package.write_text(package.read_text().replace("model==4", "model==8"))
-        runtime = tomllib.loads(refresh_locks.projects(self.root)["provider-core-runtime"])
+        self.assertEqual(["model==8", "transport==5"], refresh_locks.projects(self.root)["provider-core-runtime"].splitlines())
 
-        self.assertEqual(["model==8", "transport==5"], runtime["project"]["dependencies"])
+    def test_uv_stages_all_three_hashed_requirements_locks(self):
+        def resolve(command, **options):
+            self.assertIn("--generate-hashes", command)
+            self.assertIn("--only-binary=:all:", command)
+            project = pathlib.Path(command[5])
 
-    def test_independent_tool_prepares_exact_bootstrap_and_stages_four_complete_roles(self):
-        calls = []
+            self.assertTrue(project.read_text())
+            destination = pathlib.Path(command[command.index("--output-file") + 1])
 
-        def execute_wheelhouse(arguments, **options):
-            calls.append(arguments)
-            project = pathlib.Path(arguments[arguments.index("--project") + 1])
+            self.assertEqual(self.output, destination.parent)
+            destination.write_text("complete hashed lock")
 
-            self.assertIn("project", tomllib.loads(project.read_text()))
+        with patch.object(refresh_locks.subprocess, "run", side_effect=resolve) as resolver:
+            refresh_locks.refresh(self.root, self.output)
 
-            if "--lock" in arguments:
-                destination = pathlib.Path(arguments[arguments.index("--lock") + 1])
-
-                self.assertEqual(self.output, destination.parent)
-                destination.write_text("staged complete lock")
-
-        with patch.object(refresh_locks, "acquire_tool", return_value=self.pool / "wheelhouse.pyz"), patch.object(refresh_locks.subprocess, "run", side_effect=execute_wheelhouse):
-            refresh_locks.refresh(self.root, self.pool, self.output)
-
-        self.assertEqual(4, len(list(self.output.glob("*.wheelhouse.json"))))
-        self.assertEqual(["lock", "lock", "lock", "acquire", "lock"], [call[4] for call in calls])
-        self.assertEqual("bootstrap", calls[-2][calls[-2].index("--package") + 1])
+        self.assertEqual(3, resolver.call_count)
+        self.assertEqual(3, len(list(self.output.glob("*.lock"))))
 
     def test_resolution_failure_stops_before_later_roles(self):
-        with patch.object(refresh_locks, "acquire_tool", return_value=self.pool / "wheelhouse.pyz"), patch.object(refresh_locks.subprocess, "run", side_effect=subprocess.CalledProcessError(1, ["wheelhouse", "lock"])) as resolution_process:
+        with patch.object(refresh_locks.subprocess, "run", side_effect=subprocess.CalledProcessError(1, ["uv", "pip", "compile"])) as resolver:
             with self.assertRaises(subprocess.CalledProcessError):
-                refresh_locks.refresh(self.root, self.pool, self.output)
+                refresh_locks.refresh(self.root, self.output)
 
-        self.assertEqual(1, resolution_process.call_count)
-        self.assertFalse(list(self.output.iterdir()))
+        self.assertEqual(1, resolver.call_count)
+        self.assertEqual([], list(self.output.iterdir()))
 
 
 class CheckerResolverSourceTests(unittest.TestCase):
