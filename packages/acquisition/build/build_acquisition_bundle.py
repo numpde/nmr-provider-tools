@@ -42,6 +42,7 @@ SOURCE_FILES = (
     "acquisition_tool/identity.py",
     "acquisition_tool/identity_main.py",
     "acquisition_tool/dns.py",
+    "acquisition_tool/context.py",
     "acquisition_tool/validation/upstream/container_ids.sh",
     "acquisition_tool/validation/upstream/docker_container.sh",
     "acquisition_tool/validation/upstream/host_resolver.py",
