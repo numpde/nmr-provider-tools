@@ -16,18 +16,20 @@ import unittest
 import zipfile
 import pathlib
 from contextlib import redirect_stdout
+from html.parser import HTMLParser
 from unittest.mock import call, patch
 
 from operations.release.qualify import (
     artifact_names,
     check,
     qualify_acquisition_bundle,
+    check_package_listing,
     source_payload,
     unpack_source,
     wheel_payload,
 )
 
-from sdk_build.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
+from sdk_build.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist, package_listing
 from tools.wheelhouse import digest
 from tools.artifact_metadata import metadata_mismatch
 from tests.repository.quality.sources import ROOT, source_files
@@ -39,6 +41,47 @@ class PackageArtifactTests(unittest.TestCase):
 
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
+
+    def test_package_listing_describes_exact_wheel_and_sidecar(self):
+        wheel = self.root / "provider_core-0.2.0-py3-none-any.whl"
+        metadata = b"Metadata-Version: 2.3\n" b"Name: provider-core\n" b"Version: 0.2.0\n"
+
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr("provider_core-0.2.0.dist-info/METADATA", metadata)
+
+        (sidecar_bytes, listing_bytes) = package_listing(wheel, "0.2.0")
+        elements = []
+        parser = HTMLParser()
+        parser.handle_starttag = lambda tag, attributes: elements.append((tag, dict(attributes)))
+
+        parser.feed(listing_bytes.decode())
+        links = [attributes for (tag, attributes) in elements if tag == "a"]
+
+        self.assertEqual(metadata, sidecar_bytes)
+        self.assertEqual(1, len(links))
+
+        self.assertEqual(
+            "https://github.com/numpde/nmr-provider-tools/releases/download/v0.2.0/" + wheel.name + "#sha256=" + digest(wheel),
+            links[0]["href"],
+        )
+
+        self.assertEqual("sha256=" + hashlib.sha256(metadata).hexdigest(), links[0]["data-core-metadata"])
+
+        sidecar = wheel.with_name(wheel.name + ".metadata")
+        page = self.root / "provider_core-0.2.0-simple.html"
+
+        for damaged in (None, sidecar, page):
+            with self.subTest(damaged=damaged):
+                sidecar.write_bytes(sidecar_bytes)
+                page.write_bytes(listing_bytes)
+
+                if damaged is None:
+                    check_package_listing(wheel, "0.2.0")
+                else:
+                    damaged.write_bytes(b"changed after build")
+
+                    with self.assertRaisesRegex(ValueError, "exact released"):
+                        check_package_listing(wheel, "0.2.0")
 
     def _acquisition_archive(self, archive_path, members):
         with tarfile.open(archive_path, "w:gz") as archive:

@@ -29,7 +29,7 @@ from tools.artifacts import regular_file
 from tools.artifact_metadata import metadata_mismatch
 from build_bundle import build as build_wheelhouse_bundle
 from build_acquisition_bundle import build as build_acquisition_bundle
-from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
+from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, package_listing, wheelhouse_source_inventory
 from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE, native_requirements
 from tools.wheelhouse import digest, requirements
 from type_requirements import require_type
@@ -47,7 +47,7 @@ def artifact_names(version):
     wheelhouse_name = f"wheelhouse-tool-{version}.pyz"  # machine-string: The release inventory matches this exact acquisition-tool bundle filename
     acquisition_name = f"acquisition-owner-{version}.tar.gz"  # machine-string: The release inventory matches this exact bootstrap archive filename
 
-    return {(prefix + suffix) for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {wheelhouse_name, acquisition_name}
+    return {(prefix + suffix) for suffix in ("-py3-none-any.whl", "-py3-none-any.whl.metadata", "-simple.html", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {wheelhouse_name, acquisition_name}
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
@@ -612,6 +612,18 @@ def wheel_payload(wheel, expected_source_payload, version):
         }
 
 
+def check_package_listing(wheel, version):
+    """Check discovery artifacts against the exact released wheel."""
+
+    (metadata, listing) = package_listing(wheel, version)
+    sidecar = wheel.with_name(wheel.name + ".metadata")
+    page = wheel.with_name("provider_core-" + version + "-simple.html")
+
+    for (listing_artifact, expected_bytes) in ((sidecar, metadata), (page, listing)):
+        if not (listing_artifact.read_bytes() == expected_bytes):
+            raise ValueError(f"Cannot check package listing: {listing_artifact=} does not describe the exact released {wheel=}")
+
+
 def qualify_installed(wheel, lock, source, pool, root, suites):
     # The wheel and runtime-install lock remain exactly as issued.
     # Behavioral tests get the source archive's own test lock; contract/native proofs do not.
@@ -861,6 +873,8 @@ def check(artifacts, revision):
         del sdist_requirements_bytes, captured_requirements_bytes
 
         original_wheel_metadata = wheel_payload(captured_wheels[0], source_python_files, release_version)
+
+        check_package_listing(captured_wheels[0], release_version)
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
 

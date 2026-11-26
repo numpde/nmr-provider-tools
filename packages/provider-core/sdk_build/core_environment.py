@@ -11,6 +11,7 @@ require_container()
 
 import argparse
 import gzip
+import hashlib
 import json
 import os
 import re
@@ -22,6 +23,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
+import zipfile
 import pathlib
 
 from tools.validation.upstream import pip_installation_report
@@ -457,6 +459,23 @@ def normalize_sdist(path):
         normalized_path.replace(path)
 
 
+def package_listing(wheel, version):
+    """Derive one release's discovery page and sidecar from its exact wheel."""
+
+    metadata_member = f"provider_core-{version}.dist-info/METADATA"  # machine-string: Read the versioned wheel's standard metadata member
+
+    with zipfile.ZipFile(wheel) as archive:
+        metadata = archive.read(metadata_member)
+
+    wheel_url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{version}/{wheel.name}"  # machine-string: The listing names the immutable GitHub release wheel URL
+    wheel_hash = digest(wheel)
+    metadata_hash = hashlib.sha256(metadata).hexdigest()
+    link = f'<a href="{wheel_url}#sha256={wheel_hash}" data-core-metadata="sha256={metadata_hash}">{wheel.name}</a>'  # machine-string: Package clients parse the wheel URL and both hashes from this HTML link
+    listing = "\n".join(("<!doctype html>", "<html><body>", link, "</body></html>", "")).encode()
+
+    return (metadata, listing)
+
+
 def release(source, runtime_lock, build_lock, pool, output, revision):
     from build_bundle import build as build_wheelhouse_bundle, dependency_files
     from build_acquisition_bundle import build as build_acquisition_bundle
@@ -504,7 +523,14 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         wheelhouse_bundle=wheelhouse_bundle,
     )
 
-    release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle)
+    (metadata_bytes, listing_bytes) = package_listing(wheel, artifact_prefix.removeprefix("provider_core-"))
+    metadata_sidecar = output / (wheel.name + ".metadata")
+    listing_page = output / (artifact_prefix + "-simple.html")
+
+    metadata_sidecar.write_bytes(metadata_bytes)
+    listing_page.write_bytes(listing_bytes)
+
+    release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle, metadata_sidecar, listing_page)
     release_record = output / (artifact_prefix + "-release.json")
 
     release_record.write_text(

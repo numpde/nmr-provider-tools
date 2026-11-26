@@ -29,6 +29,8 @@ case "$1 $2" in
             shift
         done
         exit 97 ;;
-    'release edit') exit 0 ;;
+    'release edit')
+        if [[ $PUBLISH_TEST_MODE == publish-error ]]; then exit 1; fi
+        exit 0 ;;
     *) exit 97 ;;
 esac

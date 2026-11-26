@@ -112,7 +112,9 @@ record=provider_core-$version-release.json
 manifest=provider_core-$version-sha256.json
 bundle=wheelhouse-tool-$version.pyz
 acquisition=acquisition-owner-$version.tar.gz
-names=("$wheel" "$sdist" "$lock" "$native_lock" "$bundle" "$acquisition" "$record" "$manifest")
+metadata=$wheel.metadata
+listing=provider_core-$version-simple.html
+names=("$wheel" "$metadata" "$listing" "$sdist" "$lock" "$native_lock" "$bundle" "$acquisition" "$record" "$manifest")
 
 if [[ $action == prepare ]]; then
     if [[ ! -v OUTPUT_INPUT_ORIGIN || $OUTPUT_INPUT_ORIGIN != 'command line' || ! -v OUTPUT_INPUT || -z $OUTPUT_INPUT ]]; then
@@ -184,12 +186,12 @@ verify_qualified_artifacts() {
     local -A qualified=()
     while read -r marker checksum name extra; do
         [[ $marker == QUALIFIED_SHA256 ]] || continue
-        case "$name" in "$wheel"|"$sdist"|"$lock"|"$native_lock"|"$bundle"|"$acquisition"|"$record"|"$manifest") ;; *) fail 'Qualification returned an unexpected artifact name.' ;; esac
+        case "$name" in "$wheel"|"$metadata"|"$listing"|"$sdist"|"$lock"|"$native_lock"|"$bundle"|"$acquisition"|"$record"|"$manifest") ;; *) fail 'Qualification returned an unexpected artifact name.' ;; esac
         [[ -z $extra && $checksum =~ ^[0-9a-f]{64}$ && ! -v qualified["$name"] ]] \
             || fail 'Qualification returned a malformed or duplicate artifact receipt.'
         qualified["$name"]=$checksum
     done < "$scratch/release-test.log"
-    [[ ${#qualified[@]} == 8 ]] || fail 'Exact installed-artifact qualification did not return all eight artifact hashes.'
+    [[ ${#qualified[@]} == ${#names[@]} ]] || fail 'Exact installed-artifact qualification did not return every artifact hash.'
     for name in "${names[@]}"; do
         [[ $(sha256sum "$scratch/assets/$name" | cut -d ' ' -f1) == "${qualified[$name]}" ]] \
             || fail 'Release artifact bytes differ from the successful qualification receipt.'
@@ -236,7 +238,7 @@ native 'draft release creation' 120 bash "$github_publication" create-draft "$re
     "$scratch/release-notes.md" "$scratch/assets/"* "$scratch/release-build.log" "$scratch/release-test.log"
 native 'uploaded draft acquisition' 120 bash "$github_publication" download-draft "$repository" "$tag" "$scratch/downloaded"
 downloaded=("$scratch/downloaded/"*)
-[[ ${#downloaded[@]} == 10 ]] || fail 'Downloaded draft asset set differs from the ten qualified public files.'
+[[ ${#downloaded[@]} == $((${#names[@]} + 2)) ]] || fail 'Downloaded draft asset set differs from the qualified public files.'
 for name in "${names[@]}"; do
     cmp -- "$scratch/assets/$name" "$scratch/downloaded/$name" \
         || fail 'Downloaded artifact differs from the qualified bytes; retain the draft for inspection.'
@@ -245,5 +247,21 @@ for name in release-build.log release-test.log; do
     cmp -- "$scratch/$name" "$scratch/downloaded/$name" \
         || fail 'Downloaded qualification log differs; retain the draft for inspection.'
 done
-native 'verified release publication' 30 bash "$github_publication" publish-draft "$repository" "$tag"
+if ! native 'verified release publication' 30 bash "$github_publication" publish-draft "$repository" "$tag"; then
+    fail 'Cannot confirm release publication; inspect the GitHub release before retrying. The checkout listing was not changed.'
+fi
 printf 'Published %s\n' "$(github_release_url "$repository" "$tag")"
+# Source qualification is finished. The subsequent index commit pins these published bytes.
+update_listing() (
+    mkdir -p -- "$root/simple" || exit
+    temporary=$(mktemp "$root/simple/.provider-core.XXXXXXXX") || exit
+    trap 'rm -f -- "$temporary"' EXIT
+    cp -- "$scratch/assets/$listing" "$temporary" &&
+        chmod 644 "$temporary" &&
+        mv -T -- "$temporary" "$root/simple/provider-core.html"
+)
+if ! update_listing; then
+    printf 'The release is public, but updating simple/provider-core.html failed. Copy %s/artifacts/%s there, then commit and push the listing. Do not repeat release publication.\n' "$publication_inputs" "$listing" >&2
+    exit 2
+fi
+printf '%s\n' 'Generated simple/provider-core.html from the published wheel. Commit and push this file, then pin that commit in the raw package-page URL.'

@@ -72,6 +72,8 @@ class PublicationTests(unittest.TestCase):
 
         contents = {
             "provider_core-0.2.0-py3-none-any.whl": b"qualified wheel",
+            "provider_core-0.2.0-py3-none-any.whl.metadata": b"wheel metadata",
+            "provider_core-0.2.0-simple.html": b"package listing",
             "provider_core-0.2.0.tar.gz": b"qualified source",
             "provider_core-0.2.0-install.lock": b"qualified lock",
             "provider_core-0.2.0-native-install.lock": b"qualified native lock",
@@ -129,7 +131,7 @@ class PublicationTests(unittest.TestCase):
 
         self.assertEqual(0, publisher_process.returncode, msg=publisher_process.stderr)
         self.assertEqual(self.note.read_bytes(), (self.root / "prepared/release-notes.md").read_bytes())
-        self.assertEqual(8, len(list((self.root / "prepared/artifacts").iterdir())))
+        self.assertEqual(10, len(list((self.root / "prepared/artifacts").iterdir())))
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_prepare_missing_output_explains_how_to_create_a_private_destination(self):
@@ -207,7 +209,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(1, publisher_process.returncode, msg=publisher_process.stderr)
         destination = self.root / "prepared"
 
-        self.assertEqual(8, len(list((destination / "artifacts").iterdir())))
+        self.assertEqual(10, len(list((destination / "artifacts").iterdir())))
         self.assertIn("test_blocked", publisher_process.stderr)
         self.assertIn("AssertionError: Original Job was not published", publisher_process.stderr)
         self.assertIn("release-test.log", publisher_process.stderr)
@@ -264,7 +266,7 @@ class PublicationTests(unittest.TestCase):
                 publisher_process = self.run_publisher("publish", "release")
 
                 self.assertEqual(2, publisher_process.returncode, msg=publisher_process.stderr)
-                self.assertRegex(publisher_process.stderr, "artifact receipt|artifact name|all eight artifact hashes")
+                self.assertRegex(publisher_process.stderr, "artifact receipt|artifact name|every artifact hash")
                 self.assertNotIn("gh ", self.trace.read_text())
 
     def test_downloaded_artifact_change_leaves_the_release_draft(self):
@@ -275,17 +277,47 @@ class PublicationTests(unittest.TestCase):
 
         self.assertIn("gh release download", calls)
         self.assertNotIn("gh release edit", calls)
+        self.assertFalse((self.root / "simple/provider-core.html").exists())
         self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
         self.assertTrue((self.inputs / "artifacts").is_dir())
 
+    def test_uncertain_publication_preserves_previous_listing(self):
+        listing = self.root / "simple/provider-core.html"
+
+        listing.parent.mkdir()
+        listing.write_bytes(b"previous release")
+        publisher_process = self.run_publisher("publish-error", "release")
+
+        self.assertEqual(2, publisher_process.returncode, msg=publisher_process.stderr)
+        self.assertIn("Cannot confirm release publication", publisher_process.stderr)
+        self.assertEqual(b"previous release", listing.read_bytes())
+        self.assertEqual([listing], list(listing.parent.iterdir()))
+
+    def test_listing_write_failure_reports_already_public_release(self):
+        listing = self.root / "simple/provider-core.html"
+
+        listing.mkdir(parents=True)
+        publisher_process = self.run_publisher("publish", "release")
+
+        self.assertEqual(2, publisher_process.returncode, msg=publisher_process.stderr)
+        self.assertIn("The release is public", publisher_process.stderr)
+        self.assertIn(str(self.inputs / "artifacts/provider_core-0.2.0-simple.html"), publisher_process.stderr)
+        self.assertTrue(listing.is_dir())
+        self.assertEqual([listing], list(listing.parent.iterdir()))
+
     def test_only_byte_verified_assets_are_made_public(self):
+        listing = self.root / "simple/provider-core.html"
+
+        listing.parent.mkdir()
+        listing.write_bytes(b"previous release")
         publisher_process = self.run_publisher("publish", "release")
 
         self.assertEqual(0, publisher_process.returncode, msg=publisher_process.stderr)
         calls = self.trace.read_text()
 
         self.assertLess(calls.index("gh release download"), calls.index("gh release edit"))
-        self.assertEqual(10, len(list(pathlib.Path(str(self.trace) + ".uploads").iterdir())))
+        self.assertEqual(12, len(list(pathlib.Path(str(self.trace) + ".uploads").iterdir())))
+        self.assertEqual(b"package listing", (self.root / "simple/provider-core.html").read_bytes())
         self.assertIn("--draft=false", calls)
         self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
         self.assertTrue((self.inputs / "artifacts").is_dir())

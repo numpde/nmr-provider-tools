@@ -11,6 +11,8 @@ if [[ $action == package/build ]]; then
     fi
     artifacts=${4#OUTPUT=}
     printf 'qualified wheel\n' > "$artifacts/provider_core-0.2.0-py3-none-any.whl"
+    printf 'wheel metadata\n' > "$artifacts/provider_core-0.2.0-py3-none-any.whl.metadata"
+    printf 'package listing\n' > "$artifacts/provider_core-0.2.0-simple.html"
     printf 'qualified source\n' > "$artifacts/provider_core-0.2.0.tar.gz"
     printf 'closed lock\n' > "$artifacts/provider_core-0.2.0-install.lock"
     printf 'native lock\n' > "$artifacts/provider_core-0.2.0-native-install.lock"

@@ -107,13 +107,29 @@ make publish/prepare TAG=v0.6.8 DOCKER_CONTEXT=science \
   OUTPUT="$PWD/release-artifacts/v0.6.8"
 ```
 
-The output contains `artifacts/` (eight exact release inputs),
+The output contains `artifacts/` (the ten qualified release inputs),
 `release-build.log`, `release-test.log`, and `release-notes.md`. Inspect
 them before publishing with
 `make publish/release TAG=v0.6.8 ARTIFACTS="$PWD/release-artifacts/v0.6.8"`.
 `ARTIFACTS` must point to the whole prepared directory, not to its
 `artifacts/` child. Preparation never publishes; neither phase overwrites
 previous release evidence.
+
+The release includes the wheel's exact `.metadata` sidecar and a generated
+`provider_core-VERSION-simple.html` listing with wheel and metadata hashes.
+After verified publication, the publisher copies that listing into
+`simple/provider-core.html`. Commit and push this generated file as a separate
+commit after publication; its raw GitHub URL can then be pinned to that commit:
+
+```toml
+[tool.wheelhouse.sources.provider-core]
+page = "https://raw.githubusercontent.com/numpde/nmr-provider-tools/<commit>/simple/provider-core.html"
+```
+
+Replace `<commit>` with the listing commit. The page describes that one SDK
+release, and the sidecar stays beside its wheel in GitHub Releases. Publishing
+the next release replaces the working-tree listing; consumers retain their
+previous selection until they update their pinned page URL and SDK version.
 
 Installed SDK test failures end with a **PROVIDER-CORE FAILURE SUMMARY**:
 test and subtest names, source locations and short causes, with full unittest
