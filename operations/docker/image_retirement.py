@@ -171,7 +171,6 @@ def select_images(images, protected, current):
                     f"nmr-provider-tools/checker:{current_checker}",  # machine-string: Docker image protection compares these exact repository tags
                     f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",  # machine-string: Docker image protection compares this exact bootstrap tag
                     f"nmr-provider-tools/delivery-recipe:{current_recipe}",  # machine-string: Docker image protection compares this exact delivery recipe tag
-                    "nmr-provider-tools/wheelhouse-tool:local",
                 })
                 for tag in image_tags
             ),
@@ -203,8 +202,6 @@ def select_images(images, protected, current):
                 f"nmr-provider-tools/delivery:{recorded_inputs}",  # machine-string: Image retirement allows only these exact Docker tags for this recorded owner
                 f"nmr-provider-tools/delivery-recipe:{recorded_recipe}",  # machine-string: Image retirement compares the recorded recipe's exact Docker tag
             }
-        elif role == "wheelhouse-tool":
-            allowed_tags = {"nmr-provider-tools/wheelhouse-tool:local"}
         elif (role == "checker-bootstrap") and (type(recorded_inputs) is str) and _HASH.fullmatch(recorded_inputs):
             if recorded_inputs == current_bootstrap:
                 continue

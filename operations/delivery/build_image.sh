@@ -47,12 +47,12 @@ operation_run 120 --pull never --network none --read-only --user "$operation_hos
     --mount "type=bind,src=$context/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$context/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$context/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$context/requirements/delivery-runtime.lock,dst=/core-runtime.lock,readonly" \
-    --mount "type=bind,src=$context/requirements/delivery-release.json,dst=/release.json,readonly" \
+    --mount "type=bind,src=$context/requirements/delivery.wheelhouse.json,dst=/delivery.wheelhouse.json,readonly" \
+    --mount "type=bind,src=$context/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
-    --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
-for path in provider-core-install.lock provider-core-wheel-inputs.json provider-core-stream.json operations/delivery/image/Dockerfile.selected; do
+    --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs capture --lock /delivery.wheelhouse.json --pool /wheelhouse --destination /capture --tool-pin /wheelhouse-tool-release.json
+for path in delivery.wheelhouse.json provider-core-install.lock provider-core-destinations.json provider-core-stream.json operations/delivery/image/Dockerfile.selected; do
     [[ -f $context/$path && ! -L $context/$path ]] || exit 2
     inputs+=("$path")
 done
@@ -60,19 +60,11 @@ fingerprint=$(root=$context image_fingerprint checker "${inputs[@]}")
 if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
     operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
 fi
-tool_pin=$(python3 -I -S -B "$context/host/tools/build_stream_inputs.py" "$context" \
-    "$operation_directory/source-allowlist.json" "${inputs[@]}")
+python3 -I -S -B "$context/operations/delivery/build_context.py" "$context" \
+    "$operation_directory/context-manifest.json" "$wheelhouse_directory" "${inputs[@]}"
 [[ $(root=$context image_fingerprint checker "${inputs[@]}") == "$fingerprint" ]] || {
     operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;
 }
-read -r tool_name tool_hash <<< "$tool_pin"
-[[ $tool_name =~ ^wheelhouse-tool-[0-9.]+\.pyz$ && $tool_hash =~ ^[0-9a-f]{64}$ ]] || {
-    operation_diagnostic+=$'Cannot build shared delivery: the wheelhouse tool pin is invalid.\n'; exit 2;
-}
-if [[ ! -f $wheelhouse_directory/$tool_name || -L $wheelhouse_directory/$tool_name ]] \
-    || [[ $(sha256sum -- "$wheelhouse_directory/$tool_name" | cut -d' ' -f1) != "$tool_hash" ]]; then
-    operation_diagnostic+=$'Cannot build shared delivery: acquire the pinned wheelhouse tool with make delivery/prepare.\n'; exit 2
-fi
 # BuildKit cannot resolve a config ID in FROM. Give this operation a private tag
 # for that exact image; the tag and inputs remain if build retirement is uncertain.
 base_tag="nmr-provider-tools/base-operation:${operation_directory##*.}"
@@ -98,11 +90,10 @@ if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image")
     operation_diagnostic+=$'Cannot build shared delivery: the operation base tag does not identify the pinned image.\n'; exit 2
 fi
 operation_call 'offline shared delivery image build' 900 stdio bash -o pipefail -c '
-    tool=$1 pool=$2 allowlist=$3 manifest=$4
-    shift 4
-    python3 -I -S -B "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
-' bash "$wheelhouse_directory/$tool_name" "$wheelhouse_directory" "$operation_directory/source-allowlist.json" \
-    "$context/provider-core-stream.json" "${engine[@]}" build --builder default --platform linux/amd64 \
+    exporter=$1 manifest=$2
+    shift 2
+    python3 -I -S -B "$exporter" --manifest "$manifest" | "$@"
+' bash "$context/packages/acquisition/acquisition_tool/context.py" "$operation_directory/context-manifest.json" "${engine[@]}" build --builder default --platform linux/amd64 \
     --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
     --iidfile "$operation_directory/built-image" --file operations/delivery/image/Dockerfile.selected -
 image=

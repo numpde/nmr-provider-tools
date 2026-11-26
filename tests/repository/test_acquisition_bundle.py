@@ -23,7 +23,7 @@ from tests.repository.quality.sources import ROOT
 
 
 class AcquisitionBundleTests(unittest.TestCase):
-    def test_missing_pinned_identity_wheel_names_its_acquisition_action(self):
+    def test_missing_pinned_wheelhouse_names_its_acquisition_action(self):
         with tempfile.TemporaryDirectory() as directory:
             completed_process = subprocess.run(
                 ["bash", str(ROOT / "host/tools/acquisition_identity_test.sh")],
@@ -90,19 +90,42 @@ class AcquisitionBundleTests(unittest.TestCase):
         with zipfile.ZipFile(identity, "w") as archive:
             archive.writestr("linux_idmap/__init__.py", "# qualified identity\n")
 
-        pin = root / "pylock.toml"
+        pin = root / "bootstrap.wheelhouse.json"
 
         pin.write_text(
-            'lock-version = "1.0"\n'
-            '[[packages]]\n'
-            'name = "linux-idmap"\n'
-            'version = "0.3.0"\n'
-            '[[packages.wheels]]\n'
-            'url = "https://example.invalid/' + identity.name + '"\n'
-            'hashes = {sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"}\n'
+            json.dumps(
+                {
+                    "artifact_entries": [
+                        {
+                            "filename": identity.name,
+                            "package": "linux-idmap",
+                            "version": "0.3.0",
+                            "source_path": str(identity),
+                            "sha256": hashlib.sha256(identity.read_bytes()).hexdigest(),
+                        }
+                    ]
+                }
+            )
         )
 
-        (root / "wheelhouse-tool-0.5.9.pyz").write_bytes(b"selected built wheel tool")
+        tool_bytes = (
+            "import json, pathlib, sys\n"
+            "assert sys.argv[1] == 'check'\n"
+            "lock = pathlib.Path(sys.argv[sys.argv.index('--lock') + 1])\n"
+            "assert '--pool' in sys.argv\n"
+            "selection = json.loads(lock.read_text())\n"
+            "if selection.get('failed'): raise SystemExit(1)\n"
+            "print(json.dumps(selection))\n"
+        ).encode()
+
+        tool_release = {
+            "name": "wheelhouse-0.2.0.pyz",
+            "url": "https://example.invalid/wheelhouse.pyz",
+            "sha256": hashlib.sha256(tool_bytes).hexdigest(),
+        }
+
+        (root / tool_release["name"]).write_bytes(tool_bytes)
+        (source / "requirements/wheelhouse-tool-release.json").write_text(json.dumps(tool_release))
 
         return (source, wheel, identity, pin)
 
@@ -113,8 +136,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             source,
             wheel,
             pin,
-            revision="a" * 40,
-            wheelhouse_bundle=root / "wheelhouse-tool-0.5.9.pyz"
+            revision="a" * 40
         )
 
     def test_rebuild_has_identical_bytes_and_normalized_source_provenance(self):
@@ -126,7 +148,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
             self.assertEqual(record, self.build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
-            expected = {"compose/acquisition.yml", "acquisition-manifest.json"} | set(SOURCE_FILES) | {("provider_core/" + name) for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
+            expected = {"compose/acquisition.yml", "acquisition-manifest.json", "acquisition_tool/requirements/wheelhouse-release.json"} | set(SOURCE_FILES) | {("provider_core/" + name) for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
 
             expected.update({"provider_core/type_requirements.py", "provider_core/_type_requirements.py"})
             installer = json.loads((source / "requirements/installer-release.json").read_text())
@@ -142,6 +164,10 @@ class AcquisitionBundleTests(unittest.TestCase):
                 self.assertEqual("a" * 40, manifest["source_revision"])
                 self.assertEqual(expected - {"acquisition-manifest.json"}, set(manifest["payload_files"]))
                 self.assertEqual(record["dependency_inputs"], manifest["dependency_inputs"])
+                expected_tool = json.loads((source / "requirements/wheelhouse-tool-release.json").read_text())
+
+                self.assertEqual(expected_tool, record["wheelhouse_release"])
+                self.assertEqual(expected_tool, json.load(archive.extractfile("acquisition_tool/requirements/wheelhouse-release.json")))
 
                 for member in archive.getmembers():
                     self.assertTrue(member.isfile())
@@ -162,10 +188,23 @@ class AcquisitionBundleTests(unittest.TestCase):
                 {
                     identity.name: hashlib.sha256(identity.read_bytes()).hexdigest(),
                     installer["name"]: installer["sha256"],
-                    "wheelhouse-tool-0.5.9.pyz": hashlib.sha256(b"selected built wheel tool").hexdigest()
+                    "wheelhouse-0.2.0.pyz": expected_tool["sha256"]
                 },
                 record["dependency_inputs"]
             )
+
+    def test_changed_independent_tool_bytes_refuse_archive_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (source, wheel, _identity, pin) = self.fixture(root)
+
+            (root / "wheelhouse-0.2.0.pyz").write_bytes(b"corrupted tool")
+            output = root / "bundle.tar.gz"
+
+            with self.assertRaisesRegex(ValueError, "Cannot use Wheelhouse dependency.*SHA-256"):
+                self.build(root, output, source, wheel, pin)
+
+            self.assertFalse(output.exists())
 
     def test_bundled_entrypoints_run_without_the_installed_sdk(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -303,7 +342,21 @@ class AcquisitionBundleTests(unittest.TestCase):
             (source / "packages/acquisition" / SOURCE_FILES[0]).write_text("# restored\n")
             identity.write_bytes(b"changed dependency")
 
-            with self.assertRaisesRegex(ValueError, r"wheel_sha256=.* should match expected_sha256="):
+            with self.assertRaisesRegex(ValueError, r"captured SHA-256 .* differs from checked acquisition SHA-256"):
+                self.build(root, output, source, wheel, pin)
+
+            self.assertFalse(output.exists())
+            self.assertEqual([], list(root.glob("*.part")))
+
+    def test_failed_external_environment_check_never_publishes_archive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (source, wheel, _identity, pin) = self.fixture(root)
+
+            pin.write_text(json.dumps({"failed": True}))
+            output = root / "bundle.tar.gz"
+
+            with self.assertRaises(subprocess.CalledProcessError):
                 self.build(root, output, source, wheel, pin)
 
             self.assertFalse(output.exists())
@@ -317,15 +370,10 @@ class AcquisitionBundleTests(unittest.TestCase):
             with zipfile.ZipFile(identity, "a") as dependency:
                 dependency.writestr("linux_idmap/ordinary_new_module.py", b"VALUE = 1\n")
 
-            old_pin = pin.read_text()
+            selection = json.loads(pin.read_text())
+            selection["artifact_entries"][0]["sha256"] = hashlib.sha256(identity.read_bytes()).hexdigest()
 
-            pin.write_text(
-                re.sub(
-                    r'sha256 = "[0-9a-f]{64}"',
-                    'sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"',
-                    old_pin
-                )
-            )
+            pin.write_text(json.dumps(selection))
 
             archive_path = root / "bundle.tar.gz"
 

@@ -259,7 +259,7 @@ endif
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/native/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery tests/fuzz/provider-core
-.PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse tests/delivery/publisher
+.PHONY: tests/delivery/publisher
 .PHONY: checks/python-cache/clean
 
 help:
@@ -276,7 +276,6 @@ help:
 	  '  NETWORK_INTERFACE=<system|name>   Route for acquisition; system means host default routing.' \
 	  '  DEPLOYMENT=<name>          Configured local deployment; PROJECT=<name> is an installed Compose project.' \
 	  '  SHARED_RUNTIME_IMAGE=sha256:<digest>   Explicit immutable previously built image.' \
-	  '  LOCK=<file>                Input lock for wheelhouse operations.' \
 	  '  FUZZ_PROFILE=<default|extended>   Select bounded or extended SDK fuzz campaign.' \
 	  '  PRIVACY_TESTS=0|1         Run privacy tests by default (1); use 0 to skip them.' \
 	  '  ENGINE_CONFIG=<file>       Absolute daemon configuration for cache maintenance.' \
@@ -299,6 +298,7 @@ help:
 	  ''
 	@printf '%s\n' \
 	  '== Provider-core package and installed tests ==' \
+	  'make packages/provider-core/locks/refresh WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Resolve four SDK roles from direct intent; review resulting locks.' \
 	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire checker/bootstrap tools, then locked SDK wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Run one unit file when selected; otherwise run all unit and native tests.' \
@@ -318,16 +318,12 @@ help:
 	  'make tests/acquisition/identity WHEELHOUSE=<cache-dir> Test cold identity mapping and retirement receipts offline.' \
 	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
 	  'make tests/acquisition/compose Test Compose worker results, cancellation and retirement offline.' \
-	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
-	  'make wheelhouse/lock/acquire LOCK=<file> [SOURCE_LOCK=<file>] WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked artifacts.' \
-	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
-	  'make checks/bootstrap/build Build the checker bootstrap offline from the pinned base.' \
+	  'make checks/base-image/download Preload pinned Python and uv images using Docker daemon routing.' \
+	  'make checks/bootstrap/build Build the checker bootstrap offline from the preloaded pinned images.' \
 	  'make checks/dependencies/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire declared artifacts.' \
 	  'make checks/dependencies/check WHEELHOUSE=<cache-dir> Verify cached artifacts offline.' \
 	  'make checks/image/build WHEELHOUSE=<cache-dir> Build the checker offline.' \
 	  'make checks/prepare WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire artifacts and build.' \
-	  'make wheelhouse/image/build WHEELHOUSE=<cache-dir> Build offline after packages/provider-core/download.' \
-	  'make tests/wheelhouse WHEELHOUSE=<cache-dir> Run shared wheelhouse tests offline.' \
 	  ''
 	@printf '%s\n' \
 	  '== Shared delivery and deployed service ==' \
@@ -362,7 +358,7 @@ help:
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
 	  'make checks/python-cache/clean    Explicitly remove generated first-party .pyc/.pyo files and empty __pycache__ directories.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
-	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
+	  'make tests/repository/release    Run SDK release and acquisition bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
 	  'make tests/repository/network/identity Run the focused acquisition identity fixture.' \
 	  'make tests/repository/runtime    Inspect the checker container grants.' \
@@ -374,20 +370,8 @@ help:
 packages/provider-core/download: checks/prepare
 	bash packages/provider-core/sdk_build/provider_core.sh download
 
-wheelhouse/image/build:
-	bash packages/wheelhouse-tool/build/build_image.sh build
-
-tests/wheelhouse:
-	bash packages/wheelhouse-tool/build/build_image.sh test
-
 tests/delivery/publisher:
 	bash operations/delivery/check_publisher.sh
-
-wheelhouse/lock/locate:
-	@bash packages/wheelhouse-tool/operations/locate.sh
-
-wheelhouse/lock/acquire:
-	@bash packages/wheelhouse-tool/operations/acquire.sh
 
 packages/provider-core/check:
 	bash packages/provider-core/sdk_build/provider_core.sh check
@@ -572,3 +556,7 @@ packages/images/retire:
 .PHONY: tests/acquisition/compose
 tests/acquisition/compose:
 	@bash tests/repository/run.sh tests/acquisition/compose
+
+.PHONY: packages/provider-core/locks/refresh
+packages/provider-core/locks/refresh:
+	bash packages/provider-core/sdk_build/refresh_locks.sh

@@ -110,11 +110,10 @@ lock=provider_core-$version-install.lock
 native_lock=provider_core-$version-native-install.lock
 record=provider_core-$version-release.json
 manifest=provider_core-$version-sha256.json
-bundle=wheelhouse-tool-$version.pyz
 acquisition=acquisition-owner-$version.tar.gz
 metadata=$wheel.metadata
 listing=provider_core-$version-simple.html
-names=("$wheel" "$metadata" "$listing" "$sdist" "$lock" "$native_lock" "$bundle" "$acquisition" "$record" "$manifest")
+names=("$wheel" "$metadata" "$listing" "$sdist" "$lock" "$native_lock" "$acquisition" "$record" "$manifest")
 
 if [[ $action == prepare ]]; then
     if [[ ! -v OUTPUT_INPUT_ORIGIN || $OUTPUT_INPUT_ORIGIN != 'command line' || ! -v OUTPUT_INPUT || -z $OUTPUT_INPUT ]]; then
@@ -186,7 +185,7 @@ verify_qualified_artifacts() {
     local -A qualified=()
     while read -r marker checksum name extra; do
         [[ $marker == QUALIFIED_SHA256 ]] || continue
-        case "$name" in "$wheel"|"$metadata"|"$listing"|"$sdist"|"$lock"|"$native_lock"|"$bundle"|"$acquisition"|"$record"|"$manifest") ;; *) fail 'Qualification returned an unexpected artifact name.' ;; esac
+        case "$name" in "$wheel"|"$metadata"|"$listing"|"$sdist"|"$lock"|"$native_lock"|"$acquisition"|"$record"|"$manifest") ;; *) fail 'Qualification returned an unexpected artifact name.' ;; esac
         [[ -z $extra && $checksum =~ ^[0-9a-f]{64}$ && ! -v qualified["$name"] ]] \
             || fail 'Qualification returned a malformed or duplicate artifact receipt.'
         qualified["$name"]=$checksum

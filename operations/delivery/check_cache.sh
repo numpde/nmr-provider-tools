@@ -16,12 +16,11 @@ operation_run 120 --pull never --network none --read-only --user "$uid:$gid" --c
     --mount "type=bind,src=$root/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$root/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$root/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$root/requirements/delivery-runtime.lock,dst=/core-runtime.lock,readonly" \
-    --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
+    --mount "type=bind,src=$root/requirements/delivery.wheelhouse.json,dst=/delivery.wheelhouse.json,readonly" \
     --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$1,dst=/wheelhouse,readonly" \
     --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs check \
-    --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json > "$operation_directory/result"
+    --lock /delivery.wheelhouse.json --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json > "$operation_directory/result"
 docker_inspect_container_state "$operation_directory/check-exit" "$operation_container"
 docker_container_state_matches "$operation_directory/check-exit" false 0 || {
     operation_diagnostic+=$'Cannot inspect the delivery pool: the checker did not retire successfully.\n'; exit 2;

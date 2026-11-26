@@ -422,15 +422,6 @@ def source_file_identity(source_file):
     }
 
 
-def wheelhouse_source_inventory(source, *, type_requirements_source):
-    from build_bundle import source_modules
-
-    inventory = {name: source_file_identity(source / name) for name in source_modules(source)}
-    inventory["type_requirements.py"] = source_file_identity(type_requirements_source)
-
-    return inventory
-
-
 def normalize_sdist(path):
     """Remove host account metadata and use the same fixed epoch as the wheel."""
 
@@ -477,15 +468,14 @@ def package_listing(wheel, version):
 
 
 def release(source, runtime_lock, build_lock, pool, output, revision):
-    from build_bundle import build as build_wheelhouse_bundle, dependency_files
-    from build_acquisition_bundle import build as build_acquisition_bundle
+    from build_acquisition_bundle import build as build_acquisition_bundle, wheelhouse_release
 
     expected_revision_pattern = r"[0-9a-f]{40}"
 
     if not re.fullmatch(expected_revision_pattern, revision):
         raise ValueError(f"{_BUILD_EVIDENCE.repr(revision)=} should match {expected_revision_pattern=}")
 
-    dependency_files(pool, pathlib.Path("/requirements/wheelhouse-tool.lock"))
+    wheelhouse_release(pool, pathlib.Path("/workspace/requirements/wheelhouse-tool-release.json"))
     source_files = source_inventory(source)
     source_files[SDK_TYPE_REQUIREMENTS.as_posix()] = source_file_identity(TYPE_REQUIREMENTS_SOURCE)
 
@@ -501,16 +491,6 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     sdist = output / (artifact_prefix + ".tar.gz")
     native_lock = output / (artifact_prefix + "-native-install.lock")
 
-    wheelhouse_bundle = output / ("wheelhouse-tool-" + artifact_prefix.removeprefix("provider_core-") + ".pyz")
-
-    build_wheelhouse_bundle(
-        pool=pool,
-        output=wheelhouse_bundle,
-        source=pathlib.Path("/workspace"),
-        lock=pathlib.Path("/requirements/wheelhouse-tool.lock"),
-        type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
-    )
-
     acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
 
     acquisition_record = build_acquisition_bundle(
@@ -518,9 +498,8 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         output=acquisition_bundle,
         source=pathlib.Path("/workspace"),
         core_wheel=wheel,
-        pin=pathlib.Path("/requirements/acquisition-bootstrap.pylock.toml"),
+        pin=pathlib.Path("/requirements/acquisition-bootstrap.wheelhouse.json"),
         revision=revision,
-        wheelhouse_bundle=wheelhouse_bundle,
     )
 
     (metadata_bytes, listing_bytes) = package_listing(wheel, artifact_prefix.removeprefix("provider_core-"))
@@ -530,7 +509,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     metadata_sidecar.write_bytes(metadata_bytes)
     listing_page.write_bytes(listing_bytes)
 
-    release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle, metadata_sidecar, listing_page)
+    release_files = (wheel, sdist, install_lock, native_lock, acquisition_bundle, metadata_sidecar, listing_page)
     release_record = output / (artifact_prefix + "-release.json")
 
     release_record.write_text(
@@ -539,10 +518,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
                 "source_revision": revision,
                 "dependency_inputs": dependency_inputs,
                 "source_files": source_files,
-                "tool_source_files": wheelhouse_source_inventory(
-                    pathlib.Path("/workspace/wheelhouse_tool"),
-                    type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
-                ),
+                "wheelhouse_release": acquisition_record["wheelhouse_release"],
                 "acquisition_source_files": acquisition_record["source_files"],
                 "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
                 "files": {artifact.name: digest(artifact) for artifact in release_files},

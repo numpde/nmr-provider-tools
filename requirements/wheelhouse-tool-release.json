@@ -1,5 +1,5 @@
 {
-  "name": "wheelhouse-tool-0.6.15.pyz",
-  "sha256": "8c8ad0ca2c1ee6147e6da525bc302254935b606726bfe4b0ec1ee9021371d58c",
-  "url": "https://github.com/numpde/nmr-provider-tools/releases/download/v0.6.15/wheelhouse-tool-0.6.15.pyz"
+  "name": "wheelhouse-0.2.0.pyz",
+  "url": "https://github.com/numpde/wheelhouse/releases/download/v0.2.0/wheelhouse.pyz",
+  "sha256": "b9730fd1dd9668e98f55a952e64328f193b5d2ca6d203fc1c150332fc672e90a"
 }

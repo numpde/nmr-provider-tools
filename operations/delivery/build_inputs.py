@@ -1,283 +1,187 @@
-"""Acquire and capture the pinned shared-delivery release in the common wheelhouse."""
+"""Capture one complete delivery lock and stream only its verified inputs."""
 
 from tools.container_guard import require_container
 
 require_container()
 
 import argparse
-import hashlib
 import json
-import re
-import reprlib
+import pathlib
+import shutil
 import subprocess
 import sys
-import tempfile
-import urllib.parse
-import pathlib
 
-from tools.artifacts import regular_file, require_download_proxy
-from tools.adapters.github_release import release_asset_url
-from tools.adapters.pip_install import hashed_requirement
-from tools.adapters.pylock import write_wheel_archive_lock
-from tools.adapters import pypi_project_json as pypi_requests
 from tools.installer import release as installer_release
 from sdk_build.provider_core_acquire import acquire_tool, tool_present
-from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_wheels
-from tools.validation.upstream import pypi_project_json as pypi_release
 
 
-def release_inputs(pin, runtime_lock):
-    release = read_json(pin)
-    (release_version, wheel_digest) = (release["version"], release["wheel_sha256"])
-
-    expected_version_pattern = r"[0-9]+\.[0-9]+\.[0-9]+"
-
-    if not re.fullmatch(expected_version_pattern, release_version):
-        raise ValueError(f"{reprlib.repr(release_version)=} should match {expected_version_pattern=}")
-
-    expected_digest_pattern = r"[0-9a-f]{64}"
-
-    if not re.fullmatch(expected_digest_pattern, wheel_digest):
-        raise ValueError(f"{reprlib.repr(wheel_digest)=} should match {expected_digest_pattern=}")
-
-    with regular_file(runtime_lock) as source:
-        runtime_requirements = source.read().decode("utf-8")
-
-    install_lock_bytes = (
-        runtime_requirements.rstrip()
-        + "\n"
-        + hashed_requirement("provider-core", release_version, wheel_digest)
-    ).encode()
-
-    install_lock_sha256 = hashlib.sha256(install_lock_bytes).hexdigest()
-    expected_install_lock_sha256 = release["install_lock_sha256"]
-
-    if not (install_lock_sha256 == expected_install_lock_sha256):
-        raise ValueError(f"{install_lock_sha256=} should match {expected_install_lock_sha256=}")
-
-    return (release, install_lock_bytes)
+def read_json(json_path):
+    with json_path.open(encoding="utf-8") as source:
+        return json.load(source)
 
 
-def release_wheels(release):
-    provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"  # machine-string: The wheelhouse lookup needs the distribution's exact wheel filename
+def wheelhouse(tool, action, lock, pool, *options):
+    command_result = subprocess.run(
+        [
+            sys.executable,  # Use the caller's target interpreter.
+            "-I",  # Ignore ambient Python settings.
+            "-B",  # Keep captured inputs free of bytecode.
+            str(tool),  # Execute the independently pinned bundle.
+            action,  # Consume the complete selection.
+            "--lock",  # Supply the authoritative captured lock.
+            str(lock),  # Preserve this operation's selection.
+            "--pool",  # Choose the shared wheel store.
+            str(pool),  # Reuse verified pooled bytes.
+            *map(str, options),  # Request optional Wheelhouse projections.
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
 
-    return dict(release["runtime_wheels"]) | {provider_wheel_name: release["wheel_sha256"]}
-
-
-def missing_wheels(release, pool):
-    if not (pool.is_dir() and (not pool.is_symlink())):
-        raise ValueError(f"{reprlib.repr(pool)=} should be an existing directory without a symlink")
-
-    missing_wheel_ids = []
-
-    for (wheel_name, expected_sha256) in release_wheels(release).items():
-        expected_wheel_pattern = r"[A-Za-z0-9_.+!-]+\.whl"
-
-        if not re.fullmatch(expected_wheel_pattern, wheel_name):
-            raise ValueError(f"{reprlib.repr(wheel_name)=} should match {expected_wheel_pattern=}")
-
-        expected_digest_pattern = r"[0-9a-f]{64}"
-
-        if not re.fullmatch(expected_digest_pattern, expected_sha256):
-            raise ValueError(f"{reprlib.repr(expected_sha256)=} should match {expected_digest_pattern=}")
-
-        wheel_path = pool / wheel_name
-
-        if wheel_path.exists() or wheel_path.is_symlink():
-            wheel_sha256 = digest(wheel_path)
-
-            if not (wheel_sha256 == expected_sha256):
-                raise ValueError(
-                    f"For {wheel_name=}, {wheel_sha256=} should match {expected_sha256=}. "
-                    f"The existing file was retained."
-                )
-        else:
-            missing_wheel_ids.append((wheel_name, expected_sha256))
-
-    return missing_wheel_ids
+    return json.loads(command_result.stdout)
 
 
-def publish_release_wheels(tool, pool, artifacts):
-    with tempfile.TemporaryDirectory(prefix="delivery-lock-") as temporary:
-        acquisition_lock = pathlib.Path(temporary) / "pylock.delivery.toml"
+def lock_release(tool, project, pool, lock, offline):
+    """Resolve the declared delivery role on the actual delivery interpreter."""
 
-        with acquisition_lock.open("x", encoding="utf-8") as stream:
-            write_wheel_archive_lock(stream, artifacts, created_by="nmr-provider-tools delivery")
-
+    if not offline:
         subprocess.run(
             [
-                sys.executable,  # Use the worker's Python interpreter
-                "-I",  # Ignore PYTHON* settings and the user site
-                "-B",  # Suppress bytecode writes
-                str(tool),  # Run the pinned wheelhouse zipapp
-                "acquire",  # Fetch missing artifacts and verify cached copies
-                "--lock",  # Select artifacts from an explicit lock
-                str(acquisition_lock),  # Use the generated delivery lock
-                "--pool",  # Select the shared artifact cache
-                str(pool),  # Reuse or publish artifacts in this directory
+                sys.executable,  # Use the delivery target interpreter.
+                "-I",  # Ignore ambient Python settings.
+                "-B",  # Suppress bytecode writes.
+                str(tool),  # Execute the pinned external bundle.
+                "acquire",  # Prepare the exact declared SDK wheel.
+                "--project",  # Read the consumer-owned declaration.
+                str(project),  # Select the complete delivery role intent.
+                "--package",  # Prepare one exact prerequisite before resolution.
+                "provider-core",  # Read the SDK's actual wheel metadata.
+                "--pool",  # Select the shared wheel store.
+                str(pool),  # Reuse or publish verified exact bytes.
             ],
-            check=True,  # Propagate publisher failure
+            check=True,
         )
 
+    command = [
+        sys.executable,  # Use the delivery target interpreter.
+        "-I",  # Ignore ambient Python settings.
+        "-B",  # Suppress bytecode writes.
+        str(tool),  # Execute the independently pinned bundle.
+        "lock",  # Resolve one complete installation environment.
+        "--project",  # Read the consumer-owned dependency declaration.
+        str(project),  # Preserve the captured role intent.
+        "--pool",  # Select prepared wheel metadata.
+        str(pool),  # Reuse verified available bytes.
+        "--lock",  # Write the authoritative complete lock.
+        str(lock),  # Publish only after successful resolution.
+    ]
 
-def acquire_release(pin, runtime_lock, pool, tool):
-    (release, _) = release_inputs(pin, runtime_lock)
+    if offline:
+        command.append("--offline")
 
-    with pool_lock(pool):
-        missing = missing_wheels(release, pool)
-
-    artifacts = []
-
-    for (wheel_name, expected_sha256) in missing:
-        require_download_proxy()
-
-        if wheel_name.startswith("provider_core-"):
-            tag = "v" + release["version"]
-            url = release_asset_url("numpde/nmr-provider-tools", tag, wheel_name)
-        else:
-            (distribution, version, *_) = wheel_name.split("-")
-
-            metadata = pypi_requests.release_metadata(distribution, version, timeout_seconds=30)
-
-            candidates = [
-                pypi_release.file_url(release_file)
-                for release_file in pypi_release.release_files(metadata)
-                if
-                (pypi_release.file_name(release_file) == wheel_name) and
-                (pypi_release.file_sha256(release_file) == expected_sha256)
-            ]
-
-            matching_downloads = len(candidates)
-
-            if not (matching_downloads == 1):
-                raise ValueError(f"For {wheel_name=} and {expected_sha256=}, {matching_downloads=} should be one")
-
-            url = candidates[0]
-            download_host = urllib.parse.urlsplit(url).hostname
-            expected_download_host = "files.pythonhosted.org"
-
-            if not (download_host == expected_download_host):
-                raise ValueError(f"For {wheel_name=}, {reprlib.repr(download_host)=} should match {expected_download_host=}")
-
-        artifacts.append((wheel_name, expected_sha256, url))
-
-    if artifacts:
-        publish_release_wheels(tool, pool, artifacts)
+    subprocess.run(command, check=True)
 
 
-def capture_image_inputs(pin, runtime_lock, pool, destination):
-    with pool_lock(pool) as lock_fd:
-        _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd)
+def capture_image_inputs(lock, pool, destination, tool):
+    captured_lock = destination / "delivery.wheelhouse.json"
 
+    shutil.copyfile(lock, captured_lock)
+    selected = wheelhouse(tool, "check", captured_lock, pool)
+    artifact_entries = selected["artifact_entries"]
 
-def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
-    (release, install_lock_bytes) = release_inputs(pin, runtime_lock)
-    captured_lock = destination / "provider-core-install.lock"
+    mappings = {
+        "artifacts": [
+            {"source_path": entry["source_path"], "sha256": entry["sha256"], "destination": "/wheels/" + entry["filename"]}
+            for entry in artifact_entries
+        ]
+    }
 
-    with captured_lock.open("xb") as target:
-        target.write(install_lock_bytes)
+    map_path = destination / "provider-core-destinations.json"
 
-    captured_lock.chmod(0o644)
-    requirements(captured_lock)
+    map_path.write_text(json.dumps(mappings, sort_keys=True) + "\n")
 
-    missing_wheel_ids = missing_wheels(release, pool)
-
-    if missing_wheel_ids:
-        raise ValueError(f"{missing_wheel_ids=} should be empty before capturing delivery inputs")
-
-    selected_wheels = select_wheels(captured_lock, pool, lock_fd=lock_fd)
-
-    selected_wheel_files = selected_wheels["files"]
-    expected_wheel_files = release_wheels(release)
-
-    if not (selected_wheel_files == expected_wheel_files):
-        raise ValueError(f"{selected_wheel_files=} should match {expected_wheel_files=}")
-
-    wheel_input_record = destination / "provider-core-wheel-inputs.json"
-
-    with wheel_input_record.open("x", encoding="utf-8") as target:
-        json.dump(selected_wheels, target, sort_keys=True)
-        print(file=target)
-
-    wheel_input_record.chmod(0o644)
-
-    dockerfile_template = destination / "operations/delivery/image/Dockerfile"
-    marker = "# selected-wheel-inputs"
-    template_contents = dockerfile_template.read_text()
-
-    marker_count = template_contents.count(marker)
-
-    if not (marker_count == 1):
-        raise ValueError(f"{marker_count=} should be one for {marker=} in {dockerfile_template=}")
-
-    copy_instructions = "\n".join(
-        ("COPY " + json.dumps(["wheelhouse/" + name, "/" + name]))
-        for name in sorted(selected_wheels["files"])
+    projected = wheelhouse(
+        tool,
+        "check",
+        captured_lock,
+        pool,
+        "--requirements",
+        destination / "provider-core-install.lock",
+        "--destination-map",
+        map_path,
     )
+
+    if not (projected["artifact_entries"] == artifact_entries):
+        raise ValueError(f"Cannot capture delivery inputs: {captured_lock = !s} changed artifact identities while rendering installation requirements.")
+
+    template = destination / "operations/delivery/image/Dockerfile"
+    marker = "# selected-wheel-inputs"
+    contents = template.read_text()
+
+    if not (contents.count(marker) == 1):
+        raise ValueError(f"Cannot capture delivery Dockerfile: {template = !s} must contain exactly one {marker = !r} marker.")
 
     installer = installer_release(destination / "requirements/installer-release.json")
+    artifacts = []
+    copies = []
 
-    copy_instructions += (
-        "\n"
-        "COPY " + json.dumps(["installer/" + installer["name"], "/installer/" + installer["name"]])
-    )
+    for entry in artifact_entries:
+        source = pathlib.Path(entry["source_path"])
 
-    selected_dockerfile = destination / "operations/delivery/image/Dockerfile.selected"
+        relative = "wheelhouse/" + entry["filename"]
 
-    with selected_dockerfile.open("x") as target:
-        target.write(template_contents.replace(marker, copy_instructions))
+        artifacts.append({"path": str(source), "destination": relative, "sha256": entry["sha256"], "executable": False})
+        copies.append("COPY " + json.dumps([relative, "/" + entry["filename"]]))
 
-    selected_dockerfile.chmod(0o644)
+    installer_destination = "installer/" + installer["name"]
+    installer_source = pool / installer["name"]
 
-    stream_manifest = destination / "provider-core-stream.json"
-
-    with stream_manifest.open("x", encoding="utf-8") as target:
-        json.dump(
-            [
-                {"directory": "wheelhouse", "filename": name, "sha256": checksum}
-                for (name, checksum) in sorted(selected_wheels["files"].items())
-            ]
-            + [{"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
-            target,
-            sort_keys=True,
-        )
-
-        print(file=target)
-
-    stream_manifest.chmod(0o644)
+    artifacts.append({"path": str(installer_source), "destination": installer_destination, "sha256": installer["sha256"], "executable": False})
+    copies.append("COPY " + json.dumps([installer_destination, "/" + installer_destination]))
+    (template.parent / "Dockerfile.selected").write_text(contents.replace(marker, "\n".join(copies)))
+    (destination / "provider-core-stream.json").write_text(json.dumps(artifacts, sort_keys=True) + "\n")
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("action", choices=("check", "acquire", "capture"))
-    parser.add_argument("--pin", type=pathlib.Path, required=True)
-    parser.add_argument("--runtime-lock", type=pathlib.Path, required=True)
-    parser.add_argument("--pool", type=pathlib.Path, required=True)
-    parser.add_argument("--destination", type=pathlib.Path)
+    parser.add_argument("action", choices=("check", "acquire", "capture", "lock"))
+    parser.add_argument("--lock", type=pathlib.Path)
+    parser.add_argument("--pool", type=pathlib.Path)
     parser.add_argument("--tool-pin", type=pathlib.Path)
+    parser.add_argument("--destination", type=pathlib.Path)
+    parser.add_argument("--project", type=pathlib.Path)
+    parser.add_argument("--offline", action="store_true")
     args = parser.parse_args()
 
+    if any((argument is None) for argument in (args.pool, args.tool_pin, args.lock)):
+        parser.error("check, acquire, capture and lock require --pool, --tool-pin and --lock")
+
+    pin = read_json(args.tool_pin)
+
+    if args.action in ("acquire", "lock"):
+        tool = acquire_tool(args.pool, pin)
+    elif not tool_present(args.pool, pin):
+        raise FileNotFoundError(f"Cannot verify delivery inputs: acquire the pinned Wheelhouse bundle {pin['name'] = !r} first.")
+    else:
+        tool = args.pool / pin["name"]
+
     if args.action == "check":
-        (release, _) = release_inputs(args.pin, args.runtime_lock)
-
-        with pool_lock(args.pool):
-            if (
-                missing_wheels(release, args.pool) or
-                ((args.tool_pin) and (not tool_present(args.pool, read_json(args.tool_pin))))
-            ):
-                print("missing")
-            else:
-                print("complete")
+        wheelhouse(tool, "check", args.lock, args.pool)
+        print("complete")
     elif args.action == "acquire":
-        if args.tool_pin is None:
-            parser.error("acquire requires --tool-pin")
+        wheelhouse(tool, "acquire", args.lock, args.pool)
+    elif args.action == "lock":
+        if args.project is None:
+            parser.error("lock requires --project")
 
-        acquisition_tool = acquire_tool(args.pool, read_json(args.tool_pin))
-
-        acquire_release(args.pin, args.runtime_lock, args.pool, acquisition_tool)
+        lock_release(tool, args.project, args.pool, args.lock, args.offline)
     else:
         if args.destination is None:
             parser.error("capture requires --destination")
 
-        capture_image_inputs(args.pin, args.runtime_lock, args.pool, args.destination)
+        capture_image_inputs(args.lock, args.pool, args.destination, tool)
+
+
+if __name__ == "__main__":
+    main()

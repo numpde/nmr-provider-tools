@@ -107,7 +107,7 @@ make publish/prepare TAG=v0.6.8 DOCKER_CONTEXT=science \
   OUTPUT="$PWD/release-artifacts/v0.6.8"
 ```
 
-The output contains `artifacts/` (the ten qualified release inputs),
+The output contains `artifacts/` (the nine qualified release inputs),
 `release-build.log`, `release-test.log`, and `release-notes.md`. Inspect
 them before publishing with
 `make publish/release TAG=v0.6.8 ARTIFACTS="$PWD/release-artifacts/v0.6.8"`.
@@ -178,23 +178,25 @@ provisioning check live alongside their suites in `tests/repository/`.
 deployment. Its `image/` directory contains the Dockerfile, the deployment
 entry point installed in the image and the runtime check used during its build.
 
-`packages/wheelhouse-tool/` owns the wheelhouse CLI, its image and bundle
-builders, and its operator launchers. Its Python import name is `wheelhouse_tool`.
+SDK workflows use the independently versioned [Wheelhouse](https://github.com/numpde/wheelhouse)
+CLI pinned by `requirements/wheelhouse-tool-release.json`. This repository
+consumes that bundle; SDK releases do not build or publish it.
 
-For a deployment lock, run the released bundle inside the target Python image:
+Acquire the pinned tool and the complete SDK runtime, build, test and bootstrap
+wheel selections into a shared cache, then verify them offline:
 
 ```sh
-python wheelhouse-tool.pyz locate --lock release-install.lock --index-url https://pypi.org/simple > pylock.target.toml
-python wheelhouse-tool.pyz requirements --lock pylock.target.toml --source-lock release-install.lock > requirements.txt
+make packages/provider-core/download DOCKER_CONTEXT=science \
+  WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
+make packages/provider-core/check DOCKER_CONTEXT=science \
+  WHEELHOUSE=/path/to/wheelhouse
 ```
 
-`locate` reads the package index metadata under the release lock's existing
-hashes; `requirements` performs the target selection offline. The output pins
-one exact wheel URL and hash per package, so another Python version or platform
-requires regeneration. Keep the portable release lock as the authority, rather
-than copying its cross-platform hash inventory into every deployment. For the
-SDK wheel, supply `locate --source <release-wheel-URL>#sha256=<release-wheel-hash>`;
-the selector checks it against the SDK pin in the release lock.
+The `requirements/*.wheelhouse.json` files record complete selections for the
+SDK's Python target. Acquisition follows those selections without resolving
+again. Dependency or target changes require regenerating and reviewing the
+corresponding lock in the intended Python environment. SDK installation locks
+remain release qualification evidence; they are not Wheelhouse inputs.
 
 `packages/provider-core/sdk_build/` acquires SDK dependencies, builds distributions
 and runs tests against the installed SDK. `operations/release/` qualifies the

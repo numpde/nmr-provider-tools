@@ -16,11 +16,9 @@ uid=$(id -u) gid=$(id -g)
 source "$root/operations/docker/container_operation.sh"
 source "$root/operations/checker/image_identity.sh"
 operation_begin
-cache=$(bash "$root/operations/delivery/check_cache.sh" "$wheelhouse_directory")
-if [[ $cache == missing ]]; then
-    checker_admit_tools
-    operation_reserve_acquisition_receipt
-    bash "$root/operations/docker/docker.sh" run --image "$checker_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
+checker_admit_tools
+operation_reserve_acquisition_receipt
+bash "$root/operations/docker/docker.sh" run --image "$checker_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
@@ -28,15 +26,11 @@ if [[ $cache == missing ]]; then
     --mount "type=bind,src=$root/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$root/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$root/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$root/requirements/delivery-runtime.lock,dst=/core-runtime.lock,readonly" \
-    --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
+    --mount "type=bind,src=$root/requirements/delivery.wheelhouse.json,dst=/delivery.wheelhouse.json,readonly" \
     --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
     --entrypoint python3 -- -B -m operations.delivery.build_inputs acquire \
-    --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json
-elif [[ $cache != complete ]]; then
-    printf '%s\n' 'Cannot inspect the shared delivery wheelhouse.' >&2; exit 2
-fi
+    --lock /delivery.wheelhouse.json --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json
 WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT=$wheelhouse_directory bash "$root/operations/delivery/build_image.sh"
 
 # A nested image builder may defer retirement while this outer borrower runs.

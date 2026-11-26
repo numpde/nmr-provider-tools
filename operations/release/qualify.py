@@ -27,9 +27,8 @@ from pathlib import PurePosixPath
 
 from tools.artifacts import regular_file
 from tools.artifact_metadata import metadata_mismatch
-from build_bundle import build as build_wheelhouse_bundle
-from build_acquisition_bundle import build as build_acquisition_bundle
-from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, package_listing, wheelhouse_source_inventory
+from build_acquisition_bundle import build as build_acquisition_bundle, wheelhouse_release
+from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, package_listing
 from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE, native_requirements
 from tools.wheelhouse import digest, requirements
 from type_requirements import require_type
@@ -44,230 +43,61 @@ _RELEASE_EVIDENCE.maxother = _RELEASE_EVIDENCE.maxstring
 
 def artifact_names(version):
     prefix = f"provider_core-{version}"  # machine-string: Release artifact lookup requires the versioned distribution filename prefix
-    wheelhouse_name = f"wheelhouse-tool-{version}.pyz"  # machine-string: The release inventory matches this exact acquisition-tool bundle filename
     acquisition_name = f"acquisition-owner-{version}.tar.gz"  # machine-string: The release inventory matches this exact bootstrap archive filename
 
-    return {(prefix + suffix) for suffix in ("-py3-none-any.whl", "-py3-none-any.whl.metadata", "-simple.html", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {wheelhouse_name, acquisition_name}
+    return {(prefix + suffix) for suffix in ("-py3-none-any.whl", "-py3-none-any.whl.metadata", "-simple.html", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {acquisition_name}
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
-    locked_requirements = requirements(pathlib.Path("/wheelhouse-tool.lock"))
+    """Verify the independently published tool consumes the captured build lock."""
 
-    (packaging_version, accepted_hashes) = next(
+    (build_version, accepted_hashes) = next(
         (version, hashes)
-        for ((name, version), hashes) in locked_requirements.items()
-        if name == "packaging"
+        for ((name, version), hashes) in requirements(pathlib.Path("/core-build.lock")).items()
+        if name == "setuptools"
     )
 
-    packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"  # machine-string: The qualification cache lookup uses the distribution's exact wheel filename
-    packaging_digest = digest(pathlib.Path("/wheelhouse") / packaging_wheel_name)
+    build_wheel = pathlib.Path("/wheelhouse") / f"setuptools-{build_version}-py3-none-any.whl"  # machine-string: SDK build qualification opens the exact pinned setuptools wheel filename.
+    build_sha256 = digest(build_wheel)
 
-    if not (packaging_digest in accepted_hashes):
-        raise ValueError(f"{packaging_digest=} ∉ {accepted_hashes=}")
+    if not (build_sha256 in accepted_hashes):
+        raise ValueError(f"Cannot qualify Wheelhouse: {build_wheel=} does not match the pinned SDK build dependency")
 
-    selection_lock = scratch / "pylock.toml"
+    lock = pathlib.Path("/workspace/requirements/provider-core-build.wheelhouse.json")
+    installation = scratch / "wheelhouse-build-install.txt"
 
-    selection_lock.write_text(
-        f'lock-version = "1.0"\n'
-        f'created-by = "release qualification"\n'
-        f'[[packages]]\n'
-        f'name = "packaging"\n'
-        f'version = "{packaging_version}"\n'
-        f'[[packages.wheels]]\n'
-        f'url = "https://example.invalid/{packaging_wheel_name}"\n'
-        f'hashes = {{ sha256 = "{packaging_digest}" }}\n'  # machine-string: The acquisition tool parses these adjacent literals as a pylock TOML fixture
-    )
-
-    projected_lock = scratch / "pylock.local.toml"
-
-    wheelhouse_command = [
-        "python3",  # Use the qualification container's base interpreter
-        "-I",  # Ignore PYTHON* settings and the user site
-        "-S",  # Skip site initialization and installed dependencies
-        str(bundle),  # Load dependencies from the issued zipapp
+    command = [
+        "python3",  # Run the independent bundle with the SDK target interpreter.
+        "-I",  # Ignore host Python paths and environment configuration.
+        "-S",  # Use the bundle's embedded dependencies.
+        "-B",  # Keep the read-only source free of bytecode.
+        str(bundle),  # Execute the authenticated external Wheelhouse artifact.
     ]
 
-    subprocess.run(
+    for arguments in (
         [
-            *wheelhouse_command,  # Exercise the issued zipapp in isolation
-            "locate",  # Load the artifact lookup command
-            "--help",  # Verify that the command loads without fetching packages
+            "acquire",  # Follow the captured complete build selection.
+            "--lock",  # Select the SDK-owned build environment lock.
+            str(lock),  # Read the committed lock captured for this release.
+            "--pool",  # Use the shared artifact cache.
+            "/wheelhouse",  # Require the mounted read-only pool to be complete.
         ],
-        check=True,  # Reject a bundle that cannot load the command
-        stdout=subprocess.DEVNULL,  # Keep successful help text out of the release log
-    )
-
-    selected_wheels = subprocess.run(
         [
-            *wheelhouse_command,  # Resolve with the issued zipapp
-            "select",  # Compute the artifact selection without downloading
-            "--lock",  # Read selection inputs from a lock
-            str(selection_lock),  # Use the one-wheel qualification fixture
+            "check",  # Verify selected bytes without resolving dependencies.
+            "--lock",  # Use the same complete selection as acquisition.
+            str(lock),  # Read the captured build environment lock.
+            "--pool",  # Locate the selected wheels in the shared cache.
+            "/wheelhouse",  # Keep the release input cache read-only.
+            "--requirements",  # Render hashed offline installation input.
+            str(installation),  # Write only to private qualification scratch.
         ],
-        check=True,  # Reject failed selection before reading its output
-        stdout=subprocess.PIPE,  # Capture the selected artifacts for comparison
-        text=True,  # Read the JSON selection as text
-    )
+    ):
+        subprocess.run(command + arguments, check=True, stdout=subprocess.DEVNULL)
 
-    selected_sha256 = json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"]
+    expected_installation = f"{build_wheel.as_uri()} --hash=sha256:{build_sha256}\n"  # machine-string: Compare exact pip installation syntax, including the selected wheel URI and hash.
 
-    if selected_sha256 != packaging_digest:
-        raise ValueError(f"{_RELEASE_EVIDENCE.repr(selected_sha256)=} ≠ {packaging_digest=}")
-
-    subprocess.run(
-        [
-            *wheelhouse_command,  # Verify artifacts with the issued zipapp
-            "check",  # Verify the selected wheel in the local pool
-            "--lock",  # Select the expected artifact and hash
-            str(selection_lock),  # Use the same fixture as the selection check
-            "--pool",  # Select the source of cached wheel bytes
-            "/wheelhouse",  # Read the mounted release wheelhouse
-            "--local-lock",  # Generate a lock that points to local files
-            str(projected_lock),  # Keep the projection for independent inspection
-            "--local-root",  # Set the artifact path as seen by the consumer
-            "/wheels",  # Use the eventual installation mount path
-        ],
-        check=True,  # Reject a missing or mismatched wheel
-        stdout=subprocess.DEVNULL,  # Inspect the projected file directly
-    )
-
-    projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
-    projected_hashes = projected_artifact.get("hashes")
-
-    projected_path = projected_artifact.get("path")
-    expected_path = "/wheels/" + packaging_wheel_name
-
-    if projected_path != expected_path:
-        raise ValueError(f"{_RELEASE_EVIDENCE.repr(projected_path)=} ≠ {expected_path=}")
-
-    if "url" in projected_artifact:
-        raise ValueError(f"{_RELEASE_EVIDENCE.repr(projected_artifact['url'])=} should be absent")
-
-    require_type(projected_hashes, dict)
-    projected_sha256 = projected_hashes.get("sha256")
-
-    if projected_sha256 != packaging_digest:
-        raise ValueError(f"{_RELEASE_EVIDENCE.repr(projected_sha256)=} ≠ {packaging_digest=}")
-
-    dockerfile = scratch / "Dockerfile"
-
-    dockerfile.write_text("FROM scratch\n")
-    manifest = scratch / "stream-manifest.json"
-    report = scratch / "pip-report.json"
-
-    report.write_text(
-        json.dumps(
-            {
-                "version": "1",
-                "install": [
-                    {
-                        "download_info": {
-                            "url": "file:///wheelhouse/" + packaging_wheel_name,
-                            "archive_info": {"hashes": {"sha256": packaging_digest}},
-                        }
-                    }
-                ],
-            }
-        )
-    )
-
-    report_conversion = subprocess.run(
-        [
-            *wheelhouse_command,  # Parse the report with the issued zipapp
-            "report",  # Convert pip's selection into a build-input manifest
-            "--report",  # Identify the pip report to convert
-            str(report),  # Use the fixture for the selected wheel
-            "--pool",  # Require the reported wheel to come from this pool
-            "/wheelhouse",  # Resolve the fixture's local wheel path
-            "--directory",  # Select the wheel's destination in the context
-            "wheels",  # Place wheels under the context's wheels directory
-        ],
-        check=True,  # Reject report conversion failure
-        stdout=subprocess.PIPE,  # Capture the generated manifest
-        text=True,  # Keep the result available for JSON parsing and writing
-    )
-
-    expected_report = [
-        {"filename": packaging_wheel_name, "sha256": packaging_digest, "directory": "wheels"}
-    ]
-
-    converted_report = json.loads(report_conversion.stdout)
-
-    if converted_report != expected_report:
-        raise ValueError(f"{_RELEASE_EVIDENCE.repr(converted_report)=} ≠ {expected_report=}")
-
-    manifest.write_text(report_conversion.stdout)
-
-    manifest_identity = subprocess.run(
-        [
-            *wheelhouse_command,  # Compute identity with the issued zipapp
-            "identity",  # Hash the canonical build manifest
-            "--manifest",  # Select the manifest to hash
-            str(manifest),  # Use the result of the report conversion
-        ],
-        check=True,  # Reject identity computation failure
-        stdout=subprocess.PIPE,  # Capture the hash for independent comparison
-        text=True,  # Read the hash as text
-    ).stdout.strip()
-
-    canonical_manifest = (
-        json
-        .dumps(
-            json.loads(report_conversion.stdout),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-        )
-        .encode()
-    )
-
-    expected_manifest_identity = hashlib.sha256(canonical_manifest).hexdigest()
-
-    if manifest_identity != expected_manifest_identity:
-        raise ValueError(f"{_RELEASE_EVIDENCE.repr(manifest_identity)=} ≠ {expected_manifest_identity=}")
-
-    source_allowlist = scratch / "stream-sources.json"
-
-    source_allowlist.write_text(
-        json.dumps(
-            [
-                {
-                    "path": str(dockerfile),
-                    "destination": "Dockerfile",
-                    "sha256": digest(dockerfile),
-                    "executable": False,
-                }
-            ]
-        )
-    )
-
-    streamed_context = subprocess.run(
-        [
-            *wheelhouse_command,  # Build the context with the issued zipapp
-            "stream",  # Emit the build context as a tar stream
-            "--pool",  # Select the source of the manifest's wheel bytes
-            "/wheelhouse",  # Read wheels from the mounted cache
-            "--source-allowlist",  # Limit checkout input to explicitly selected files
-            str(source_allowlist),  # Admit the fixture Dockerfile and its hash
-            "--manifest",  # Limit wheels to the selected names and hashes
-            str(manifest),  # Reuse the independently checked wheel selection
-        ],
-        check=True,  # Reject a failed context stream
-        stdout=subprocess.PIPE,  # Preserve tar bytes for inspection
-    ).stdout
-
-    with tarfile.open(fileobj=io.BytesIO(streamed_context)) as archive:
-        streamed_member_names = set(archive.getnames())
-        expected_member_names = {"Dockerfile", "wheels/" + packaging_wheel_name}
-
-        if streamed_member_names != expected_member_names:
-            raise ValueError(f"{_RELEASE_EVIDENCE.repr(streamed_member_names)=} ≠ {expected_member_names=}")
-
-        with archive.extractfile("wheels/" + packaging_wheel_name) as streamed_wheel:
-            streamed_packaging_sha256 = hashlib.file_digest(streamed_wheel, "sha256").hexdigest()
-
-            if streamed_packaging_sha256 != packaging_digest:
-                raise ValueError(f"{streamed_packaging_sha256=} ≠ {packaging_digest=}")
+    if not (installation.read_text() == expected_installation):
+        raise ValueError(f"Cannot qualify Wheelhouse: {installation=} does not select the pinned SDK build wheel with its SHA-256")
 
 
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
@@ -761,42 +591,18 @@ def check(artifacts, revision):
                 )
             )
 
-        recorded_tool_source_files = release_record["tool_source_files"]
-        captured_tool_source_files = wheelhouse_source_inventory(
-            pathlib.Path("/workspace/wheelhouse_tool"),
-            type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
+        (tool_release, wheelhouse_bundle) = wheelhouse_release(
+            pathlib.Path("/wheelhouse"),
+            pathlib.Path("/workspace/requirements/wheelhouse-tool-release.json"),
         )
 
-        if recorded_tool_source_files != captured_tool_source_files:
+        if not (release_record["wheelhouse_release"] == tool_release):
             raise ValueError(
                 f"{release_record_path=}: " + metadata_mismatch(
-                    recorded_metadata=recorded_tool_source_files,
-                    captured_metadata=captured_tool_source_files,
+                    recorded_metadata=release_record["wheelhouse_release"],
+                    captured_metadata=tool_release,
                 )
             )
-
-        wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"  # machine-string: Release qualification opens this exact published bundle filename
-        rebuilt_wheelhouse_bundle = scratch / wheelhouse_bundle.name
-
-        build_wheelhouse_bundle(
-            pathlib.Path("/wheelhouse"),
-            rebuilt_wheelhouse_bundle,
-            pathlib.Path("/workspace"),
-            pathlib.Path("/wheelhouse-tool.lock"),
-            type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
-        )
-
-        issued_wheelhouse_bytes = wheelhouse_bundle.read_bytes()
-        rebuilt_wheelhouse_bytes = rebuilt_wheelhouse_bundle.read_bytes()
-
-        if issued_wheelhouse_bytes != rebuilt_wheelhouse_bytes:
-            issued_wheelhouse_sha256 = hashlib.sha256(issued_wheelhouse_bytes).hexdigest()
-            rebuilt_wheelhouse_sha256 = hashlib.sha256(rebuilt_wheelhouse_bytes).hexdigest()
-
-            raise ValueError(f"{wheelhouse_bundle=}: {issued_wheelhouse_sha256=} ≠ {rebuilt_wheelhouse_sha256=}")
-
-        # Comparison buffers need not survive the later installed qualification
-        del issued_wheelhouse_bytes, rebuilt_wheelhouse_bytes
 
         qualify_wheelhouse_bundle(wheelhouse_bundle, scratch)
 
@@ -808,9 +614,8 @@ def check(artifacts, revision):
             rebuilt_acquisition_bundle,
             pathlib.Path("/workspace"),
             captured_wheels[0],
-            pathlib.Path("/acquisition-bootstrap.pylock.toml"),
+            pathlib.Path("/acquisition-bootstrap.wheelhouse.json"),
             revision=revision,
-            wheelhouse_bundle=wheelhouse_bundle,
         )
 
         issued_acquisition_bytes = acquisition_bundle.read_bytes()

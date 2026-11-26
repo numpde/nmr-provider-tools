@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "a1f8aedcf56dd55b52f9224613ac2e92eead12227a599ec931a95da865ee4d75": "7034abfe094c7bd37e1f6daf49100e9ff960fea944c17e3a7deadfcfe3023f93",
+    "e0d464617bc24fb9511cf668ce67ea87efdcfec19d60ac149ad301065058f443": "c280a9b9431806af46f0b00818f99d823529aa9dc04b0e8f407e7c00d1b16cce"
+  },
+  "resolution": {
+    "created-by": "uv",
+    "lock-version": "1.0",
+    "packages": [
+      {
+        "index": "https://github.com/numpde/container-tools/releases/download/v0.3.4/linux_idmap-0.3.4-py3-none-any.whl",
+        "name": "linux-idmap",
+        "version": "0.3.4",
+        "wheels": [
+          {
+            "hashes": {
+              "sha256": "a1f8aedcf56dd55b52f9224613ac2e92eead12227a599ec931a95da865ee4d75"
+            },
+            "name": "linux_idmap-0.3.4-py3-none-any.whl",
+            "url": "https://github.com/numpde/container-tools/releases/download/v0.3.4/linux_idmap-0.3.4-py3-none-any.whl"
+          }
+        ]
+      },
+      {
+        "index": "https://files.pythonhosted.org/packages/74/8a/992a5afb92ceec69d29b6b04016e5cad1b119cbe9284b2ffbf42cd4a748d/python_socks-3.2.2-py3-none-any.whl",
+        "name": "python-socks",
+        "version": "3.2.2",
+        "wheels": [
+          {
+            "hashes": {
+              "sha256": "e0d464617bc24fb9511cf668ce67ea87efdcfec19d60ac149ad301065058f443"
+            },
+            "name": "python_socks-3.2.2-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/74/8a/992a5afb92ceec69d29b6b04016e5cad1b119cbe9284b2ffbf42cd4a748d/python_socks-3.2.2-py3-none-any.whl"
+          }
+        ]
+      }
+    ],
+    "requires-python": ">=3.12.16"
+  },
+  "target": {
+    "abi": "cpython-312-x86_64-linux-gnu",
+    "implementation_name": "cpython",
+    "implementation_version": "3.12.16",
+    "os_name": "posix",
+    "platform_machine": "x86_64",
+    "platform_python_implementation": "CPython",
+    "platform_system": "Linux",
+    "python_full_version": "3.12.16",
+    "python_version": "3.12",
+    "sys_platform": "linux"
+  },
+  "wheelhouse-lock": 1
+}

@@ -1,0 +1,2 @@
+# Test-only direct dependency intent; runtime requirements come from pyproject.toml.
+hypothesis==6.150.0

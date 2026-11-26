@@ -1,256 +1,160 @@
-"""The shared delivery release reuses exact wheels without changing the pool."""
+"""Delivery captures exact artifact identities and requires both build processes."""
 
-from tools.container_guard import require_container
-
-require_container()
-
+from contextlib import redirect_stdout
 import hashlib
 import io
 import json
+import re
+import pathlib
+import subprocess
+import tarfile
 import tempfile
 import unittest
-import pathlib
 from unittest.mock import patch
 
-from operations.delivery import build_inputs as delivery_image
-from sdk_build import core_environment
-from tests.repository.quality.sources import ROOT
+from operations.delivery import build_inputs
+from acquisition_tool import context as exporter
+from acquisition_tool.context import stream_context
 
 
 class DeliveryReleaseTests(unittest.TestCase):
-    def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
+    def test_failed_offline_check_is_fatal_without_missing_classification(self):
+        output = io.StringIO()
+        arguments = ["build_inputs", "check", "--lock", "/role.json", "--pool", "/pool", "--tool-pin", "/pin.json"]
 
-        self.addCleanup(temporary.cleanup)
-        self.pool = pathlib.Path(temporary.name)
-        self.wheel = self.pool / "provider_core-1.2.3-py3-none-any.whl"
-        self.content = b"released wheel"
-        self.digest = hashlib.sha256(self.content).hexdigest()
-        self.release = {"version": "1.2.3", "wheel_sha256": self.digest, "runtime_wheels": {}}
-        self.inputs = patch.object(delivery_image, "release_inputs", return_value=(self.release, b"lock"))
+        with patch("sys.argv", arguments), patch.object(build_inputs, "read_json", return_value={"name": "tool.pyz"}), patch.object(build_inputs, "tool_present", return_value=True), patch.object(build_inputs, "wheelhouse", side_effect=subprocess.CalledProcessError(1, "check")), redirect_stdout(output):
+            with self.assertRaises(subprocess.CalledProcessError):
+                build_inputs.main()
 
-        self.inputs.start()
-        self.addCleanup(self.inputs.stop)
+        self.assertEqual("", output.getvalue())
 
-    def test_install_lock_mismatch_reports_both_hashes(self):
-        self.inputs.stop()
-        runtime_lock = self.pool / "runtime.lock"
+    def test_lock_uses_new_lock_option_and_explicit_offline_mode(self):
+        with patch.object(build_inputs.subprocess, "run") as subprocess_run:
+            build_inputs.lock_release(pathlib.Path("tool.pyz"), pathlib.Path("project.toml"), pathlib.Path("pool"), pathlib.Path("role.json"), offline=True)
 
-        runtime_lock.write_bytes(b"")
-        pin = self.pool / "release.json"
-        expected_install_lock_sha256 = "0" * 64
+        subprocess_run.assert_called_once()
+        command = subprocess_run.call_args.args[0]
 
-        pin.write_text(json.dumps(self.release | {"install_lock_sha256": expected_install_lock_sha256}))
+        self.assertIn("--offline", command)
+        self.assertEqual("role.json", command[command.index("--lock") + 1])
+        self.assertNotIn("--output", command)
 
-        install_lock_bytes = (
-            f"\n"
-            f"provider-core==1.2.3 \\\n"
-            f"    --hash=sha256:{self.digest}\n"
-        ).encode()
-
-        install_lock_sha256 = hashlib.sha256(install_lock_bytes).hexdigest()
-
-        with self.assertRaises(ValueError) as rejected:
-            delivery_image.release_inputs(pin, runtime_lock)
-
-        self.assertIn(install_lock_sha256, str(rejected.exception))
-        self.assertIn(expected_install_lock_sha256, str(rejected.exception))
-
-    def test_warm_pool_needs_no_network_and_retains_file(self):
-        self.wheel.write_bytes(self.content)
-        inode = self.wheel.stat().st_ino
-
-        with patch.object(delivery_image, "require_download_proxy", side_effect=AssertionError("network not needed")):
-            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("unused.pyz"))
-
-        self.assertEqual(inode, self.wheel.stat().st_ino)
-        self.assertEqual(self.content, self.wheel.read_bytes())
-
-    def test_conflicting_cached_wheel_is_preserved(self):
-        self.wheel.write_bytes(b"different")
-
-        with self.assertRaisesRegex(ValueError, r"wheel_sha256=.* should match expected_sha256=.*\. The existing file was retained"):
-            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("unused.pyz"))
-
-        self.assertEqual(b"different", self.wheel.read_bytes())
-
-    def test_missing_release_is_passed_to_shared_publisher(self):
-        with patch.object(delivery_image, "require_download_proxy"), patch.object(
-            delivery_image,
-            "publish_release_wheels"
-        ) as publish:
-            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
-
-        self.assertEqual(self.wheel.name, publish.call_args.args[2][0][0])
-        self.assertEqual(self.digest, publish.call_args.args[2][0][1])
-
-    def test_runtime_pin_selects_only_its_pypi_file_before_publishing(self):
-        runtime_wheel = "example-2.0-py3-none-any.whl"
-        runtime_sha256 = "a" * 64
-        runtime_url = "https://files.pythonhosted.org/packages/" + runtime_wheel
-        self.release["runtime_wheels"] = {runtime_wheel: runtime_sha256}
-
-        metadata = {
-            "urls": [
-                {"filename": "unrelated-1.0-py3-none-any.whl"},
-                {"filename": runtime_wheel, "digests": {"sha256": "b" * 64}},
-                {"filename": runtime_wheel, "digests": {"sha256": runtime_sha256}, "url": runtime_url},
-            ],
-        }
-
-        with (
-            patch.object(delivery_image, "require_download_proxy"),
-            patch("tools.adapters.pypi_project_json.urllib.request.urlopen", return_value=io.BytesIO(json.dumps(metadata).encode())) as pypi_metadata_fetch,
-            patch.object(delivery_image, "publish_release_wheels") as publish,
-        ):
-            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
-
-        pypi_metadata_fetch.assert_called_once_with("https://pypi.org/pypi/example/2.0/json", timeout=30)
-
-        self.assertEqual(
-            publish.call_args.args[2],
-            [
-                (runtime_wheel, runtime_sha256, runtime_url),
-                (self.wheel.name, self.digest, "https://github.com/numpde/nmr-provider-tools/releases/download/v1.2.3/" + self.wheel.name),
-            ],
-        )
-
-    def test_pypi_mismatch_ambiguity_or_wrong_host_prevents_publication(self):
-        runtime_wheel = "example-2.0-py3-none-any.whl"
-        runtime_sha256 = "a" * 64
-        runtime_url = "https://files.pythonhosted.org/packages/" + runtime_wheel
-        self.release["runtime_wheels"] = {runtime_wheel: runtime_sha256}
-
-        for release_files in (
-            [{"filename": runtime_wheel, "digests": {"sha256": "b" * 64}}],
-            [{"filename": runtime_wheel, "digests": {"sha256": runtime_sha256}, "url": runtime_url}] * 2,
-            [{"filename": runtime_wheel, "digests": {"sha256": runtime_sha256}, "url": "https://other.example/file.whl"}],
-        ):
-            with (
-                self.subTest(release_files=release_files),
-                patch.object(delivery_image, "require_download_proxy"),
-                patch("tools.adapters.pypi_project_json.urllib.request.urlopen", return_value=io.BytesIO(json.dumps({"urls": release_files}).encode())),
-                patch.object(delivery_image, "publish_release_wheels") as publish,
-                self.assertRaises(ValueError),
-            ):
-                delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
-
-            publish.assert_not_called()
-
-    def test_publisher_receives_the_exact_toml_lock(self):
-        wheel_url = "https://example.invalid/provider_core-1.2.3-py3-none-any.whl"
-
-        expected_lock = (
-            f'lock-version = "1.0"\n'
-            f'created-by = "nmr-provider-tools delivery"\n'
-            f'[[packages]]\n'
-            f'name = "provider-core"\n'
-            f'version = "1.2.3"\n'
-            f'[packages.archive]\n'
-            f'url = "{wheel_url}"\n'
-            f'[packages.archive.hashes]\n'
-            f'sha256 = "{self.digest}"\n'
-        ).encode("utf-8")
-
-        def inspect_lock(command, *, check):
-            generated_lock = pathlib.Path(command[command.index("--lock") + 1])
-
-            self.assertEqual(first=expected_lock, second=generated_lock.read_bytes())
-
-        with patch.object(delivery_image.subprocess, "run", side_effect=inspect_lock) as publish:
-            delivery_image.publish_release_wheels(
-                self.pool / "tool.pyz",
-                self.pool,
-                [(self.wheel.name, self.digest, wheel_url)],
-            )
-
-        publish.assert_called_once()
-
-    def test_publisher_failure_is_reported(self):
-        with patch.object(delivery_image, "require_download_proxy"), patch.object(
-            delivery_image,
-            "publish_release_wheels",
-            side_effect=ValueError("downloaded bytes differ")
-        ):
-            with self.assertRaisesRegex(ValueError, "downloaded bytes"):
-                delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
-
-        self.assertFalse(self.wheel.exists())
-        self.assertEqual([], list(self.pool.iterdir()))
-
-    def test_capture_records_pins_without_copying_wheels(self):
-        selected = {
-            "lock_sha256": hashlib.sha256(b"lock").hexdigest(),
-            "files": {self.wheel.name: self.digest}
-        }
-
+    def test_two_origins_share_one_projection_and_context(self):
         with tempfile.TemporaryDirectory() as temporary:
-            destination = pathlib.Path(temporary)
-            dockerfile = destination / "operations/delivery/image/Dockerfile"
+            root = pathlib.Path(temporary)
+            pool = root / "pool"
 
-            dockerfile.parent.mkdir(parents=True)
+            pool.mkdir()
+            candidate = root / "private" / "provider_core-1.2.3-py3-none-any.whl"
 
-            dockerfile.write_text(
-                "FROM scratch AS wheel_inputs\n"
-                "# selected-wheel-inputs\n"
-            )
+            candidate.parent.mkdir()
+            candidate.write_bytes(b"private candidate")
+            dependency = pool / "dependency-1.0-py3-none-any.whl"
 
-            record = ROOT / "requirements/installer-release.json"
+            dependency.write_bytes(b"dependency")
+            lock = root / "role.json"
 
+            lock.write_text("captured selection")
+            destination = root / "context"
+            template = destination / "operations/delivery/image/Dockerfile"
+
+            template.parent.mkdir(parents=True)
+            template.write_text("FROM scratch\n" "# selected-wheel-inputs\n")
             (destination / "requirements").mkdir()
-            (destination / "requirements/installer-release.json").write_bytes(record.read_bytes())
-            installer = json.loads(record.read_text())
+            installer = {"name": "pip-1-py3-none-any.whl", "sha256": hashlib.sha256(b"pip").hexdigest()}
 
-            self.wheel.write_bytes(self.content)
-            inode = self.wheel.stat().st_ino
+            (pool / installer["name"]).write_bytes(b"pip")
+            artifact_entries = [{"source_path": str(artifact_path), "sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(), "filename": artifact_path.name} for artifact_path in (candidate, dependency)]
+            selection = {"artifact_entries": artifact_entries}
 
-            with patch.object(delivery_image, "requirements"), patch.object(
-                delivery_image,
-                "missing_wheels",
-                return_value=[]
-            ), patch.object(delivery_image, "select_wheels", return_value=selected):
-                delivery_image.capture_image_inputs(None, None, self.pool, destination)
+            def checked(tool, action, selected_lock, selected_pool, *options):
+                self.assertEqual("check", action)
+                self.assertEqual("captured selection", selected_lock.read_text())
 
-            self.assertEqual(
-                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "operations", "requirements"},
-                {destination_entry.name for destination_entry in destination.iterdir()},
-            )
+                if options:
+                    output = pathlib.Path(options[1])
+                    mappings = json.loads(pathlib.Path(options[3]).read_text())["artifacts"]
 
-            self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
-            self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
+                    self.assertEqual([(entry["source_path"], entry["sha256"]) for entry in artifact_entries], [(mapping["source_path"], mapping["sha256"]) for mapping in mappings])
+                    output.write_text("rendered by Wheelhouse")
 
-            self.assertEqual(
-                [
-                    {"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest},
-                    {"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}
-                ],
-                json.loads((destination / "provider-core-stream.json").read_text())
-            )
+                return selection
 
-            self.assertIn(self.wheel.name, (dockerfile.parent / "Dockerfile.selected").read_text())
-            self.assertEqual(inode, self.wheel.stat().st_ino)
+            with patch.object(build_inputs, "wheelhouse", side_effect=checked), patch.object(build_inputs, "installer_release", return_value=installer):
+                build_inputs.capture_image_inputs(lock, pool, destination, pathlib.Path("tool.pyz"))
 
-    def test_install_uses_pool_directly_and_checks_captured_identities(self):
+            manifest = json.loads((destination / "provider-core-stream.json").read_text())
+            output = io.BytesIO()
+
+            stream_context(manifest, output)
+
+            with tarfile.open(fileobj=io.BytesIO(output.getvalue())) as archive:
+                self.assertEqual(b"private candidate", archive.extractfile("wheelhouse/" + candidate.name).read())
+                self.assertEqual(b"dependency", archive.extractfile("wheelhouse/" + dependency.name).read())
+
+            self.assertEqual("rendered by Wheelhouse", (destination / "provider-core-install.lock").read_text())
+            self.assertEqual([dependency.name, installer["name"]], sorted(artifact_path.name for artifact_path in pool.iterdir()))
+            candidate.write_bytes(b"mutated")
+
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                stream_context(manifest, io.BytesIO())
+
+    def test_projection_failure_never_publishes_stream_manifest(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = pathlib.Path(temporary) / "runtime"
+            root = pathlib.Path(temporary)
+            lock = root / "lock.json"
 
-            root.mkdir()
-            lock = pathlib.Path(temporary) / "provider-core-install.lock"
+            lock.write_text("selection")
+            destination = root / "context"
 
-            lock.write_bytes(b"lock")
+            destination.mkdir()
 
-            selected = {
-                "lock_sha256": hashlib.sha256(b"lock").hexdigest(),
-                "files": {self.wheel.name: self.digest}
-            }
+            with patch.object(build_inputs, "wheelhouse", side_effect=[{"artifact_entries": []}, subprocess.CalledProcessError(1, "check")]):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    build_inputs.capture_image_inputs(lock, root, destination, pathlib.Path("tool.pyz"))
 
-            with patch.object(core_environment, "select_wheels", return_value=selected), patch.object(
-                core_environment,
-                "install_locked",
-                return_value=selected
-            ) as install, patch.object(core_environment.subprocess, "run"):
-                core_environment.install_environment(root, lock, self.pool, selected)
+            self.assertFalse((destination / "provider-core-stream.json").exists())
 
-            self.assertEqual(self.pool, install.call_args.kwargs["wheels"])
-            self.assertEqual(b"lock", (root / "provider-core-install.lock").read_bytes())
-            self.assertFalse((root / "wheels").exists())
+    def test_build_pipeline_rejects_late_export_or_builder_failure(self):
+        script = pathlib.Path(build_inputs.__file__).with_name("build_image.sh").read_text()
+        match = re.search(r"900 stdio bash -o pipefail -c '(.*?)' bash", script, re.DOTALL)
+
+        self.assertIsNotNone(match)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            source = root / "payload"
+
+            source.write_bytes(b"verified")
+            manifest = root / "manifest.json"
+
+            manifest.write_text(json.dumps([{"path": str(source), "destination": "payload", "sha256": hashlib.sha256(b"verified").hexdigest(), "executable": False}]))
+
+            for (valid_bytes, builder_status) in ((True, 0), (False, 0), (True, 8)):
+                # silent-defaults: allow-contract -- The fixture deliberately chooses matching or corrupted bytes to exercise both exporter outcomes.
+                source.write_bytes(b"verified" if valid_bytes else b"mutated!")
+
+                builder_command = f"cat >/dev/null; exit {builder_status}"  # machine-string: The shell exit command requires a numeric status without expression labels.
+
+                pipeline_result = subprocess.run(
+                    [
+                        "bash",  # Use the same shell as the production pipeline.
+                        "-o",  # Enable the production pipeline status policy.
+                        "pipefail",  # Require the exporter and builder to succeed.
+                        "-c",  # Evaluate the captured production pipeline body.
+                        match[1],  # Exercise the actual delivery build command.
+                        "bash",  # Name this shell invocation.
+                        exporter.__file__,  # Execute the shared context producer.
+                        str(manifest),  # Supply the captured file identities.
+                        "bash",  # Simulate the receiving builder process.
+                        "-c",  # Consume the entire stream before reporting status.
+                        builder_command,  # Return the chosen builder outcome.
+                    ],
+                    stderr=subprocess.PIPE,
+                )
+
+                self.assertEqual(valid_bytes and (builder_status == 0), pipeline_result.returncode == 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

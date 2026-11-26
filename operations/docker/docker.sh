@@ -160,14 +160,23 @@ else
 fi
 if [[ $operation == require-images ]]; then require_images "$@"; exit; fi
 if [[ $operation == download-proxy ]]; then
-    next_actions='The shared Python base is available for acquisition and the offline checker build.'
-    if "$print_command"; then printf '%q ' "${engine[@]}" image pull "$proxy_image"; printf '\n'; exit; fi
+    resolver_image=$(checker_resolver_image "$root/operations/checker/image/Dockerfile") || exit "$?"
+    next_actions='The shared Python base and pinned uv image are available for acquisition and the offline checker build.'
     download_status=0
-    inference_native 'proxy image download' untimed stdio "${engine[@]}" image pull "$proxy_image" || download_status=$?
-    pending_diagnostic+=$inference_diagnostic
-    if [[ $download_status != 0 ]]; then
-        printf -v pending_diagnostic '%sBase image download did not finish successfully (status %s). Docker may retain layers or finish the download after its client stops. Retry make checks/base-image/download; no image removal was attempted.\n' "$pending_diagnostic" "$download_status"
-    fi
+    for source_image in "$proxy_image" "$resolver_image"; do
+        if "$print_command"; then
+            printf '%q ' "${engine[@]}" image pull "$source_image"
+            printf '\n'
+            continue
+        fi
+        inference_native 'checker source image download' untimed stdio "${engine[@]}" image pull "$source_image" || download_status=$?
+        pending_diagnostic+=$inference_diagnostic
+        if [[ $download_status != 0 ]]; then
+            printf -v pending_diagnostic '%sChecker source image download did not finish successfully (status %s): %s. Docker may retain layers or finish after its client stops. Retry make checks/base-image/download.\n' \
+                "$pending_diagnostic" "$download_status" "$source_image"
+            break
+        fi
+    done
     exit "$download_status"
 fi
 if "$print_command"; then

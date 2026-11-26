@@ -1,5 +1,6 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS bootstrap
+COPY --from=ghcr.io/astral-sh/uv:0.10.0@sha256:78a7ff97cd27b7124a5f3c2aefe146170793c56a1e03321dd31a289f6d82a04f /uv /usr/local/bin/uv
 LABEL org.nmr-provider-tools.role=checker-bootstrap
 COPY operations/checker/image/dependencies.py /opt/provider-tools/operations/checker/image/
 COPY tools/container_guard.py tools/artifacts.py tools/installer.py /opt/provider-tools/tools/

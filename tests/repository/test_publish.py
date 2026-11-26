@@ -77,7 +77,6 @@ class PublicationTests(unittest.TestCase):
             "provider_core-0.2.0.tar.gz": b"qualified source",
             "provider_core-0.2.0-install.lock": b"qualified lock",
             "provider_core-0.2.0-native-install.lock": b"qualified native lock",
-            "wheelhouse-tool-0.2.0.pyz": b"qualified wheelhouse tool",
             "acquisition-owner-0.2.0.tar.gz": b"qualified acquisition source",
             "provider_core-0.2.0-release.json": json.dumps({"source_revision": "0" * 39 + "1"}).encode(),
             "provider_core-0.2.0-sha256.json": b"{}",
@@ -131,7 +130,7 @@ class PublicationTests(unittest.TestCase):
 
         self.assertEqual(0, publisher_process.returncode, msg=publisher_process.stderr)
         self.assertEqual(self.note.read_bytes(), (self.root / "prepared/release-notes.md").read_bytes())
-        self.assertEqual(10, len(list((self.root / "prepared/artifacts").iterdir())))
+        self.assertEqual(9, len(list((self.root / "prepared/artifacts").iterdir())))
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_prepare_missing_output_explains_how_to_create_a_private_destination(self):
@@ -209,7 +208,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(1, publisher_process.returncode, msg=publisher_process.stderr)
         destination = self.root / "prepared"
 
-        self.assertEqual(10, len(list((destination / "artifacts").iterdir())))
+        self.assertEqual(9, len(list((destination / "artifacts").iterdir())))
         self.assertIn("test_blocked", publisher_process.stderr)
         self.assertIn("AssertionError: Original Job was not published", publisher_process.stderr)
         self.assertIn("release-test.log", publisher_process.stderr)
@@ -316,7 +315,7 @@ class PublicationTests(unittest.TestCase):
         calls = self.trace.read_text()
 
         self.assertLess(calls.index("gh release download"), calls.index("gh release edit"))
-        self.assertEqual(12, len(list(pathlib.Path(str(self.trace) + ".uploads").iterdir())))
+        self.assertEqual(11, len(list(pathlib.Path(str(self.trace) + ".uploads").iterdir())))
         self.assertEqual(b"package listing", (self.root / "simple/provider-core.html").read_bytes())
         self.assertIn("--draft=false", calls)
         self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))

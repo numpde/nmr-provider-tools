@@ -8,34 +8,34 @@ source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
-dependency=$(python3 -I -S -B - "$root/requirements/acquisition-bootstrap.pylock.toml" "$wheelhouse_directory" <<'PY'
+tool=$(python3 -I -S -B - "$root/requirements/wheelhouse-tool-release.json" "$wheelhouse_directory" <<'PYCODE'
 import hashlib
+import json
 import pathlib
 import sys
-import tomllib
-import urllib.parse
 
-pin = tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["packages"][0]["wheels"][0]
-dependency = pathlib.Path(sys.argv[2]) / pathlib.PurePosixPath(urllib.parse.urlsplit(pin["url"]).path).name
+pin = json.loads(pathlib.Path(sys.argv[1]).read_text())
+tool = pathlib.Path(sys.argv[2]) / pin["name"]
 try:
-    wheel_bytes = dependency.read_bytes()
+    tool_bytes = tool.read_bytes()
 except FileNotFoundError as error:
     raise SystemExit(
-        f"Cannot test acquisition identity: pinned wheel {dependency.name} is missing from WHEELHOUSE. "
+        f"Cannot test acquisition identity: pinned Wheelhouse {tool.name} is missing from WHEELHOUSE. "
         "Run make packages/provider-core/download with explicit DOCKER_CONTEXT, WHEELHOUSE and NETWORK_INTERFACE."
     ) from error
-if hashlib.sha256(wheel_bytes).hexdigest() != pin["hashes"]["sha256"]:
-    raise SystemExit("Cannot test acquisition identity: dependency wheel differs from its release pin.")
-sys.stdout.write(str(dependency) + "\n")
-PY
+if hashlib.sha256(tool_bytes).hexdigest() != pin["sha256"]:
+    raise SystemExit("Cannot test acquisition identity: Wheelhouse differs from its independent release pin.")
+sys.stdout.write(str(tool) + "\n")
+PYCODE
 )
 source "$root/operations/docker/container_operation.sh"
 operation_begin
 operation_run 60 --pull never --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --pids-limit 64 --memory 128m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m \
-    --mount "type=bind,src=$dependency,dst=/identity.whl,readonly" \
+    --mount "type=bind,src=$tool,dst=/wheelhouse.pyz,readonly" \
+    --mount "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/bootstrap.wheelhouse.json,readonly" \
+    --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$root/packages/acquisition/acquisition_tool,dst=/source/acquisition_tool,readonly" \
     --mount "type=bind,src=$root/tests/acquisition_identity,dst=/tests,readonly" \
-    --entrypoint python3 "$base_image" -I -S -B -c \
-    'import sys,unittest; sys.path[:0]=["/identity.whl", "/source", "/tests"]; unittest.main(module="test_identity", verbosity=2)'
+    --entrypoint python3 "$base_image" -I -S -B /tests/run_tests.py

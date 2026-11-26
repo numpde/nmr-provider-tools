@@ -188,19 +188,11 @@ class ImageRetirementTests(unittest.TestCase):
             with self.subTest(value=image_case):
                 self.assertEqual([], select_images([image_case], set(), CURRENT))
 
-        self.assertEqual(
-            select_images(
-                [
-                    image(
-                        Labels={"org.nmr-provider-tools.role": "wheelhouse-tool"},
-                        RepoTags=[]
-                    )
-                ],
-                set(),
-                CURRENT
-            ),
-            [IDENTIFIER]
-        )
+        for tags in ([], ["nmr-provider-tools/wheelhouse-tool:local"]):
+            with self.subTest(tags=tags):
+                retired_owner = image(Labels={"org.nmr-provider-tools.role": "wheelhouse-tool"}, RepoTags=tags)
+
+                self.assertEqual([], select_images([retired_owner], set(), CURRENT))
 
     def test_incomplete_metadata_fails_before_any_removal(self):
         with tempfile.TemporaryDirectory() as directory:

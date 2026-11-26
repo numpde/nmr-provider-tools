@@ -91,7 +91,7 @@ arguments=(--init --pull=never --network=none --read-only
     --user "$uid:$gid" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864
     --workdir /workspace --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1
     --env "PRIVACY_TESTS=$privacy_tests"
-    --env PYTHONPATH=/workspace:/workspace/packages/provider-core:/workspace/packages/wheelhouse-tool/src:/workspace/packages/wheelhouse-tool/build:/workspace/packages/acquisition:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
+    --env PYTHONPATH=/workspace:/workspace/packages/provider-core:/workspace/packages/acquisition:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
     --env "NMR_PROVIDER_TOOLS_EXPECTED_UID=$uid" --env "NMR_PROVIDER_TOOLS_EXPECTED_GID=$gid"
     "${mounts[@]}"
     "${selection_mounts[@]}" "${selection_environment[@]}"
@@ -112,7 +112,7 @@ else
     arguments+=(unittest)
 fi
 if [[ $suite == release ]]; then
-    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle tests.repository.test_acquisition_source_update
+    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_acquisition_bundle tests.repository.test_acquisition_source_update
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
 elif [[ $suite == installer ]]; then
     arguments+=(tests.repository.test_installer_image tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)

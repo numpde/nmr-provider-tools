@@ -1,4 +1,4 @@
-"""Acquire provider-core build dependencies into the shared pool."""
+"""Acquire complete SDK environment locks with independently pinned Wheelhouse."""
 
 from tools.container_guard import require_container
 
@@ -9,77 +9,10 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-import tomllib
-import urllib.parse
 import urllib.request
 
 from tools.artifacts import require_download_proxy
-from tools.adapters import pylock
-from tools.wheelhouse import digest, pool_lock, publish_file, requirements, select_wheels
-
-
-def cache_state(pool, locks):
-    from pip._vendor.packaging.tags import sys_tags
-    from pip._vendor.packaging.specifiers import Specifier
-    from pip._vendor.packaging.utils import InvalidWheelFilename, parse_wheel_filename
-    from pip._vendor.packaging.version import Version
-
-    target_tags = set(sys_tags())
-
-    expected_locks = [
-        (lock, {(name, Version(version)): hashes for ((name, version), hashes) in requirements(lock).items()})
-        for lock in locks
-    ]
-
-    missing = False
-
-    with pool_lock(pool) as lock_fd:
-        for (lock, expected) in expected_locks:
-            specifiers = {}
-
-            for identity in expected:
-                version_specifier = f"=={identity[1]}"  # machine-string: packaging parses the exact version constraint
-                specifiers[identity] = Specifier(version_specifier)
-
-            found = set()
-            conflicting = {}
-
-            for wheel_path in pool.glob("*.whl"):
-                try:
-                    (name, version, _, tags) = parse_wheel_filename(wheel_path.name)
-                except InvalidWheelFilename:
-                    continue
-
-                if not tags.intersection(target_tags):
-                    continue
-
-                for (identity, specifier) in specifiers.items():
-                    if (identity[0] != name) or (not specifier.contains(version, prereleases=True)):
-                        continue
-
-                    wheel_sha256 = digest(wheel_path)
-
-                    if wheel_sha256 not in expected[identity]:
-                        conflicting[identity] = (wheel_path, wheel_sha256)
-                    else:
-                        found.add(identity)
-
-            if unavailable := set(conflicting) - found:
-                identity = next(iter(unavailable))
-                (wheel_path, wheel_sha256) = conflicting[identity]
-                expected_sha256s = sorted(expected[identity])
-
-                raise ValueError(f"{wheel_path=}, {wheel_sha256=} ∉ {expected_sha256s=}")
-
-            if found != set(expected):
-                missing = True
-            else:
-                select_wheels(lock, pool, lock_fd=lock_fd)
-
-    if missing:
-        return "missing"
-
-    return "complete"
+from tools.wheelhouse import digest, pool_lock, publish_file
 
 
 def tool_present(pool, pin):
@@ -91,25 +24,8 @@ def tool_present(pool, pin):
     tool_sha256 = digest(tool_path)
     expected_sha256 = pin["sha256"]
 
-    if tool_sha256 != expected_sha256:
+    if not (tool_sha256 == expected_sha256):
         raise ValueError(f"{tool_path=}, {tool_sha256=} ≠ {expected_sha256=}")
-
-    return True
-
-
-def bootstrap_present(pool, lock):
-    for package in pylock.packages(tomllib.loads(lock.read_text())):
-        (wheel,) = pylock.wheels(package)
-        wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(pylock.artifact_url(wheel)).path).name
-
-        if (not wheel_path.exists()) and (not wheel_path.is_symlink()):
-            return False
-
-        wheel_sha256 = digest(wheel_path)
-        bootstrap_sha256 = pylock.artifact_sha256(wheel)
-
-        if wheel_sha256 != bootstrap_sha256:
-            raise ValueError(f"{wheel_path=}, {wheel_sha256=} ≠ {bootstrap_sha256=}")
 
     return True
 
@@ -137,7 +53,7 @@ def acquire_tool(pool, pin):
             download_sha256 = digest(pathlib.Path(temporary.name))
             expected_sha256 = pin["sha256"]
 
-            if download_sha256 != expected_sha256:
+            if not (download_sha256 == expected_sha256):
                 raise ValueError(f"{tool_path=}, {download_sha256=} ≠ {expected_sha256=}")
 
             publish_file(pathlib.Path(temporary.name), tool_path, expected_sha256)
@@ -145,86 +61,69 @@ def acquire_tool(pool, pin):
     return tool_path
 
 
-def main():
-    pool = pathlib.Path("/wheelhouse")
-    locks = (pathlib.Path("/core-runtime.lock"), pathlib.Path("/core-build.lock"), pathlib.Path("/core-test.lock"), pathlib.Path("/wheelhouse-tool.lock"))
-    bootstrap = pathlib.Path("/acquisition-bootstrap.pylock.toml")
+def wheelhouse_command(tool, action, lock, pool):
+    return [
+        sys.executable,  # Match the interpreter that owns the SDK target locks.
+        "-I",  # Ignore host Python paths and environment configuration.
+        "-B",  # Avoid bytecode writes from the independent bundle.
+        str(tool),  # Execute the authenticated external Wheelhouse artifact.
+        action,  # Acquire or verify the already resolved selection.
+        "--lock",  # Supply one complete environment lock.
+        str(lock),  # Read the SDK-owned target selection.
+        "--pool",  # Select the shared artifact cache.
+        str(pool),  # Keep the cache location explicit for every invocation.
+    ]
 
-    if sys.argv[1:] in (["check"], ["verify"]):
-        state = cache_state(pool, locks)
 
-        if not bootstrap_present(pool, bootstrap):
-            state = "missing"
+def check_environments(pool, locks, pin):
+    """Fail offline when the independent tool or any selected wheel is unavailable."""
+    tool_path = pool / pin["name"]
 
-        if (sys.argv[1:] == ["verify"]) and (state != "complete"):
-            raise ValueError(
-                "Provider-core build dependencies are missing. "
-                "Run make packages/provider-core/download for this wheelhouse."
-            )
+    if not (tool_present(pool, pin)):
+        raise FileNotFoundError(
+            f"Cannot verify SDK environments: pinned Wheelhouse is missing at {tool_path=}. "
+            f"Run make packages/provider-core/download for this wheelhouse."
+        )
 
-        print(state)
+    tool = pool / pin["name"]
 
-        return
+    for lock in locks:
+        subprocess.run(wheelhouse_command(tool, "check", lock, pool), check=True, stdout=subprocess.DEVNULL)
 
-    pin = json.loads(pathlib.Path("/wheelhouse-tool-release.json").read_text())
+
+def acquire_environments(pool, locks, pin):
+    """Follow already generated selections; runtime acquisition never resolves."""
     tool = acquire_tool(pool, pin)
 
-    if sys.argv[1:] == ["tool"]:
-        return
+    for lock in locks:
+        subprocess.run(wheelhouse_command(tool, "acquire", lock, pool), check=True)
 
-    with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
-        for (number, lock) in enumerate(locks):
-            projection = pathlib.Path(temporary) / f"pylock.{number}.toml"  # machine-string: wheelhouse-tool consumes this projected lock filename
 
-            command = [
-                sys.executable,  # Use the worker's Python interpreter
-                "-I",  # Ignore PYTHON* settings and the user site
-                "-B",  # Suppress bytecode writes
-                str(tool),  # Run the pinned wheelhouse zipapp
-            ]
+def main():
+    arguments = sys.argv[1:]
 
-            with projection.open("xb") as output:
-                subprocess.run(
-                    command + [
-                        "locate",  # Resolve artifact URLs for the pinned hashes
-                        "--lock",  # Read the source requirements lock
-                        str(lock),  # Use the current lock in the acquisition batch
-                        "--index-url",  # Select the package index explicitly
-                        "https://pypi.org/simple",  # Use the public PyPI simple index
-                        "--pool",  # Consult the shared artifact cache
-                        str(pool),  # Look for existing artifacts in this directory
-                    ],
-                    stdout=output,  # Keep the projected lock for acquisition
-                    check=True,  # Stop when source lookup fails
-                )
+    if not (arguments in ([], ["check"], ["verify"], ["tool"])):
+        raise ValueError(f"Supply check, verify, tool, or no argument to acquire SDK environments; received {arguments=}.")
 
-            subprocess.run(
-                command + [
-                    "acquire",  # Fetch missing artifacts and verify cached copies
-                    "--lock",  # Select artifacts from the projected lock
-                    str(projection),  # Supply the URLs resolved by locate
-                    "--source-lock",  # Verify the projection against its source lock
-                    str(lock),  # Supply the original requirements and hashes
-                    "--pool",  # Select the shared artifact cache
-                    str(pool),  # Publish complete artifacts in this directory
-                ],
-                check=True,  # Stop if the selected artifacts cannot be admitted
-            )
+    pool = pathlib.Path("/wheelhouse")
 
-    subprocess.run(
-        [
-            sys.executable,  # Use the worker's Python interpreter
-            "-I",  # Ignore PYTHON* settings and the user site
-            "-B",  # Suppress bytecode writes
-            str(tool),  # Run the pinned wheelhouse zipapp
-            "acquire",  # Fetch missing artifacts and verify cached copies
-            "--lock",  # Select artifacts from an explicit lock
-            str(bootstrap),  # Use the separately pinned acquisition dependency
-            "--pool",  # Select the shared artifact cache
-            str(pool),  # Reuse or publish artifacts in this directory
-        ],
-        check=True,  # Propagate bootstrap dependency acquisition failure
+    locks = (
+        pathlib.Path("/core-runtime.wheelhouse.json"),
+        pathlib.Path("/core-build.wheelhouse.json"),
+        pathlib.Path("/core-test.wheelhouse.json"),
+        pathlib.Path("/acquisition-bootstrap.wheelhouse.json"),
     )
+
+    pin = json.loads(pathlib.Path("/wheelhouse-tool-release.json").read_text())
+
+    if arguments in (["check"], ["verify"]):
+        check_environments(pool, locks, pin)
+
+        print("complete")
+    elif arguments == ["tool"]:
+        acquire_tool(pool, pin)
+    else:
+        acquire_environments(pool, locks, pin)
 
 
 if __name__ == "__main__":

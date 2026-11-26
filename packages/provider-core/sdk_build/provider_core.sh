@@ -53,20 +53,26 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
     --env "PRIVACY_TESTS=$privacy_tests"
-    --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
+    --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
     --mount "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly"
-    --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
-    --mount "type=bind,src=$root/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
     --mount "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
     --mount "type=bind,src=$root/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly"
-    --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
-    --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
-    --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
-    --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly"
-    --mount "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
+    --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
+if [[ $action == download || $action == check ]]; then
+    worker+=(
+        --mount "type=bind,src=$root/requirements/provider-core-runtime.wheelhouse.json,dst=/core-runtime.wheelhouse.json,readonly"
+        --mount "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/core-build.wheelhouse.json,readonly"
+        --mount "type=bind,src=$root/requirements/provider-core-test.wheelhouse.json,dst=/core-test.wheelhouse.json,readonly"
+        --mount "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
+else
+    worker+=(
+        --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
+        --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
+        --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
+        --mount "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
+fi
 if [[ $action == download ]]; then
-    worker+=(--mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
     network=(bash "$root/operations/docker/docker.sh")
     if "$printing"; then network+=(--print); fi
@@ -77,42 +83,25 @@ if [[ $action == download ]]; then
         tool_image=$checker_image
         operation_host_identity "$tool_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
         mkdir -- "$operation_directory/locks"
-        cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
-        cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
-        cp -- "$root/packages/provider-core/tests/requirements.lock" "$operation_directory/locks/core-test.lock"
-        cp -- "$root/requirements/wheelhouse-tool.lock" "$operation_directory/locks/wheelhouse-tool.lock"
+        cp -- "$root/requirements/provider-core-runtime.wheelhouse.json" "$operation_directory/locks/core-runtime.wheelhouse.json"
+        cp -- "$root/requirements/provider-core-build.wheelhouse.json" "$operation_directory/locks/core-build.wheelhouse.json"
+        cp -- "$root/requirements/provider-core-test.wheelhouse.json" "$operation_directory/locks/core-test.wheelhouse.json"
         cp -- "$root/requirements/wheelhouse-tool-release.json" "$operation_directory/locks/wheelhouse-tool-release.json"
-        cp -- "$root/requirements/acquisition-bootstrap.pylock.toml" "$operation_directory/locks/acquisition-bootstrap.pylock.toml"
+        cp -- "$root/requirements/acquisition-bootstrap.wheelhouse.json" "$operation_directory/locks/acquisition-bootstrap.wheelhouse.json"
         for index in "${!worker[@]}"; do
             case ${worker[index]} in
-                "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/core-runtime.lock,dst=/core-runtime.lock,readonly" ;;
-                "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/core-build.lock,dst=/core-build.lock,readonly" ;;
-                "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/core-test.lock,dst=/core-test.lock,readonly" ;;
-                "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly" ;;
+                "type=bind,src=$root/requirements/provider-core-runtime.wheelhouse.json,dst=/core-runtime.wheelhouse.json,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-runtime.wheelhouse.json,dst=/core-runtime.wheelhouse.json,readonly" ;;
+                "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/core-build.wheelhouse.json,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-build.wheelhouse.json,dst=/core-build.wheelhouse.json,readonly" ;;
+                "type=bind,src=$root/requirements/provider-core-test.wheelhouse.json,dst=/core-test.wheelhouse.json,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-test.wheelhouse.json,dst=/core-test.wheelhouse.json,readonly" ;;
                 "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
                     worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" ;;
-                "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
-                    worker[index]="type=bind,src=$operation_directory/locks/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
+                "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly" ;;
             esac
         done
-        operation_run 120 "${worker[@]}" --network none --user "$operation_host_uid:$operation_host_gid" \
-            --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-            --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire check > "$operation_directory/pool-state"
-        docker_inspect_container_state "$operation_directory/pool-check-exit" "$operation_container"
-        docker_container_state_matches "$operation_directory/pool-check-exit" false 0 || {
-            operation_diagnostic+=$'Cannot acquire dependencies: the pool check did not retire successfully.\n'; exit 2;
-        }
-        if cmp -s "$operation_directory/pool-state" <(printf 'complete\n'); then
-            printf '%s\n' 'All provider-core dependencies are already available in WHEELHOUSE.'
-            exit 0
-        fi
-        cmp -s "$operation_directory/pool-state" <(printf 'missing\n') || {
-            operation_diagnostic+=$'Cannot acquire dependencies: the pool check returned an unknown result.\n'; exit 2;
-        }
     fi
     acquisition_receipt_options=()
     if ! "$printing"; then
@@ -183,6 +172,8 @@ case "$action" in
             --mount "type=bind,src=$root/operations,dst=/workspace/operations,readonly"
             --mount "type=bind,src=$root/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
+            --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly"
+            --mount "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/workspace/requirements/provider-core-build.wheelhouse.json,readonly"
             --entrypoint python3 "$tool_image" -B -m operations.release.qualify --artifacts /artifacts --revision "$revision")
         budget=untimed
         ;;
@@ -238,10 +229,14 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     operation_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition packages/type-requirements host operations containers requirements tests/acquisition_network
+        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/acquisition packages/type-requirements host operations containers requirements tests/acquisition_network
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
+            "type=bind,src=$root/requirements/provider-core-build.wheelhouse.json,dst=/workspace/requirements/provider-core-build.wheelhouse.json,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core-build.wheelhouse.json,dst=/workspace/requirements/provider-core-build.wheelhouse.json,readonly" ;;
+            "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly" ;;
             "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly" ;;
             "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly")
@@ -260,36 +255,28 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/tests/acquisition_network,dst=/workspace/tests/acquisition_network,readonly" ;;
             "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly" ;;
-            "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
-            "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly" ;;
-            "type=bind,src=$root/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly" ;;
+            "type=bind,src=$root/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/acquisition-bootstrap.wheelhouse.json,dst=/acquisition-bootstrap.wheelhouse.json,readonly" ;;
             "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" ;;
             "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core-build.lock,dst=/core-build.lock,readonly" ;;
-            "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly" ;;
         esac
     done
 fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     operation_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition packages/type-requirements requirements tools packages/wheelhouse-tool host operations containers
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition packages/type-requirements requirements tools host operations containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     # Keep build programs outside the package tree recorded in the release inventory
     mv -- "$operation_directory/source/packages/provider-core/sdk_build" "$operation_directory/sdk_build"
     arguments=(--pull never --network none --read-only --user "$operation_host_uid:$operation_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
-        --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
+        --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
         --mount "type=bind,src=$operation_directory/sdk_build,dst=/workspace/sdk_build,readonly"
-        --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
-        --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly"
         --mount "type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly"
@@ -298,6 +285,7 @@ if [[ $action == build ]]; then
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements,dst=/requirements,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
+        --mount "type=bind,src=$operation_directory/source/requirements/wheelhouse-tool-release.json,dst=/workspace/requirements/wheelhouse-tool-release.json,readonly"
         --mount "type=bind,src=$release_output,dst=/output"
         --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
         --entrypoint python3 "$tool_image" -B -m sdk_build.core_environment release --pool /wheelhouse

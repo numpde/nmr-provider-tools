@@ -1,0 +1,26 @@
+[project]
+name = "sdk-shared-delivery"
+version = "0.0.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "anyio==4.15.1",
+  "certifi==2026.10.23",
+  "cffi==2.1.1",
+  "cryptography==50.0.0",
+  "h11==0.16.0",
+  "http-sf==1.2.1",
+  "httpcore==1.0.9",
+  "httpx==0.28.1",
+  "idna==3.20",
+  "pycparser==3.11",
+  "tomli-w==1.2.0",
+  "typing-extensions==4.16.0",
+  "provider-core==0.6.18"
+]
+
+[tool.wheelhouse]
+index = "https://pypi.org/simple/"
+
+[tool.wheelhouse.sources.provider-core]
+wheel = "https://github.com/numpde/nmr-provider-tools/releases/download/v0.6.18/provider_core-0.6.18-py3-none-any.whl"
+sha256 = "46e7f60135c3f6c90c9375af0982859616ce3c739626e98b2132429ef3d915b3"

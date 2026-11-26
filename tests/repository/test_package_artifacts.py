@@ -23,6 +23,7 @@ from operations.release.qualify import (
     artifact_names,
     check,
     qualify_acquisition_bundle,
+    qualify_wheelhouse_bundle,
     check_package_listing,
     source_payload,
     unpack_source,
@@ -41,6 +42,65 @@ class PackageArtifactTests(unittest.TestCase):
 
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
+
+    def test_sdk_release_inventory_excludes_independently_published_tool(self):
+        self.assertEqual(
+            {
+                "provider_core-0.2.0-py3-none-any.whl",
+                "provider_core-0.2.0-py3-none-any.whl.metadata",
+                "provider_core-0.2.0-simple.html",
+                "provider_core-0.2.0.tar.gz",
+                "provider_core-0.2.0-install.lock",
+                "provider_core-0.2.0-native-install.lock",
+                "provider_core-0.2.0-release.json",
+                "provider_core-0.2.0-sha256.json",
+                "acquisition-owner-0.2.0.tar.gz",
+            },
+            artifact_names("0.2.0"),
+        )
+
+    def test_external_tool_consumes_the_captured_lock_without_a_resolver(self):
+        tool = self.root / "wheelhouse.pyz"
+        checksum = "a" * 64
+        commands = []
+        build_wheel = pathlib.Path("/wheelhouse/setuptools-84.1.0-py3-none-any.whl")
+
+        def consume(command, **_options):
+            commands.append(command)
+            self.assertEqual(str(tool), command[4])
+            self.assertEqual("/workspace/requirements/provider-core-build.wheelhouse.json", command[command.index("--lock") + 1])
+            self.assertEqual("/wheelhouse", command[command.index("--pool") + 1])
+
+            if command[5] == "check":
+                installation = pathlib.Path(command[command.index("--requirements") + 1])
+
+                installation.write_text(
+                    f"{build_wheel.as_uri()} --hash=sha256:{checksum}\n"  # machine-string: The fixture emits the exact hashed pip input produced by Wheelhouse.
+                )
+
+        with (
+            patch("operations.release.qualify.requirements", return_value={("setuptools", "84.1.0"): {checksum}}),
+            patch("operations.release.qualify.digest", return_value=checksum),
+            patch("operations.release.qualify.subprocess.run", side_effect=consume),
+        ):
+            qualify_wheelhouse_bundle(tool, self.root)
+
+        self.assertEqual(["acquire", "check"], [command[5] for command in commands])
+
+    def test_external_tool_projection_must_match_the_sdk_build_pin(self):
+        checksum = "a" * 64
+
+        def damaged_projection(command, **_options):
+            if command[5] == "check":
+                pathlib.Path(command[command.index("--requirements") + 1]).write_text("changed selection\n")
+
+        with (
+            patch("operations.release.qualify.requirements", return_value={("setuptools", "84.1.0"): {checksum}}),
+            patch("operations.release.qualify.digest", return_value=checksum),
+            patch("operations.release.qualify.subprocess.run", side_effect=damaged_projection),
+        ):
+            with self.assertRaisesRegex(ValueError, "does not select the pinned SDK build wheel"):
+                qualify_wheelhouse_bundle(self.root / "wheelhouse.pyz", self.root)
 
     def test_package_listing_describes_exact_wheel_and_sidecar(self):
         wheel = self.root / "provider_core-0.2.0-py3-none-any.whl"

@@ -1,72 +1,19 @@
-"""Exercise delivery's generated lock with the released shared publisher offline."""
+"""Verify the captured delivery role with the independently pinned Wheelhouse."""
 
 from tools.container_guard import require_container
 
 require_container()
 
-import hashlib
-import tempfile
 import pathlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Thread
 
-from operations.delivery.build_inputs import publish_release_wheels, release_inputs
+from operations.delivery.build_inputs import read_json, wheelhouse
 from sdk_build.provider_core_acquire import tool_present
-from tools.adapters.github_release import release_asset_url
-from tools.wheelhouse import read_json
 
 
 pool = pathlib.Path("/wheelhouse")
-(release, _) = release_inputs(pathlib.Path("/release.json"), pathlib.Path("/core-runtime.lock"))
-tool = read_json(pathlib.Path("/wheelhouse-tool-release.json"))
+pin = read_json(pathlib.Path("/wheelhouse-tool-release.json"))
 
-if not tool_present(pool, tool):
-    wheelhouse_tool_path = pool / tool["name"]
+if not tool_present(pool, pin):
+    raise FileNotFoundError(f"Cannot verify delivery inputs: acquire pinned Wheelhouse {pin['name'] = !r} first.")
 
-    raise FileNotFoundError(f"{wheelhouse_tool_path=} should exist")
-
-name = f"provider_core-{release['version']}-py3-none-any.whl"
-tag = "v" + release["version"]
-url = release_asset_url("numpde/nmr-provider-tools", tag, name)
-
-publish_release_wheels(pool / tool["name"], pool, [(name, release["wheel_sha256"], url)])
-
-# Exercise a genuinely missing synthetic wheel without downloading a second
-# copy of any real dependency from the shared pool.
-content = b"synthetic delivery publisher test"
-
-checksum = hashlib.sha256(content).hexdigest()
-requests = []
-
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        requests.append(self.path)
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(content)
-
-    def log_message(self, *_args):
-        pass
-
-
-server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-thread = Thread(target=server.serve_forever)
-
-thread.start()
-
-try:
-    with tempfile.TemporaryDirectory() as temporary:
-        test_pool = pathlib.Path(temporary)
-        test_name = "delivery_fixture-1.0-py3-none-any.whl"
-        test_url = f"http://127.0.0.1:{server.server_port}/{test_name}"
-
-        publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
-        publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
-
-        if ((test_pool / test_name).read_bytes() != content) or (requests != [f"/{test_name}"]):
-            raise AssertionError("The publisher did not acquire once and reuse the locked wheel.")
-finally:
-    server.shutdown()
-    thread.join()
-    server.server_close()
+wheelhouse(pool / pin["name"], "check", pathlib.Path("/delivery.wheelhouse.json"), pool)
