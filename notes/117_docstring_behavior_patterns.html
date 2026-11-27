@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docstrings that explain behavior</title>
+<style>
+:root { color-scheme: light dark; --paper:#fff; --ink:#202833; --muted:#596575; --line:#dce1e7; --link:#245c91; --code:#f4f5f7; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 system-ui,sans-serif; }
+main { max-width:1120px; margin:auto; padding:48px 28px 80px; }
+h1 { font-size:clamp(2rem,4vw,2.7rem); line-height:1.2; margin:0 0 20px; }
+h2 { font-size:1.5rem; margin:0 0 10px; }
+h3 { font:600 1rem/1.5 ui-monospace,Consolas,monospace; margin:0 0 14px; overflow-wrap:anywhere; }
+a { color:var(--link); text-underline-offset:3px; }
+a:focus-visible { outline:2px solid var(--link); outline-offset:4px; }
+header { margin-bottom:52px; }
+section,footer { margin-top:56px; } article { margin:32px 0 40px; }
+.comparison { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.comparison>div { min-width:0; }
+pre { margin:0; padding:16px; background:var(--code); white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.65 ui-monospace,Consolas,monospace; }
+.absent { color:var(--muted); margin:0; padding:16px; font-style:italic; }
+.test-case { color:var(--muted); margin:12px 0 0; }
+@media(max-width:800px) { main { padding:28px 18px 48px; } .comparison { grid-template-columns:1fr; gap:16px; } .comparison>div+div { border-left:2px solid var(--line); padding-left:14px; } }
+@media(prefers-color-scheme:dark) { :root { --paper:#151b23; --ink:#e7edf4; --muted:#b2bdca; --line:#465568; --link:#9dcaff; --code:#1e2834; } }
+@media print { :root { --paper:white; --ink:black; --muted:#444; --line:#bbb; --link:#174f85; --code:#f5f5f5; } main { max-width:none; padding:0; } article { break-inside:avoid; } }
+</style>
+</head>
+<body><main>
+<header>
+<h1>Docstrings that explain behavior</h1>
+<p>A docstring should let a caller understand what a function does and use it correctly without reading its implementation.</p>
+<p>Each example shows the current source docstring first and the revised proposal second, followed by the workshop issue, a concrete learning and an example test. References to earlier proposals describe drafts from this workshop, not necessarily the current source docstring.</p>
+<p>The recurring problems were hidden rules, repeated facts, unclear responsibility for checks, and missing failure or lifetime distinctions. The examples below show the specific wording and contract decisions that resolved them.</p>
+</header>
+
+<section id="criteria">
+<h2>Criteria for every proposal</h2>
+<p>Assume a reader who knows Python and the surrounding API, but has not read this implementation. Review public functions, methods and private helpers against the needs of their actual callers.</p>
+<p><strong>Required: truthful and sufficient for correct use.</strong> Identify the governing contract, if one exists, and check the implementation, callers and relevant tests. Reject unsupported guarantees and omissions that could cause incorrect use or recovery. If sources conflict or leave a consequential guarantee unresolved, identify the disputed claim and leave its assessment open for resolution by the responsible owner. Do not select whichever source makes the proposal sound correct. A fact being true of today’s implementation does not make it a promise callers should depend on.</p>
+<ol>
+<li><strong>Behavior in the opening.</strong> State what the operation does: what it returns, changes, creates, waits for or rejects. Include a defining condition when needed to distinguish that behavior. “Validate the code” or “apply the v1 rules” leaves the behavior hidden. The opening may be the whole docstring; expand it only when useful facts remain.</li>
+<li><strong>Enough information for correct use.</strong> State the results, restrictions and failures that affect the caller’s next action. Distinguish what the function checks or guarantees from what the caller must arrange. Include effects, ownership, ordering, cancellation and repeated-call behavior where they matter, including state left after failure. Ask: could a missing fact cause a wrong call, mistaken result, wrong recovery or resource leak? Do not inventory unrelated exceptions.</li>
+<li><strong>Observable, precise claims.</strong> Given the documented inputs and conditions, a reader can distinguish permitted outcomes from violations. Where results depend on scheduling or external state, state the stable guarantee and allowed variation rather than promise one outcome. Test what the caller can observe or must manage: returned values, failures, effects and event order. Examples illustrate rules; they neither replace the rules nor establish guarantees from one successful run. Private representation matters only when callers are entitled to depend on it.</li>
+<li><strong>Clear English at the caller’s level.</strong> Name concrete inputs, outcomes and responsible parties. Explain unfamiliar terms; supporting links must not hide the operation’s essential behavior. Use a short expression such as <code>state == "in_progress"</code> when it states the rule more clearly than prose. Reject expressions that merely reproduce implementation steps. A reader should understand what happens without decoding the implementation.</li>
+<li><strong>Proportionate detail and structure.</strong> Keep a detail when it changes what the caller understands, expects or must do. Before deleting it, identify any distinction it protects, including during failure recovery. Remove repeated rules and facts already clear from the signature or nearby explanation unless repeating them resolves a real ambiguity. A summary may introduce detail; it need not repeat it. Use headings only when they improve navigation through the contract, never to fill a template.</li>
+</ol>
+<p>To assess a proposal, use ordinary and boundary cases, plus failure or lifecycle cases where relevant. Derive expected behavior from the prose, compare it with the governing evidence, and identify the clause responsible for each mismatch. Also try a shorter version: does it preserve the reader’s understanding and ability to use the operation correctly?</p>
+<p>Score each criterion separately and give a concrete reason: 0–3 means misleading or unusable; 4–6 requires reconstruction of important behavior; 7–8 is usable with an actionable weakness; 9 has only a minor actionable weakness; 10 has no identified weakness after the case and shortening checks. Scores apply to the inspected scope, not universal perfection. State missing evidence separately; if it prevents a required check, leave that assessment open. An unsupported guarantee or consequential omission rejects the proposal regardless of its other scores.</p>
+</section>
+
+<section id="guards"><h2>1. Guards</h2><p>State the condition that raises, then explain the accepted values and successful return.</p><article id="guards-1">
+<h3><a href="../packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_request.py" title="Line 133">require_failure_code</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Require 1–128 ASCII characters, starting with a lowercase letter.
+
+    Allow lowercase letters and digits, with single underscores between segments.
+    &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Reject failure codes outside the 1–128-character lowercase ASCII format.
+
+The first character must be a lowercase ASCII letter. Allow lowercase letters
+and digits, with single underscores separating nonempty segments.
+
+Return None on success. Raise TypeError unless type(failure_code) is str,
+or ValueError if the string violates the length or syntax rules.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal opened with “v1 string length and syntax rules”, hiding the actual rule, then spread acceptance and rejection across Returns and Raises blocks.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Put the length and alphabet in the opening. Define the remaining grammar once, then distinguish exact-type rejection from invalid string contents.</p>
+<p class="test-case"><strong>Example test.</strong> Assert that &quot;a&quot; and &quot;a&quot; * 128 return None; &quot;a&quot; * 129, &quot;a__b&quot;, &quot;A&quot;, and &quot;&quot; raise ValueError; None raises TypeError.</p>
+
+<!-- Panel review guards-1: R1: contract C2=9,C3=9; language C1=10,C4=9,C5=10. Clarified lowercase ASCII first letter. Declined repeated upper limit because the local rule already states it. R2: truth PASS; C1=C2=C3=C4=C5=10. Evidence: attempt_request.require_failure_code and strict require_type; boundary cases inspected, not executed. -->
+</article><article id="guards-2">
+<h3><a href="../packages/provider-core/src/provider_core/tools.py" title="Line 65">require_identity_text</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Require nonempty printable identity text without whitespace.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Reject identity text that is empty, contains whitespace or is not printable.
+
+Unicode is allowed; characters must pass str.isprintable(). Return None on
+success. Raise TypeError unless type(identity_text) is str, or ValueError
+for disallowed text. The ValueError message includes the value of identity_role.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> A revision left “printable” undefined for Unicode and said the error “identifies” identity_role without saying how.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Name str.isprintable() and state that the role value appears in the ValueError message. The role supplies diagnostic context; it does not select a different validation policy.</p>
+<p class="test-case"><strong>Example test.</strong> Assert that &quot;é&quot; returns None; &quot;a b&quot;, &quot;a
+b&quot;, and &quot;&quot; raise ValueError; 1 raises TypeError. A Unicode letter is valid here.</p>
+
+<!-- Panel review guards-2: R1: C1=10,C2=9,C3=9,C4=9,C5=9; clarified role value appears in message and shortened Unicode rule. R2: C1=10,C2=10,C3=9,C4=10,C5=10; specified str.isprintable. R3: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Adopted language reviewer wording: characters must pass str.isprintable. Evidence: tools.require_identity_text, strict require_type, diagnostic label callers. Final phrasing awaits integrated review. -->
+</article><article id="guards-3">
+<h3><a href="../packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_response.py" title="Line 94">require_attempt_ref</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Reject references that are not &quot;execution_attempt:sha256:&quot; followed by 64 lowercase hexadecimal digits.
+
+Return None for a matching string. Raise TypeError unless
+type(execution_attempt_ref) is str, or ValueError for any other string.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial opening named the reference’s wire syntax instead of showing it; the literal prefix and digit count appeared later.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> When syntax is the contract, the prefix, alphabet and count are clearer than a format label. Keep bad-type and bad-string outcomes distinct.</p>
+<p class="test-case"><strong>Example test.</strong> Use the same prefix with 63, 64 and 65 lowercase hexadecimal digits. Only the 64-digit reference returns None; an uppercase hex digit also raises ValueError.</p>
+
+<!-- Panel review guards-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: attempt_response.require_attempt_ref fullmatch and strict require_type. Format and type boundaries inspected. -->
+</article></section>
+<section id="predicates"><h2>2. Predicates</h2><p>Define what True and False mean.</p><article id="predicates-1">
+<h3><a href="../packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_response.py" title="Line 70">attempt_is_in_progress</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Read the API state without granting local execution or replay permission.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return whether the supplied attempt’s state is &quot;in_progress&quot;.
+
+This reads the supplied snapshot; it neither refreshes the server state nor
+authorizes local execution or replay.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal restated one state comparison under a Returns heading, while the source’s warning about execution permission needed to remain visible.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> State the exact Boolean condition once. Preserve the distinction between reading an in-progress snapshot and authorizing execution or replay.</p>
+<p class="test-case"><strong>Example test.</strong> For valid records with states in_progress, succeeded, failed and expired, assert True, False, False and False respectively.</p>
+
+<!-- Panel review predicates-1: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: attempt_response.attempt_is_in_progress comparison, snapshot records and separate execution-permission callers. -->
+</article><article id="predicates-2">
+<h3><a href="../packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_response.py" title="Line 76">observation_revokes_execution</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Recognize expiry or cancellation without claiming local work has stopped.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return whether the attempt is expired or is in progress with a cancelled Job.
+
+Use only the supplied observation; this predicate does not stop local work.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial opening said “revokes execution permission” without showing which combination of attempt and Job states produces True.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Put the Boolean relationship in the opening: expiry suffices alone; Job cancellation matters here only while the attempt is in progress. Classifying a snapshot does not stop work.</p>
+<p class="test-case"><strong>Example test.</strong> Build a truth table over valid attempt and Job states: expired is always True; in_progress is True only with cancelled; succeeded and failed are False.</p>
+
+<!-- Panel review predicates-2: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: attempt_response.observation_revokes_execution Boolean expression and correlated observation caller; no local stop is performed. -->
+</article><article id="predicates-3">
+<h3><a href="../packages/provider-core/src/provider_core/runner_protocol.py" title="Line 39">token</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return whether value has exact type str and contains exactly 32 characters from 0–9 or a–f.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal repeated the 32-character hexadecimal condition in a separate Returns section.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> One sentence can give the exact type, length and alphabet. “Return whether” already defines False for other inputs; a second section adds no contract fact.</p>
+<p class="test-case"><strong>Example test.</strong> Assert True for &quot;0&quot; * 32 and &quot;abcdef01&quot; * 4; False for 31 or 33 characters, uppercase hex, a trailing newline, bytes, and None.</p>
+
+<!-- Panel review predicates-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: runner_protocol.token exact-type short-circuit and fullmatch; handshake callers. No separate Returns section needed. -->
+</article></section>
+<section id="queries"><h2>3. Queries and selections</h2><p>Name the returned information and the selection rule. Explain absence, ordering and freshness where they matter.</p><article id="queries-1">
+<h3><a href="../packages/provider-core/src/provider_core/scientific.py" title="Line 702">HostedContribution.call</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Select an exported method of this receiver without string dispatch.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return the existing CallBinding for an exported method without invoking it.
+
+Pass an unbound function or a method bound to this contribution’s instance.
+Raise ValueError if the function is not exported, or if a bound method’s
+receiver is not this contribution’s instance.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal described unwrapping a bound method and looking up its underlying function, following the implementation’s steps.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Describe the accepted call forms and receiver restriction instead. Preserve that the existing binding is returned and that looking up a method does not invoke it.</p>
+<p class="test-case"><strong>Example test.</strong> Look up the same registered function twice and assert object identity of the bindings. A sibling instance’s bound method raises ValueError; the scientific method has not run.</p>
+
+<!-- Panel review queries-1: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: scientific.HostedContribution.call, class-only and sibling-receiver tests; returns retained binding by function identity without invocation. -->
+</article><article id="queries-2">
+<h3><a href="../packages/provider-core/src/provider_core/process_wire.py" title="Line 135">decoded_error_evidence</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Expose decoder-owned facts to protected consumers, which must redact them.
+
+    Exact reconstructed types and a private immutable record distinguish these
+    facts from arbitrary exception attributes, properties and mutable notes.
+    &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return retained process-decoder evidence, or None when it is absent or unsupported.
+
+The exception must have an exact type recognized by the decoder, and the
+stored record must have exact type _DecodedErrorEvidence. Return that record
+itself. Callers must redact the record’s contents before public disclosure.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> An auditor suggested omitting the private record type as an implementation detail, but that exact type determines whether the helper returns evidence or None.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Judge a detail by its effect on the caller, not by whether its name is private. Keep the type condition, retained-object behavior and caller-owned redaction duty.</p>
+<p class="test-case"><strong>Example test.</strong> A decoded supported exception returns the retained record by identity. A plain exception, an unsupported subclass and a supported exception with a wrong-type evidence attribute each return None.</p>
+
+<!-- Panel review queries-2: R1: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Adopted language reviewer suggestion to name record contents in redaction obligation. Evidence: process_wire.decoded_error_evidence exact types and diagnostics consumers. Final wording awaits integrated review. -->
+</article><article id="queries-3">
+<h3><a href="../operations/docker/image_retirement.py" title="Line 158">select_images</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return obsolete SDK image IDs in inventory order, without contacting Docker.
+
+current is (current_checker, current_recipe, current_bootstrap). Read ownership
+labels under org.nmr-provider-tools.; each required hash must be 64 lowercase
+hexadecimal digits. Only these roles qualify:
+- checker or no role: inputs differs from current_checker; the permitted tag
+  is checker:&lt;inputs&gt;.
+- checker-bootstrap: inputs differs from current_bootstrap; the permitted tag
+  is checker-bootstrap:&lt;inputs&gt;.
+- delivery: recipe differs from current_recipe, and inputs is also required;
+  permitted tags are delivery:&lt;inputs&gt; or delivery-recipe:&lt;recipe&gt;.
+
+Tags have the nmr-provider-tools/ prefix. Allow an untagged image or exactly
+one permitted tag. Exclude protected IDs and images with repository digests.
+
+Malformed inspection records raise RetirementRefused; missing or invalid
+ownership hashes exclude the image. Before removal, the caller must recheck
+live references and current build identities.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> An early draft said ownership labels and tags “agree” and referred to the “relevant build hash”. It hid the role-specific rules and the missing-role checker case.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Keep each role’s hash comparison beside its allowed tags. Describe the resulting policy rather than every defensive branch: the role/hash/tag rules already exclude current tags, so repeating that exclusion is unnecessary.</p>
+<p class="test-case"><strong>Example test.</strong> Use an obsolete checker input hash with no role label and assert selection. A checker-bootstrap image compares its inputs with the bootstrap hash; a delivery image compares its recipe, not its inputs, with the current delivery recipe. Then separately add a protected ID, repository digest, foreign tag, second tag or current build tag and assert exclusion. Malformed inspection structure raises RetirementRefused.</p>
+
+<!-- Panel review queries-3: R1: truth FAIL; C1=10,C2=6,C3=6,C4=8,C5=9. Missing role/hash/tag policy and absent-role checker exception were consequential. R2: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=9. Added explicit policy and inspection-error distinction; removed repeated tag-count exclusion per language reviewer. Evidence: select_images, inspected_image_fields and retire caller. Final wording awaits integrated review. -->
+</article></section>
+<section id="conversion"><h2>4. Conversions and derivations</h2><p>Describe the input-to-output transformation and its representation, ordering or validation rules.</p><article id="conversion-1">
+<h3><a href="../packages/provider-core/src/provider_core/execution_setup.py" title="Line 31">parse_resource_requirements</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Project the resource-only field for full startup or direct binding callers.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Convert requirement mappings into a frozenset of ResourceRequirement records.
+
+Each mapping supplies keyword arguments to the record constructor. Equal
+records collapse and input order is lost. Errors while expanding mappings
+or constructing records propagate.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The draft used generic Returns and Raises sections, and “mapping errors” did not say which operation could fail.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Describe the mapping-to-record conversion, equality-based duplicate removal and lost ordering. Name keyword expansion and record construction as the sources of propagated errors; do not imply collection-wide validation.</p>
+<p class="test-case"><strong>Example test.</strong> An empty iterable produces frozenset(). Repeating one valid mapping produces one record; reordering valid mappings produces an equal set.</p>
+
+<!-- Panel review conversion-1: R1: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Adopted wording naming mapping expansion and record construction errors. Evidence: execution_setup.parse_resource_requirements and ResourceRequirement constructor; no cross-record validation promised. Final wording awaits integrated review. -->
+</article><article id="conversion-2">
+<h3><a href="../packages/provider-core/src/provider_core/payload.py" title="Line 226">JsonDataclassCodec.encode</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Serialize this codec’s exact dataclass type to compact ASCII JSON bytes.
+
+Use its JSON-mode serialization, sort object keys, omit separator whitespace
+and escape non-ASCII characters. Raise TypeError if type(value) is not
+value_type. Serialization errors propagate; nonfinite JSON numbers are rejected.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The example claimed failure for a “normally serialized” nonfinite float without defining the serializer. An auditor’s explanation of default conversion was also unverified and was withdrawn.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Scope a guarantee to the stage that enforces it: allow_nan=False rejects nonfinite numbers remaining after serialization. Use a concrete fixture for examples rather than guessing how an earlier transformation behaves.</p>
+<p class="test-case"><strong>Example test.</strong> Encode a simple dataclass with fields declared b then a and respective values 2 and 1; assert bytes b&#x27;{&quot;a&quot;:1,&quot;b&quot;:2}&#x27;. Passing a subclass instance raises TypeError.</p>
+
+<!-- Panel review conversion-2: R1: docstring truth PASS; C1=10,C2=10,C3=8,C4=10,C5=10 due to ambiguous illustrative nonfinite-input assertion. Replaced it with explicit integer field values and subclass rejection. Reviewer withdrew unverified default Pydantic nonfinite-conversion claim; accepted only output-level guarantee from allow_nan=False. R2: truth PASS; C1=C2=C3=C4=C5=10. Evidence: payload.JsonDataclassCodec.encode and strict require_type. -->
+</article><article id="conversion-3">
+<h3><a href="../packages/provider-core/src/provider_core/process_wire.py" title="Line 581">frame</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return a process-wire frame: a four-byte length followed by ASCII JSON bytes.
+
+Encode the value through pack(). The prefix is an unsigned big-endian count
+of the JSON body bytes, excluding the prefix itself. Raise ValueError if the
+body exceeds MAX_FRAME_BYTES; packing and JSON serialization errors propagate.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal spread a small framing transformation across Returns, Raises and Effects, including an unnecessary no-send sentence.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Spend words on the protocol facts: a four-byte unsigned big-endian prefix, a count of body bytes only, and the body-size limit. Do not list unrelated effects simply to fill a section.</p>
+<p class="test-case"><strong>Example test.</strong> Assert that the prefix equals len(frame) - 4 and that decoding the body reconstructs a supported value. Exercise body lengths exactly at and one byte over MAX_FRAME_BYTES.</p>
+
+<!-- Panel review conversion-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: process_wire.frame pack, ASCII JSON encoding, body-only limit and unsigned network-order prefix; no send occurs. -->
+</article></section>
+<section id="construction"><h2>5. Construction and declaration</h2><p>State what is created or attached, when work starts and who takes ownership.</p><article id="construction-1">
+<h3><a href="../packages/provider-core/src/provider_core/execution_setup.py" title="Line 202">ExecutionSettings.create_host</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Construct only; the caller immediately enters the returned host lifetime.
+
+        Successful process-host construction transfers session custody. Refusal
+        leaves it with its caller. No adoption, initialization or start occurs here.
+        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return a new thread or process host without starting a contribution.
+
+A supplied host mapping replaces the configured host options. Process mode
+rejects process_session=None; thread mode rejects a non-None value, both with
+ValueError. A process session’s connection must not have been started.
+
+Successful process-host construction transfers session ownership to the host;
+construction failure leaves it with the caller. Create the host on the running
+event loop that will use it, and immediately enter its async context to manage
+its lifetime.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The draft omitted the running-loop requirement and called the option mapping “host”, which could be mistaken for an existing host object.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Follow a factory into each constructor before stating its requirements. Both backends capture the running loop. A supplied mapping replaces options rather than merging them; process-session ownership transfers only after successful construction.</p>
+<p class="test-case"><strong>Example test.</strong> On a running event loop, construct each backend with valid options and assert its host type. A non-None session in thread mode and None in process mode raise ValueError. Verify option replacement rather than merging, caller custody on construction failure, and no contribution startup during construction.</p>
+
+<!-- Panel review construction-1: R1: reviewers truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Root found omitted running-loop obligation in both host constructors. Added same-loop duty, fresh connection and exact presence checks; clarified host mapping replacement. R2: truth PASS; C1=C2=C3=C4=C5=10. Evidence: execution_setup.create_host, embedded_host.InProcessExecutionHost and process_host.ProcessExecutionHost constructors and lifecycle. -->
+</article><article id="construction-2">
+<h3><a href="../packages/provider-core/src/provider_core/scientific.py" title="Line 213">operation</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Export an ordinary method without wrapping or changing direct calls.
+
+    Parameters after self are keyword-only. Annotations identify the payload,
+    optional analysis session and control; explicit state ports name live inputs.
+    Omitted resources use the contribution&#x27;s common call requirements. Explicit
+    empty resources mean that this operation has no call resource requirements.
+    retryable_failures names exact exception types for which repeating the entire
+    calculation is scientifically permitted. Subclasses and undeclared failures
+    do not qualify; deployment policy still decides whether to retry.
+    &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return a decorator that exports an instance method without wrapping it.
+
+On decoration:
+Attach a declaration and return the same function without
+calling it. A non-function raises TypeError; a repeated declaration raises
+ValueError. HostedContribution checks the signature and codecs later, when
+it constructs the binding.
+
+When hosted:
+- Use a synchronous method that does not yield; no parameter may have a default.
+- Annotate the return and all parameters after self; those parameters must be
+  keyword-only.
+- Allow at most one payload, one analysis-session and one control parameter.
+- state_inputs declares the names and types of live input arguments.
+- state_outputs requires a ScientificReturn[Result] return annotation.
+- A ScientificControl argument is required exactly when progress or cooperative
+  interruption is declared; otherwise omit it.
+
+Codecs and resources:
+Omitted codecs become JsonDataclassCodec instances for the payload and result
+types; non-dataclass values need explicit codecs. An explicit codec’s value_type
+must match the corresponding annotated type.
+
+requirements=None inherits the contribution’s call requirements; an explicit
+empty set declares no call resource requirements.
+
+Retry eligibility:
+retryable_failures names exact exception classes for which repeating the entire calculation is
+scientifically permitted; a subclass qualifies only if listed itself.
+Deployment policy still decides whether to retry.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The first proposal explained decoration but omitted constraints checked later during hosted binding, so an apparently valid declaration could fail when hosted.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Separate declaration-time effects from hosted validation. Make required signatures and control/state/codec relationships explicit. Group the longer contract by phase, and distinguish scientific retry eligibility from deployment policy actually choosing a retry.</p>
+<p class="test-case"><strong>Example test.</strong> Decorate a synchronous method and assert the returned function is the same object and its body has not run. A second declaration raises ValueError. Separately, decoration of an async method succeeds but HostedContribution construction rejects it. Exercise state_outputs with and without ScientificReturn[Result], and progress with and without ScientificControl, to verify the hosted signature requirements.</p>
+
+<!-- Panel review construction-2: R1: truth FAIL; C1=10,C2=5,C3=6,C4=9,C5=10. Omitted deferred signature validation, control/state-output couplings and default-codec dataclass boundary. R2: truth PASS; C1=10,C2=10,C3=10,C4=8,C5=9. Clarified no parameter defaults per language review while retaining source receiver rule. Evidence: scientific.operation, HostedContribution, _compile_method, _codec and ErrorPolicy exact retry classification. Final wording awaits integrated review. -->
+</article><article id="construction-3">
+<h3><a href="../packages/provider-core/src/provider_core/attempt_record.py" title="Line 193">acknowledge_start</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return a new AcknowledgedAttempt with local execution marked NOT_ENTERED.
+
+Retain the supplied start and admission objects and set prepared_identity to
+None. The record constructor checks their consistency; validation errors
+propagate. This records historical admission without sending an API request
+or granting permission to execute or replay work.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal repeated record construction under Returns and put the distinction from an API acknowledgement in a separate Effects block.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Name the returned record and local phase directly. Historical admission is evidence, not execution authority; constructor validation does not send an acknowledgement to the server.</p>
+<p class="test-case"><strong>Example test.</strong> With a consistent start and receipt, assert retained object identities, NOT_ENTERED and prepared_identity is None. A receipt conflicting with the start is rejected by the constructor.</p>
+
+<!-- Panel review construction-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: acknowledge_start, AcknowledgedAttempt constructor and production caller after admission; local historical record is not execution authority. -->
+</article></section>
+<section id="effects"><h2>6. State changes and external effects</h2><p>Name what changes, which record or resource is affected and what happens on failure.</p><article id="effects-1">
+<h3><a href="../packages/provider-core/src/provider_core/delivery_store.py" title="Line 587">DeliveryQueue.hold</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Retain a reviewed operator explanation, never raw remote response text.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Mark the exact queued request as held and store the operator’s explanation.
+
+Match the whole request, including its body. Holding it again replaces the
+reason. If no exact match remains, raise DeliveryConflict and roll back.
+
+The caller supplies a reviewed operator explanation, not raw remote response
+text. This method checks that reason has exact type str and 1–512 characters;
+wrong type raises TypeError and invalid length raises ValueError.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial draft scattered one update across Requires, Returns, Effects, Raises and Repeated calls.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Keep matching, mutation and repeated-call behavior together. Separately identify the caller’s duty to review the reason: this method checks type and length, not whether the text is appropriate for disclosure.</p>
+<p class="test-case"><strong>Example test.</strong> Hold one of two queued requests and assert only its state and reason changed. Hold it again with another reason and assert replacement. A mismatching body raises DeliveryConflict and leaves both rows unchanged.</p>
+</article><article id="effects-2">
+<h3><a href="../packages/provider-core/src/provider_core/delivery_store.py" title="Line 574">DeliveryQueue.remove_published</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Delete only after the API owner validated its matching terminal receipt.
+
+        This internal method has no producer IPC endpoint. Receipt verification
+        stays with ProviderAPI; the transaction protects exact queued identity.
+        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Delete the exact queued request after its matching API receipt has been verified.
+
+The caller must verify the terminal receipt; this method does not contact the
+API or verify receipt evidence. Match the full request, including its body,
+inside one transaction. Raise DeliveryConflict and roll back if no exact
+match remains, including when the same deletion is repeated.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial opening described deletion without its receipt prerequisite; that prerequisite appeared later.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Put the prerequisite beside the action and name its owner: the caller verifies the receipt. Scope rollback claims to the specified conflict, rather than promising that every storage failure leaves the same state.</p>
+<p class="test-case"><strong>Example test.</strong> Delete one matching row while retaining an unrelated row. Repeat the same call and assert DeliveryConflict. Receipt verification belongs in the caller’s test.</p>
+</article><article id="effects-3">
+<h3><a href="../packages/provider-core/src/provider_core/delivery_store.py" title="Line 601">DeliveryQueue.discard_held</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Operator disposition only; removing held bytes proves no API receipt.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Delete a held request matching the API origin, provider, attempt and body digest.
+
+Require a canonical HTTPS origin, valid provider and attempt references, and
+a digest of &quot;sha256:&quot; followed by 64 lowercase hexadecimal digits. Invalid
+inputs are rejected before deletion. Raise DeliveryConflict if no matching
+held row exists, including a pending request, an identity/digest mismatch or
+a repeated deletion. That conflict leaves the queue unchanged.
+
+This is an operator decision to discard retained bytes, not evidence that
+the API received the outcome.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The first revision listed pending rows, mismatches and repeated deletion as conflicts but did not explicitly cover a missing row.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> State the governing failure condition—no matching held row—then give examples. Keep operator disposal of retained bytes separate from evidence that the API received an outcome.</p>
+<p class="test-case"><strong>Example test.</strong> A matching held row is removed. A pending row with the same identity, or a held row with another digest, causes DeliveryConflict and remains stored.</p>
+</article></section>
+<section id="waiting"><h2>7. Observation and waiting</h2><p>State what ends the wait and what is returned or raised. Explain cancellation and timeouts.</p><article id="waiting-1">
+<h3><a href="../packages/provider-core/src/provider_core/hosting.py" title="Line 548">observe_completion</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Wait on an existing operation without submitting or stopping work.
+
+    The caller owns this wait&#x27;s timeout. Cancelling it leaves the original
+    operation available for another observer; it does not establish that
+    scientific effects have stopped. Completion preserves the independent
+    scientific outcome, result availability and cleanup facts in Observation.
+    &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Wait until the existing operation reports finished, then return its observation.
+
+Finished does not mean successful: inspect the scientific outcome, result
+availability and cleanup separately. Observation errors propagate.
+
+This helper imposes no overall timeout; the caller supplies any deadline.
+Cancelling the wait does not request an operation stop. Another observer can
+continue watching the same operation.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The initial proposal separated related wait facts into Returns, Waiting and Cancellation sections, making the reader assemble their relationship.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> State what ends the wait and what the returned observation means. Finished is not necessarily successful; cancellation of an observer is not a stop request, and the overall deadline belongs to the caller.</p>
+<p class="test-case"><strong>Example test.</strong> Provide an unfinished observation followed by a finished failed observation and assert the latter is returned. Cancel a waiter while unfinished and confirm no stop request was made.</p>
+</article><article id="waiting-2">
+<h3><a href="../packages/provider-core/src/provider_core/hosting.py" title="Line 567">observe_cleanup</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Wait for cleanup already requested by provider code; raise its original failures.
+
+    Pass the control returned by analysis.close(), operation.release_result() or
+    host.retire(). This helper keeps waiting if cleanup becomes overdue: the flag
+    alone does not end the wait or emit a warning. To react before cleanup finishes,
+    call control.observe(...) and inspect the returned observation&#x27;s
+    allowance_expired field.
+
+    Canceling this wait leaves cleanup running. A single cleanup failure is raised
+    directly; independent failures keep their original causes together. Waiting
+    again observes the same cleanup rather than starting it again.
+    &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Observe already-requested cleanup until it settles or reports a failure.
+
+Return the settled observation when it has no failures. Raise a single failure’s
+original cause, or a BaseExceptionGroup of the original causes for multiple
+failures. A reported failure ends this wait even if cleanup has not settled;
+observation errors also propagate.
+
+An overdue flag alone does not end the wait, and there is no overall timeout.
+Cancelling this wait does not cancel cleanup. Repeated calls observe the same
+cleanup rather than requesting it again.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The important distinction to preserve during shortening was that a reported failure can end the wait before cleanup settles.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Document the actual exit condition: settled or failed, not simply “cleanup complete”. State whether original causes are retained and grouped, and whether an overdue flag alone changes the wait.</p>
+<p class="test-case"><strong>Example test.</strong> An unsettled observation with one cause must raise that same object immediately. An overdue observation without failures keeps waiting. A settled failure-free observation is returned.</p>
+</article><article id="waiting-3">
+<h3><a href="../packages/provider-core/src/provider_core/hosting.py" title="Line 623">_join_settlement</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Defer observer cancellation until this exact cleanup task returns or fails.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Wait for the owned task’s result or failure, deferring cancellation of this waiter.
+
+Shield the task from cancellation of this waiter; the wait may be indefinite.
+Without observer interruptions, return the task’s result or propagate its
+failure or cancellation.
+
+If the observer was cancelled, retain those interruptions until the task ends.
+Then raise the single interruption, or a BaseExceptionGroup when there are
+multiple interruptions or an interruption together with task failure or
+cancellation.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The grouping sentence initially mentioned task failure but left concurrent task cancellation implicit. The example exercised observer-only and task-only cancellation separately.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Cover observer cancellation, task cancellation and their combination. Explain shielding and deferred propagation separately. Do not promise original cancellation-object identity unless that identity is actually preserved.</p>
+<p class="test-case"><strong>Example test.</strong> Block the owned task on an event, cancel its observer, and assert the task remains live and the join remains pending. Release the event and verify observer cancellation is then propagated. Separately cancel only the owned task and assert CancelledError reaches the observer. Finally cancel the owned task after an observer interruption and assert both cancellations are retained in the raised group.</p>
+</article></section>
+<section id="lifetime"><h2>8. Resource lifetimes and orchestration</h2><p>Describe the ordered work and ownership handoff: what starts, what is returned or yielded, and who handles cleanup.</p><article id="lifetime-1">
+<h3><a href="../packages/provider-core/src/provider_core/execution_setup.py" title="Line 117">ExecutionSettings.open_contribution</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Own host startup and retirement for one configured contribution.
+
+        Injected process sessions transfer custody on successful host construction,
+        just as with create_host(). Earlier configuration failures leave them with
+        the caller. Both backends initialize science before yielding.
+        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Initialize a contribution and yield (execution_host, contribution) within the host’s lifetime.
+
+Create the host using create_host(), including its option and session rules.
+Successful process-host construction transfers session ownership; earlier
+failure leaves it with the caller.
+
+Initialization failure, body failure and cancellation all exit the host context
+and invoke its retirement handling. Cleanup failures propagate, grouped with
+a body or initialization failure when both occur; context exit does not by
+itself prove that retirement succeeded.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> “Retire the host on exit” could be read as a guarantee of successful cleanup, and the proposal repeated the initialization-before-yield rule.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Describe retirement handling and its failure outcomes separately from successful retirement. Locate session transfer at host construction; initialization failure still enters cleanup without yielding a usable handle.</p>
+<p class="test-case"><strong>Example test.</strong> Record initialize, yield/body and host-exit events; assert their order. Force initialization failure and assert host exit occurs without yielding. Also exercise body failure.</p>
+</article><article id="lifetime-2">
+<h3><a href="../packages/provider-core/src/provider_core/hosting.py" title="Line 771">ResultConsumption.consume</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Observe acceptance, then request and observe the exact result release.
+
+        Known acceptance lives in the completed task even if requesting release
+        raises. Re-observation retries only that exact idempotent release request,
+        or observes the original release control once one has been returned.
+        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Wait for receiver acceptance, then request result release and observe its cleanup.
+
+Return a settled release observation with no failures. A receiver failure
+propagates without requesting release. Acceptance means the receiver returned
+successfully; it does not by itself establish durable storage or publication.
+
+A single reported cleanup failure is raised as its original cause; multiple
+causes are grouped. A failure can end this wait before cleanup settles.
+Keep this owner and resources needed by unfinished cleanup alive after such
+an error; the exception does not confirm that release has finished. Further
+consume() calls can raise the retained failure again; use release.observe
+to inspect settlement directly when failures remain.
+
+Repeated calls reuse the original receiver task and any retained release
+control. If requesting release raised before returning a control, retry only
+that same idempotent release request; never retry a failed receiver.
+
+Cancelling the wait does not cancel acceptance or cleanup. Keep resources
+needed by unfinished acceptance alive as well.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The draft delegated cleanup behavior to observe_cleanup() without stating that consume() can raise while cleanup remains unsettled.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Carry consequential failure state through wrappers. After an early cleanup failure, retain the owner and needed resources; repeated consume() calls may raise again, so use the retained release control to inspect settlement directly.</p>
+<p class="test-case"><strong>Example test.</strong> Block the receiver and assert release has not been requested. After acceptance, observe release. Call again and assert the receiver ran once and the retained release control is reused. Separately report a cleanup failure with settled=False: assert the original cause escapes, while the same owner, release control and resources remain available for continued observation.</p>
+</article><article id="lifetime-3">
+<h3><a href="../packages/provider-core/src/provider_core/uploads.py" title="Line 440">UploadTransfer.acquire_file</a></h3>
+<div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Verify one transfer into a closed private file; lend its directory.
+
+        Keep directory_fd open and exclusively controlled until success or
+        settle_file confirms failed-file cleanup. A successful receipt transfers
+        file lifetime to composition, which must wait for readers before deletion.
+        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Download an Upload into a private file and return a VerifiedUploadFile receipt.
+
+directory_fd must name a directory owned by the effective user with mode 0700.
+The caller keeps it open and exclusively controlled until success or confirmed
+failed-file cleanup. No transfer may be active and no private-file
+cleanup may remain pending. The store exchange must have confirmed retirement
+before starting, and retirement_seconds must be finite and positive.
+
+Create the file before requesting a grant from grant_factory. Verify the byte
+length and content hash against that grant, close the writer, then return the
+receipt. After success this transfer no longer uses directory_fd. The caller
+owns subsequent file access and deletion, and must wait for readers before
+deleting the file.
+
+Argument checks may fail before a file owner exists. Once it exists, failures
+retain transfer and cleanup evidence. If file_cleanup_pending remains true,
+retire the exact store exchange before calling settle_file(), and keep the
+directory open until cleanup is confirmed. An uncertain close can require
+process retirement. Cancellation does not establish that cleanup has finished.
+&quot;&quot;&quot;</code></pre></div></div>
+<p class="workshop-issue"><strong>Issue.</strong> The review exposed two different lifetimes: the transfer’s loan of directory_fd and the caller’s ownership of the successful file. “Private directory” also omitted concrete preparation requirements.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> State the effective-user ownership and 0700 mode requirements. The transfer stops using the descriptor on success, but the caller still owns file access and deletion. Pending failed-file cleanup requires retiring the store exchange first; it is a different path from successful handoff.</p>
+<p class="test-case"><strong>Example test.</strong> An unretired store is refused before a grant request or file creation. For matching bytes, assert the returned file’s length and digest and that the writer descriptor is closed. A digest mismatch returns no receipt; drive cleanup to confirmation before closing the directory.</p>
+</article></section>
+
+<footer>
+<h2>Research behind the structure</h2>
+<p><a href="https://peps.python.org/pep-0257/">PEP 257</a> calls for a behavioral summary plus relevant results, effects, exceptions and calling restrictions. <a href="https://numpydoc.readthedocs.io/en/stable/format.html">numpydoc</a> provides familiar Returns, Yields, Raises and Examples sections. This note uses those distinctions where they help explain the contract; they are not a template to fill for every function.</p>
+<p><a href="https://www.eiffel.org/doc/eiffel/ET-_Design_by_Contract_%28tm%29%2C_Assertions_and_Exceptions">Design by Contract</a> separates caller obligations from guarantees and compares state before and after an operation. Here, that distinction separates what callers must arrange from what the function checks or changes.</p>
+<p><a href="https://www.sphinx-doc.org/en/master/usage/extensions/doctest.html">Sphinx doctest</a> executes examples and compares their output. <a href="https://hypothesis.readthedocs.io/en/latest/stateful.html">Hypothesis stateful testing</a> exercises action sequences and checks invariants. Deterministic values suit examples; transactions, cancellation and retries need controlled state and event assertions in tests.</p>
+<p>Ask of every clause: what setup and observation would demonstrate that this claim is false?</p>
+</footer>
+
+<!-- Final workshop record, 2026-11-27.
+Scope: revised Suggested docstrings and illustrative examples only; Current source quotations preserved.
+All 24 passed final independent truth/sufficiency review; C2 and C3 scored 10 each.
+Final language C1=10 throughout. C4/C5 exceptions: queries-3 9/9;
+construction-2 9/8; effects-1 10/9; effects-3 9/9; waiting-3 9/9;
+lifetime-1 9/9; lifetime-2 9/8; lifetime-3 9/8. Other C4/C5 scores: 10/10.
+Earlier pending-integration remarks above are superseded by this record.
+Material later rounds: effects-3 clarified absent held rows. Lifetime initial
+C1/C2/C3/C4/C5: waiting-3 7/9/8/9/9; lifetime-1 9/10/10/10/9;
+lifetime-2 10/7/7/8/9 (truth failed); lifetime-3 9/8/8/9/8.
+Repairs: combined cancellation grouping/example; early cleanup failure and
+retained control/resources; distinct directory loan and successful file ownership.
+Root added effective-UID and exact 0700 directory precondition from _UploadFile._create;
+contract reviewer verified it and retained gate PASS, C2=10,C3=10.
+Fresh review initially claimed thread construction needed no running loop and
+that the identity example repeated an invalid value. Both claims were disproved
+against embedded_host.py and the example and were withdrawn; no edits followed them.
+Rejected speculative brevity cuts to exact-type, authorization and evidence-record
+facts: they control caller-visible behavior. Reorganized long selector and decorator
+contracts; the selector now states equivalent resultant rules instead of duplicated guards.
+HTML structure, all 24 docstring literals, local links and unchanged Current quotations
+were checked. Illustrative examples are specifications, not claimed execution receipts.
+-->
+</main></body></html>
