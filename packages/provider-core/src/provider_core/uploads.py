@@ -313,7 +313,7 @@ class UploadTransfer:
     when or whether the caller obtained it from the API.
     """
 
-    def __init__(self, job_ref, *, store, store_origin, remaining, before_request, account, exchange_owner=None):
+    def __init__(self, job_ref: str, *, store, store_origin, remaining, before_request, account, exchange_owner=None):  # repo-check: allow-identifier-type -- API Job identity; require_job_ref checks its syntax.
         require_job_ref(job_ref)
 
         if not callable(remaining):
@@ -755,7 +755,7 @@ class JobUploads:
     reporting the current recovery_failure through its protected diagnostic sink.
     """
 
-    def __init__(self, job_ref, *, api, store, store_origin, limits, recovery=None):
+    def __init__(self, job_ref: str, *, api, store, store_origin, limits, recovery=None):  # repo-check: allow-identifier-type -- API Job identity; require_job_ref checks its syntax.
         require_job_ref(job_ref)
 
         require_type(limits, UploadLimits)

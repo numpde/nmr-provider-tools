@@ -33,7 +33,7 @@ class HelloPublisher:
         self,
         api,
         *,
-        provider_ref,
+        provider_ref: str,  # repo-check: allow-identifier-type -- Configured API principal; ProviderAPI.publish_hello validates it before dispatch.
         display_name,
         description,
         offerings,

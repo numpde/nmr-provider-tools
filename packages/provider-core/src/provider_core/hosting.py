@@ -118,7 +118,7 @@ class BackendCapabilities:
 class AllocationRef:
     host: str
     allocation: str
-    binding_id: str
+    binding_id: str  # repo-check: allow-identifier-type -- Contribution-defined binding name; require_identity_text requires nonempty printable text without whitespace.
     binding_revision: str
 
     def __post_init__(self):
@@ -135,7 +135,7 @@ class ReservationRef:
     host: str
     analysis: str
     allocation: str
-    binding_id: str
+    binding_id: str  # repo-check: allow-identifier-type -- Contribution-defined binding name; require_identity_text requires nonempty printable text without whitespace.
     binding_revision: str
 
     def __post_init__(self):
@@ -150,7 +150,7 @@ class ReservationRef:
 class OperationRef:
     host: str
     analysis: str
-    operation_id: str
+    operation_id: str  # repo-check: allow-identifier-type -- Opaque invocation token; this record bounds its length.
 
     def __post_init__(self):
         require_identity_text(self.host, "Host identity")
@@ -169,9 +169,9 @@ class StateRef:
     host: str
     analysis: str
     allocation: str
-    binding_id: str
+    binding_id: str  # repo-check: allow-identifier-type -- Contribution-defined binding name; require_identity_text requires nonempty printable text without whitespace.
     binding_revision: str
-    state_id: str
+    state_id: str  # repo-check: allow-identifier-type -- Backend-assigned state token; require_identity_text requires nonempty printable text without whitespace.
     kind: str
     producer: OperationRef
 
@@ -193,7 +193,7 @@ class StateRef:
 @dataclass(frozen=True, slots=True)
 class ResultRef:
     operation: OperationRef
-    result_id: str
+    result_id: str  # repo-check: allow-identifier-type -- Backend-assigned result token; require_identity_text requires nonempty printable text without whitespace.
 
     def __post_init__(self):
         require_type(self.operation, OperationRef)
@@ -294,7 +294,7 @@ class Invocation:
     construction snapshots that mapping so retries retain the same inputs.
     """
 
-    operation_id: str = field(default_factory=lambda: uuid4().hex, kw_only=True)
+    operation_id: str = field(default_factory=lambda: uuid4().hex, kw_only=True)  # repo-check: allow-identifier-type -- Open invocation token for transport deduplication; this record bounds its length.
     target: CallRef
     payload: bytes = field(repr=False)
     states: Mapping[str, StateRef]

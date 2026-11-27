@@ -96,7 +96,7 @@ class ObservedProseService(ProseService):
 class JobsControlTransport(Transport):
     """Correlated Job control; publication uses a separately authenticated TLS peer."""
 
-    def __init__(self, job_ref):
+    def __init__(self, job_ref: str):  # repo-check: allow-identifier-type -- Fixture Job token correlates synthetic START, progress and read responses.
         super().__init__()
         self.job_ref = job_ref
         self.attempt_ref = "execution_attempt:sha256:" + sha256(job_ref.encode()).hexdigest()
@@ -292,7 +292,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             published[facts["execution_attempt_ref"]] = loop.time()
 
     class ScientificSession:
-        def __init__(self, job_ref, service):
+        def __init__(self, job_ref: str, service):  # repo-check: allow-identifier-type -- Fixture session retains the Job token shared with JobsControlTransport.
             self.job_ref = job_ref
             self.prepare_calls = self.scientific_prepare_calls = self.execute_calls = 0
             self.handle = self.failure = None

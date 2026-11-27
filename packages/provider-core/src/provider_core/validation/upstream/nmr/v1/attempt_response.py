@@ -38,8 +38,8 @@ ATTEMPT_STATES = ("in_progress", "succeeded", "failed", "expired")
 class AttemptObservation:
     """Independent point-in-time states, not permission to start or repeat work."""
 
-    execution_attempt_ref: str
-    job_ref: str
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API receipt identity bound to the requested Attempt by read_attempt.
+    job_ref: str  # repo-check: allow-identifier-type -- API receipt identity bound to the requested Job by read_attempt.
     state: str
     job_state: str
 
@@ -48,10 +48,10 @@ class AttemptObservation:
 class AttemptAdmission:
     """Confirmed start identity and snapshot; not proof of local execution entry."""
 
-    execution_attempt_ref: str
-    job_ref: str
-    analysis_kind_ref: str
-    provider_ref: str
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API-issued Attempt reference; read_start checks its syntax with require_attempt_ref.
+    job_ref: str  # repo-check: allow-identifier-type -- API receipt identity bound to the expected Job by read_start.
+    analysis_kind_ref: str  # repo-check: allow-identifier-type -- API offering name bound to the expected offering by read_start.
+    provider_ref: str  # repo-check: allow-identifier-type -- API principal bound to the expected provider by read_start.
     state: str
     started_at: datetime
     replayed: bool
@@ -61,7 +61,7 @@ class AttemptAdmission:
 class AttemptProgress:
     """Accepted observation and original time, not a heartbeat or execution proof."""
 
-    execution_attempt_ref: str
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API receipt identity bound to the requested Attempt by read_progress.
     phase: str
     condition_code: str | None
     updated_at: datetime
@@ -251,8 +251,8 @@ def read_progress(raw, *, execution_attempt_ref, phase, condition_code):
 class AttemptCompletion:
     """Acknowledgement bound to the retained result, not merely terminal state."""
 
-    execution_attempt_ref: str
-    analysis_result_ref: str
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API receipt identity bound to the requested Attempt by _outcome_response.
+    analysis_result_ref: str  # repo-check: allow-identifier-type -- API-issued result reference; read_complete checks its syntax.
     result_schema_id: str = field(repr=False)
     result_fingerprint: str
     result_byte_length: int
@@ -264,7 +264,7 @@ class AttemptCompletion:
 class AttemptFailure:
     """Acknowledgement bound to exact published failure facts."""
 
-    execution_attempt_ref: str
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API receipt identity bound to the requested Attempt by _outcome_response.
     failure_code: str
     failure_message: str = field(repr=False)
     committed_at: datetime

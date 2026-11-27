@@ -32,7 +32,7 @@ class SigningIdentity:
     """One configured API origin and Ed25519 credential, independent of transport."""
 
     origin: str
-    credential_ref: str
+    credential_ref: str  # repo-check: allow-identifier-type -- API-issued credential identity; require_credential_ref checks its syntax.
     private_key: Ed25519PrivateKey
     authority: str = field(init=False)
 

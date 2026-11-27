@@ -30,13 +30,13 @@ PAGE_RESPONSE_BYTES = 65536
 @dataclass(frozen=True, slots=True)
 class DiscoveredJob:
     input: FeedInputFacts
-    analysis_kind_ref: str
+    analysis_kind_ref: str  # repo-check: allow-identifier-type -- API offering name bound to the selected feed by _read_job.
     created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
 class JobPage:
-    analysis_kind_ref: str
+    analysis_kind_ref: str  # repo-check: allow-identifier-type -- API offering name bound to the selected feed by read_jobs_page.
     has_provider_execution_attempt: bool
     jobs: tuple[DiscoveredJob, ...]
     next_cursor: str | None = field(repr=False)

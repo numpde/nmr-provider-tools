@@ -29,7 +29,7 @@ from provider_core.uploads import UploadFileReadFailed, VerifiedUploadFile, read
 class SourceRef:
     """An Upload, or an exact member inside its ZIP; never a host path."""
 
-    upload_ref: str
+    upload_ref: str  # repo-check: allow-identifier-type -- SourceRef retains the API-issued Upload identity for receipt lookup by SourceAccess.
     member: str | None = None
 
 

@@ -74,9 +74,9 @@ class DeliveryStorageFailed(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class DeliveryOutcome:
     api_origin: str
-    provider_ref: str
-    job_ref: str
-    execution_attempt_ref: str
+    provider_ref: str  # repo-check: allow-identifier-type -- API principal; require_provider_ref checks its syntax.
+    job_ref: str  # repo-check: allow-identifier-type -- API Job identity; require_job_ref checks its syntax.
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API Attempt identity; require_attempt_ref checks its syntax.
     operation: TerminalOperation
     body: bytes = field(repr=False)
 

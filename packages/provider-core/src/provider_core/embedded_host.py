@@ -520,7 +520,7 @@ class InProcessAnalysisExecutor:
     invocation submission use the same admission and operation owners.
     """
 
-    def __init__(self, *, execution_host, analysis_id, residents, retain_results):
+    def __init__(self, *, execution_host, analysis_id: str, residents, retain_results):  # repo-check: allow-identifier-type -- Host-scoped analysis token; InProcessExecutionHost._open_analysis checks its length.
         self.host = execution_host
         self.identity = analysis_id
         self.retain_results = retain_results

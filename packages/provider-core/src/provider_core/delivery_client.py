@@ -67,7 +67,7 @@ class DeliveryUnavailable(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class DeliveryEndpoint:
     api_origin: str
-    provider_ref: str
+    provider_ref: str  # repo-check: allow-identifier-type -- API principal; require_provider_ref checks its syntax.
     socket_path: pathlib.Path
 
     # Direct same-UID embeddings may retain private IPC; deployed shared bindings explicitly grant a socket group.

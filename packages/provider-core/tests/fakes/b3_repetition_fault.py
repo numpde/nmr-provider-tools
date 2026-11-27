@@ -106,7 +106,7 @@ async def scenario(marker, report, seed):
     class JobsControlTransport(Transport):
         """Correlated START/progress/read replies; publication uses real HTTPS."""
 
-        def __init__(self, job_ref):
+        def __init__(self, job_ref: str):  # repo-check: allow-identifier-type -- Fixture Job token correlates synthetic START, progress and read responses.
             super().__init__()
             self.job_ref = job_ref
             self.attempt_ref = "execution_attempt:sha256:" + sha256(job_ref.encode()).hexdigest()
@@ -134,7 +134,7 @@ async def scenario(marker, report, seed):
             raise AssertionError("Unexpected Job control request")
 
     class ScientificSession:
-        def __init__(self, job_ref, url, trust, scientific_worker):
+        def __init__(self, job_ref: str, url, trust, scientific_worker):  # repo-check: allow-identifier-type -- Fixture session retains the Job token shared with JobsControlTransport.
             (self.job_ref, self.scientific_worker) = (job_ref, scientific_worker)
             self.prepare_calls = self.execute_calls = self.scientific_prepare_calls = 0
             self.retired = False

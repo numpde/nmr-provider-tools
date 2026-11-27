@@ -83,7 +83,7 @@ class ApiPublicationMaterial:
     origin: str
     profile: str
     topology: str
-    provider_ref: str
+    provider_ref: str  # repo-check: allow-identifier-type -- Retained API principal from the credential bound by _signing_identity.
     exchange_seconds: float
     retirement_seconds: float
     credential_bytes: bytes

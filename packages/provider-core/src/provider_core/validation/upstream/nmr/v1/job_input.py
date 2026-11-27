@@ -45,7 +45,7 @@ class JobInputRejected(ValueError):
 class FeedInputFacts:
     """Admitted identity facts; they do not themselves grant access to a Job."""
 
-    job_ref: str
+    job_ref: str  # repo-check: allow-identifier-type -- API Job identity; this constructor checks JOB_REF_PATTERN.
     input_schema_id: str
     input_fingerprint: str
     input_byte_length: int

@@ -49,7 +49,7 @@ class ChatEndpointSpec:
     neither appends a route nor chooses an endpoint or reasoning vocabulary.
     """
 
-    configuration_id: str
+    configuration_id: str  # repo-check: allow-identifier-type -- Deployment names the endpoint; this constructor checks its ID syntax.
     model: str
     url: str = field(repr=False)
     api_key: str = field(repr=False)

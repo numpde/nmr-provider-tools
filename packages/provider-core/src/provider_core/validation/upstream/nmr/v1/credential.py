@@ -52,8 +52,8 @@ class CredentialRejected(ValueError):
 @dataclass(frozen=True, slots=True)
 class ProviderCredential:
     profile: str
-    provider_ref: str
-    credential_ref: str
+    provider_ref: str  # repo-check: allow-identifier-type -- API-issued principal; parse_provider_credential checks its syntax with require_provider_ref.
+    credential_ref: str  # repo-check: allow-identifier-type -- API-issued credential identity; parse_provider_credential checks its syntax with require_credential_ref.
     private_key: Ed25519PrivateKey = field(repr=False, compare=False)
 
 

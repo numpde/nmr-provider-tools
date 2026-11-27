@@ -32,7 +32,7 @@ GRANT_RESPONSE_BYTES = 65536
 
 @dataclass(frozen=True, slots=True)
 class UploadMember:
-    upload_ref: str
+    upload_ref: str  # repo-check: allow-identifier-type -- API-issued Upload reference; _byte_facts checks its syntax.
     description: str = field(repr=False)
     byte_length: int
     content_hash: str | None
@@ -42,7 +42,7 @@ class UploadMember:
 class UploadSet:
     """One observed Job membership, not an atomic freeze of later membership."""
 
-    job_ref: str
+    job_ref: str  # repo-check: allow-identifier-type -- API membership identity bound to the requested Job by read_membership.
     members: tuple[UploadMember, ...]
 
 
@@ -50,8 +50,8 @@ class UploadSet:
 class ReadGrant:
     """Inert access data; job_ref records request context, not an echoed fact."""
 
-    job_ref: str
-    upload_ref: str
+    job_ref: str  # repo-check: allow-identifier-type -- Grant retains the requesting Job context; require_read_grant checks that binding.
+    upload_ref: str  # repo-check: allow-identifier-type -- API-issued Upload identity bound to the requested Upload by read_grant.
     byte_length: int
     content_hash: str
     download_url: str = field(repr=False)

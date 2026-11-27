@@ -29,7 +29,7 @@ HELLO_RESPONSE_BYTES = 65536
 
 @dataclass(frozen=True, slots=True)
 class AnalysisOffering:
-    analysis_kind_ref: str
+    analysis_kind_ref: str  # repo-check: allow-identifier-type -- Offering-defined API name; require_analysis_kind checks its syntax.
     description: str = field(repr=False)
 
     def __post_init__(self):
@@ -41,7 +41,7 @@ class AnalysisOffering:
 class HelloAccepted:
     """Server acceptance then, not readiness or a promise the snapshot is current."""
 
-    provider_ref: str
+    provider_ref: str  # repo-check: allow-identifier-type -- API receipt principal bound to the expected provider by read_hello.
     accepted_at: datetime
 
 

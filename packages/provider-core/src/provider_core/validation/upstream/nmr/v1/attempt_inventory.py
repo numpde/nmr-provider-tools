@@ -27,9 +27,9 @@ from provider_core.type_requirements import require_type
 
 @dataclass(frozen=True, slots=True)
 class InventoryAttempt:
-    analysis_kind_ref: str
-    execution_attempt_ref: str
-    job_ref: str
+    analysis_kind_ref: str  # repo-check: allow-identifier-type -- API offering name; _read_attempt checks its syntax with require_analysis_kind.
+    execution_attempt_ref: str  # repo-check: allow-identifier-type -- API-issued Attempt reference; _read_attempt checks its syntax with require_attempt_ref.
+    job_ref: str  # repo-check: allow-identifier-type -- API-issued Job reference; _read_attempt checks its syntax with require_job_ref.
     provider_attempt_key: str = field(repr=False)
     state: str
     started_at: datetime

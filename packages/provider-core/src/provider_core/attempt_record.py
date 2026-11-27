@@ -55,9 +55,9 @@ class RecoveryScope:
     """An explicit recovery binding, not authentication or an ownership lock."""
 
     api_origin: str
-    provider_ref: str
-    consumer_id: str
-    generation_id: str
+    provider_ref: str  # repo-check: allow-identifier-type -- API principal; require_provider_ref checks its syntax.
+    consumer_id: str  # repo-check: allow-identifier-type -- Composition names the recovery lane; this record bounds the identity text.
+    generation_id: str  # repo-check: allow-identifier-type -- Composition names the recovery generation; this record bounds the identity text.
 
     def __post_init__(self):
         (canonical_api_origin, _authority) = https_origin(self.api_origin)
@@ -96,7 +96,7 @@ class StartPending:
     """A retained start obligation; dispatch may or may not already have occurred."""
 
     scope: RecoveryScope = field(repr=False)
-    analysis_kind_ref: str
+    analysis_kind_ref: str  # repo-check: allow-identifier-type -- Offering-defined API name; require_analysis_kind checks its syntax.
     input: FeedInputFacts
     body: bytes = field(repr=False)
 

@@ -95,7 +95,7 @@ class ProcessWireTests(unittest.TestCase):
         # Identical names and fields do not grant access to the SDK wire registry
         @dataclass(frozen=True, slots=True)
         class CallRef:
-            binding_id: str
+            binding_id: str  # repo-check: allow-identifier-type -- Adversarial record mimics CallRef; decoding must reject the foreign record type.
             binding_revision: str
             name: str
 

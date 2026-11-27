@@ -73,7 +73,7 @@ class JobOffering:
 
     announcement: AnalysisOffering
     host: ProcessExecutionHost
-    consumer_id: str
+    consumer_id: str  # repo-check: allow-identifier-type -- Composition names the recovery lane; RecoveryScope checks its length and characters.
     generation: str
     new_session: Callable[[], AnalysisSession]
 
@@ -91,7 +91,7 @@ class JobService:
     def __init__(
         self,
         *,
-        provider_ref,
+        provider_ref: str,  # repo-check: allow-identifier-type -- Configured API principal; RecoveryScope checks its syntax before service execution.
         offerings: tuple[JobOffering, ...],
         host_failure_policy: HostFailurePolicy,
         limits: LiveAttemptLimits,

@@ -54,8 +54,8 @@ class UploadFileReadFailed(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class VerifiedUpload:
-    job_ref: str
-    upload_ref: str
+    job_ref: str  # repo-check: allow-identifier-type -- Transfer receipt retains the opaque Job identity checked by UploadTransfer.
+    upload_ref: str  # repo-check: allow-identifier-type -- Transfer receipt retains the opaque Upload identity checked by require_read_grant.
     byte_length: int
     content_hash: str
     data: bytes = field(repr=False)
@@ -81,8 +81,8 @@ class VerifiedUploadFile:
     receipt cannot establish future pathname contents or durable storage.
     """
 
-    job_ref: str
-    upload_ref: str
+    job_ref: str  # repo-check: allow-identifier-type -- File receipt retains the opaque Job identity checked by UploadTransfer.
+    upload_ref: str  # repo-check: allow-identifier-type -- File receipt retains the opaque Upload identity checked by require_read_grant.
     byte_length: int
     content_hash: str
     name: str = field(repr=False)

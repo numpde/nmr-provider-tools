@@ -318,7 +318,7 @@ class ConfiguredIdentity:
     old identity; no conversion or replay is inferred. Code is not discovered.
     """
 
-    binding_id: str
+    binding_id: str  # repo-check: allow-identifier-type -- Contribution-defined binding name; require_identity_text requires nonempty printable text without whitespace.
     implementation: str
     contract_version: int
     configuration: ConfigurationDescription | None
@@ -561,7 +561,7 @@ class CallDescription:
 
 @dataclass(frozen=True, slots=True)
 class ImplementationDescription:
-    binding_id: str
+    binding_id: str  # repo-check: allow-identifier-type -- Contribution-defined binding name; require_identity_text requires nonempty printable text without whitespace.
     binding_revision: str
     contract_version: int
     configuration: ConfigurationDescription | None
@@ -599,7 +599,7 @@ class ImplementationDescription:
 
 @dataclass(frozen=True, slots=True)
 class CallRef:
-    binding_id: str
+    binding_id: str  # repo-check: allow-identifier-type -- Contribution-defined binding name; require_identity_text requires nonempty printable text without whitespace.
     binding_revision: str
     name: str
 
