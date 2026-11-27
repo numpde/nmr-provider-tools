@@ -352,10 +352,7 @@ def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
 
         return supplied
 
-    return JsonDataclassCodec(
-        format=f"python-json.v1:{value_type.__module__}.{value_type.__qualname__}",  # machine-string: Payload codec identity contains the wire format version and dotted value type
-        value_type=value_type,
-    )
+    return JsonDataclassCodec.for_type(value_type)
 
 
 def assert_synchronous(function: Callable) -> None:

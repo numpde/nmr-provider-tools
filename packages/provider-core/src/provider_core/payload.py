@@ -185,6 +185,15 @@ class JsonDataclassCodec[T]:
     format: str
     value_type: type[T]
 
+    @classmethod
+    def for_type(cls, value_type: type[T]) -> JsonDataclassCodec[T]:
+        """Derive the SDK's default JSON identity from the declared Python type."""
+
+        return cls(
+            format=f"python-json.v1:{value_type.__module__}.{value_type.__qualname__}",  # machine-string: Default codec identity combines the representation version and declared Python type.
+            value_type=value_type,
+        )
+
     def __post_init__(self) -> None:
         _require_format(self.format)
         require_instance(self.value_type, type)

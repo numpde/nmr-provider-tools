@@ -27,14 +27,38 @@ from provider_core.diagnostics import failure_evidence
 from provider_core.execution import ConditionRecovery, ExecutionFailed, ObservationRecovery
 from provider_core.failure_collection import FailureCollector
 from provider_core.hello_publisher import HelloPublisher
+from provider_core.lifetime import ProviderLifetime
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
 from provider_core.process_host import ProcessExecutionHost
+from provider_core.process_signals import termination_signals
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.tools import require_positive_number, require_type
 from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 
 
 log = logging.getLogger(__name__)
+
+
+async def serve_provider(*, lifetime: ProviderLifetime, resources, new_service):
+    """Keep provider exclusion through service settlement and resource retirement.
+
+    resources yields the provider's started resources; new_service receives them
+    and the stopping event. Resource entry owns partial-startup cleanup. Signals
+    request admission stop; they do not cancel resource startup or prove cleanup.
+    Any failure retains exclusion until process exit, as unconfirmed retirement
+    must not permit another provider to acquire the same work.
+    """
+    stopping = asyncio.Event()
+
+    with termination_signals(stopping.set):
+        lifetime.open()
+
+        async with resources as started:
+            service = new_service(started, stopping=stopping)
+
+            await service.serve()
+
+        lifetime.close()
 
 
 @dataclass(frozen=True)

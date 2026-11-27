@@ -581,6 +581,12 @@ The tool derives its name
 from the compiled method and uses the input record's fields as parameters;
 providers supply no protocol name, wrapper field or duplicate record definition.
 
+Application-only inputs can instead use `InputToolDefinition(name=...,
+description=..., codec=...)` with their existing `JsonDataclassCodec`. Both
+definitions share schema generation and decoding. Neither invokes science or
+classifies a rejected proposal: the application keeps its prompts, permission
+checks and choice between correction and terminal rejection.
+
 Schema generation uses Pydantic internally; encoding and runtime admission still
 use the original codec. Defaulted fields remain optional, nullable required fields
 remain required, and unknown fields are forbidden in nested records. Definitions
@@ -687,6 +693,15 @@ A returned outcome or exact report awaiting durable handoff cannot be discarded
 merely because its I/O stopped. Preserve the shared private lifetime
 root with `ProviderLifetime`; a container-private directory cannot exclude a
 second container.
+
+`provider_core.job_service.serve_provider(lifetime=..., resources=...,
+new_service=...)` owns the standard supervisor scope. Supply an async resource
+context that starts the required model and batch owners, and a factory taking
+those started resources and the `stopping` event to construct the service.
+The runner installs termination handlers, acquires exclusion before resource
+entry, and closes it only after service settlement and resource exit succeed.
+Failures retain exclusion until process exit. Signals set the service stop event;
+they do not cancel model startup or establish that cleanup completed.
 
 Raise `AnalysisOutcomeUnresolved` when science produced neither a verified result
 nor a reviewed public failure, chaining the original exception. Core keeps the
@@ -1281,8 +1296,15 @@ is rejected before dispatch. Keep scientific invocation through the ProcessCall;
 its exposed host supports service health observation. Independent batches need
 separate process owners. Direct invocations, competing dispatchers and attachment
 during an existing call are rejected. Successful close releases the reservation.
-The provider supplies an entry codec and `pack`/`unpack` functions for its typed
-batch method. Different dispatcher instances never combine inputs, so worker,
+`BatchCall.from_dataclass(call=..., policy=...)` adapts a started call when both
+operation codecs are standard JSON dataclass codecs and each wrapper has one
+constructor field annotated as a list. Request entries must also be dataclasses.
+The SDK derives field names and entry type from that binding; the entry codec
+only freezes queue-local values, while operation wire formats remain unchanged.
+Construction does not enter the dispatcher, so manual callers can still invoke
+the process directly. Unsupported representations use the existing constructor
+with an explicit entry codec and `pack`/`unpack` functions.
+Different dispatcher instances never combine inputs, so worker,
 model and execution settings follow their existing call owner.
 
 Enter the dispatcher inside its host scope and outside `JobService.serve()`.

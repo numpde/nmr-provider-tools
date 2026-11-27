@@ -18,7 +18,7 @@ from pydantic_core import PydanticSerializationError
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import observe_cleanup
-from provider_core.input_tool import ScientificInputToolDefinition
+from provider_core.input_tool import InputToolDefinition, ScientificInputToolDefinition
 from provider_core.interpreter import Interpreter
 from provider_core.payload import JsonDataclassCodec, PayloadRejected
 from provider_core.scientific import Contribution, operation
@@ -284,3 +284,25 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(expr=constraint["required"])
         self.assertIn(member={"type": "null"}, container=constraint["schema"]["anyOf"])
+
+
+class ApplicationInputToolTests(unittest.TestCase):
+    def setUp(self):
+        self.codec = JsonDataclassCodec(format="application.peak.v1", value_type=Peak)
+        self.tool = InputToolDefinition(name="submit_input", description="Submit observed peaks", codec=self.codec)
+
+    def test_application_input_uses_its_codec_without_a_scientific_call(self):
+        function = self.tool.definition["function"]
+        self.assertEqual(function["name"], "submit_input")
+        self.assertEqual(function["parameters"], self.codec.json_schema())
+        self.assertEqual(self.tool.decode(name="submit_input", arguments={"integral": 3}), Peak(integral=3))
+
+    def test_wrong_tool_and_wrong_value_remain_distinct(self):
+        with self.assertRaises(ToolRejected):
+            self.tool.decode(name="different", arguments={"integral": 3})
+        with self.assertRaises(PayloadRejected):
+            self.tool.decode(name="submit_input", arguments={"integral": "wrong"})
+
+    def test_custom_codec_is_not_given_json_schema_semantics(self):
+        with self.assertRaises(TypeError):
+            InputToolDefinition(name="submit_input", description="Custom", codec=object())

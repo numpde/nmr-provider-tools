@@ -13,12 +13,15 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import partial
+from operator import attrgetter
+from typing import get_args, get_origin, get_type_hints
 
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import _join_settlement, _raise_context_failure, _start_owned_task
 from provider_core.process_call import ProcessCall
+from provider_core.payload import JsonDataclassCodec
 from provider_core.scientific_invocation import ScientificInvocation, open_invocation
 from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_instance, require_type
@@ -48,6 +51,23 @@ class BatchPolicy:
 
 class _MembershipChanged(Exception):
     """The permission callback refused before ScientificCall acquired an analysis."""
+
+
+def _list_field(codec):
+    """Select the sole list field of the standard dataclass batch representation."""
+    require_type(codec, JsonDataclassCodec)
+    members = fields(codec.value_type)
+
+    if not ((len(members) == 1) and members[0].init):
+        raise ValueError(f"Cannot derive batching for {codec.value_type=}: expected one constructor field; supply explicit pack and unpack functions")
+
+    member = members[0]
+    annotation = get_type_hints(codec.value_type)[member.name]
+
+    if not ((get_origin(annotation) is list) and (len(get_args(annotation)) == 1)):
+        raise TypeError(f"Cannot derive batching for {codec.value_type=}: {member.name=} must declare list[Entry]; supply explicit pack and unpack functions")
+
+    return (member.name, get_args(annotation)[0])
 
 
 class BatchParticipation:
@@ -112,6 +132,30 @@ class BatchCall:
     Borrowed ScientificCalls cannot grant that authority and are rejected.
     Retries are disabled because encoded membership cannot survive revocation.
     """
+
+    @classmethod
+    def from_dataclass(cls, *, call: ProcessCall, policy: BatchPolicy):
+        """Adapt a started operation whose JSON input and result each wrap one list.
+
+        Request entries must be dataclasses. Field names and entry types come
+        from the compiled operation; model declarations remain their authority.
+        The returned dispatcher is inactive until entered. Other representations
+        use the constructor's explicit codec, pack and unpack arguments.
+        """
+        binding = call.binding
+        (input_field, entry_type) = _list_field(binding.input_codec)
+        (result_field, _) = _list_field(binding.result_codec)
+
+        def pack(request_entries):
+            return binding.input_codec.value_type(**{input_field: list(request_entries)})
+
+        return cls(
+            call=call,
+            policy=policy,
+            entry_codec=JsonDataclassCodec.for_type(entry_type),
+            pack=pack,
+            unpack=attrgetter(result_field),
+        )
 
     def __init__(self, *, call: ProcessCall, policy, entry_codec, pack, unpack):
         require_instance(
