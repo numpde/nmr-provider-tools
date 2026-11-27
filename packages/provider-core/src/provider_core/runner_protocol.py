@@ -27,7 +27,7 @@ _TOKEN = re.compile(r"[0-9a-f]{32}\Z")
 class LifecycleRejected(RuntimeError):
     """A peer did not supply the required operation identity or cleanup evidence."""
 
-    def __init__(self, message, *, returncode=None, scratch_released=None):
+    def __init__(self, message, *, returncode: int | None = None, scratch_released=None):
         super().__init__(message)
         (self.returncode, self.scratch_released) = (returncode, scratch_released)
 

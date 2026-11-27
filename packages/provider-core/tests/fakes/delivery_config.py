@@ -8,7 +8,7 @@ from tests.fakes.credential import document, encoded
 
 
 class DeliveryConfigFiles:
-    def __init__(self, root, socket_group_id=None):
+    def __init__(self, root, socket_group_id: int | None = None):
         self.root = pathlib.Path(root)
 
         group = os.getgid() if socket_group_id is None else socket_group_id

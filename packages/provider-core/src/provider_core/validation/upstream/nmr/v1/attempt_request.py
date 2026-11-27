@@ -131,6 +131,10 @@ def _require_outcome_text(outcome_text, field_name):
 
 
 def _failure_code(failure_code):
+    """Require 1–128 ASCII characters, starting with a lowercase letter.
+
+    Allow lowercase letters and digits, with single underscores between segments.
+    """
     require_type(failure_code, str)
 
     failure_code_character_count = len(failure_code)
