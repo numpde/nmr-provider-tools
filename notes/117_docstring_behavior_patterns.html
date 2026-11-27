@@ -45,11 +45,24 @@ pre { margin:0; padding:16px; background:var(--code); white-space:pre-wrap; over
 <li><strong>Clear English at the caller’s level.</strong> Name concrete inputs, outcomes and responsible parties. Explain unfamiliar terms; supporting links must not hide the operation’s essential behavior. Use a short expression such as <code>state == "in_progress"</code> when it states the rule more clearly than prose. Reject expressions that merely reproduce implementation steps. A reader should understand what happens without decoding the implementation.</li>
 <li><strong>Proportionate detail and structure.</strong> Keep a detail when it changes what the caller understands, expects or must do. Before deleting it, identify any distinction it protects, including during failure recovery. Remove repeated rules and facts already clear from the signature or nearby explanation unless repeating them resolves a real ambiguity. A summary may introduce detail; it need not repeat it. Use headings only when they improve navigation through the contract, never to fill a template.</li>
 </ol>
+<p><strong>Category structure.</strong> Each category below defines the relationships a contract must express. A reviewer must be able to point to the phrase or signature fact that fills each applicable part. For each applicable part, the stated conditions must lead to identifiable outcomes. Unresolved resource ownership is an incomplete outcome where the caller depends on it.</p>
+<p>Parts may fit in one sentence or need several clauses. Use the forms for the behavior actually performed: an operation that returns a Boolean and changes state needs both a truth condition and a state transition. State each fact once. Include optional claims when changing them would change the caller’s permitted use, interpretation or recovery. An annotation declares a type; it does not prove that a runtime check occurs.</p>
 <p>To assess a proposal, use ordinary and boundary cases, plus failure or lifecycle cases where relevant. Derive expected behavior from the prose, compare it with the governing evidence, and identify the clause responsible for each mismatch. Also try a shorter version: does it preserve the reader’s understanding and ability to use the operation correctly?</p>
 <p>Score each criterion separately and give a concrete reason: 0–3 means misleading or unusable; 4–6 requires reconstruction of important behavior; 7–8 is usable with an actionable weakness; 9 has only a minor actionable weakness; 10 has no identified weakness after the case and shortening checks. Scores apply to the inspected scope, not universal perfection. State missing evidence separately; if it prevents a required check, leave that assessment open. An unsupported guarantee or consequential omission rejects the proposal regardless of its other scores.</p>
 </section>
 
-<section id="guards"><h2>1. Guards</h2><p>State the condition that raises, then explain the accepted values and successful return.</p><article id="guards-1">
+<section id="guards"><h2>1. Guards</h2><p>State the condition that raises, then explain the accepted values and successful return.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> accepted condition → success result; each rejection condition → exception.</p>
+<ol>
+<li><strong>Accepted condition:</strong> define the input set precisely enough to decide membership, including type, range or syntax when relevant.</li>
+<li><strong>Rejection branches:</strong> pair rejected conditions with their observable exceptions; conditions with the same outcome may share a clause. State precedence when a guaranteed order changes the outcome.</li>
+<li><strong>Success:</strong> state what is returned when all checks pass.</li>
+</ol>
+<p><strong>Structural check.</strong> Can a reviewer partition the supported inputs into acceptance and rejection branches and identify the permitted result or exception for each? If overlapping checks have a guaranteed failure order, is that order stated? An undefined “valid” condition fails this check.</p>
+<p><strong>Example mapping.</strong> <a href="#guards-1">require_failure_code</a> first rejects a non-str runtime type with TypeError; an exact str outside the length or grammar rule raises ValueError; an accepted string returns None.</p>
+</div>
+<article id="guards-1">
 <h3><a href="../packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_request.py" title="Line 133">require_failure_code</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Require 1–128 ASCII characters, starting with a lowercase letter.
 
@@ -71,14 +84,13 @@ or ValueError if the string violates the length or syntax rules.
 <h3><a href="../packages/provider-core/src/provider_core/tools.py" title="Line 65">require_identity_text</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Require nonempty printable identity text without whitespace.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Reject identity text that is empty, contains whitespace or is not printable.
 
-Unicode is allowed; characters must pass str.isprintable(). Return None on
-success. Raise TypeError unless type(identity_text) is str, or ValueError
+Unicode is allowed; each character must pass str.isprintable() and fail
+str.isspace(). Return None on success. Raise TypeError unless type(identity_text) is str, or ValueError
 for disallowed text. The ValueError message includes the value of identity_role.
 &quot;&quot;&quot;</code></pre></div></div>
 <p class="workshop-issue"><strong>Issue.</strong> A revision left “printable” undefined for Unicode and said the error “identifies” identity_role without saying how.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> Name str.isprintable() and state that the role value appears in the ValueError message. The role supplies diagnostic context; it does not select a different validation policy.</p>
-<p class="test-case"><strong>Example test.</strong> Assert that &quot;é&quot; returns None; &quot;a b&quot;, &quot;a
-b&quot;, and &quot;&quot; raise ValueError; 1 raises TypeError. A Unicode letter is valid here.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Name str.isprintable() and str.isspace() so Unicode boundaries are decidable, and state that the role value appears in the ValueError message. The role supplies diagnostic context; it does not select a different validation policy.</p>
+<p class="test-case"><strong>Example test.</strong> Assert that &quot;é&quot; returns None; &quot;a b&quot;, &quot;a\nb&quot;, &quot;\u00a0&quot; (a nonbreaking space), and &quot;&quot; raise ValueError; 1 raises TypeError. A Unicode letter is valid here.</p>
 
 <!-- Panel review guards-2: R1: C1=10,C2=9,C3=9,C4=9,C5=9; clarified role value appears in message and shortened Unicode rule. R2: C1=10,C2=10,C3=9,C4=10,C5=10; specified str.isprintable. R3: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Adopted language reviewer wording: characters must pass str.isprintable. Evidence: tools.require_identity_text, strict require_type, diagnostic label callers. Final phrasing awaits integrated review. -->
 </article><article id="guards-3">
@@ -94,7 +106,19 @@ type(execution_attempt_ref) is str, or ValueError for any other string.
 
 <!-- Panel review guards-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: attempt_response.require_attempt_ref fullmatch and strict require_type. Format and type boundaries inspected. -->
 </article></section>
-<section id="predicates"><h2>2. Predicates</h2><p>Define what True and False mean.</p><article id="predicates-1">
+<section id="predicates"><h2>2. Predicates</h2><p>Define what True and False mean.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> within the input domain: True if and only if P; False otherwise.</p>
+<ol>
+<li><strong>Domain:</strong> identify the inputs for which the Boolean contract applies.</li>
+<li><strong>Truth condition:</strong> give the complete condition P, including how multiple conditions combine.</li>
+<li><strong>Complement:</strong> False covers the remaining inputs in that domain. For state observations, identify which snapshot or source is read.</li>
+<li><strong>Outside the domain:</strong> if malformed inputs return False or raise, state that behavior. Otherwise restrict the Boolean promise to the declared domain; do not imply that unsupported inputs return False.</li>
+</ol>
+<p><strong>Structural check.</strong> Can a reviewer determine both True and False cases, including a case where only one part of a compound condition changes? ‘True implies P’ alone is weaker than ‘True if and only if P’.</p>
+<p><strong>Example mapping.</strong> <a href="#predicates-2">observation_revokes_execution</a> is True for an expired attempt regardless of Job state, or for an in-progress attempt with a cancelled Job; all other supported state combinations give False.</p>
+</div>
+<article id="predicates-1">
 <h3><a href="../packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_response.py" title="Line 70">attempt_is_in_progress</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Read the API state without granting local execution or replay permission.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return whether the supplied attempt’s state is &quot;in_progress&quot;.
 
@@ -127,7 +151,18 @@ Use only the supplied observation; this predicate does not stop local work.
 
 <!-- Panel review predicates-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: runner_protocol.token exact-type short-circuit and fullmatch; handshake callers. No separate Returns section needed. -->
 </article></section>
-<section id="queries"><h2>3. Queries and selections</h2><p>Name the returned information and the selection rule. Explain absence, ordering and freshness where they matter.</p><article id="queries-1">
+<section id="queries"><h2>3. Queries and selections</h2><p>Name the returned information and the selection rule. Explain absence, ordering and freshness where they matter.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> search scope + matching rule → selected result; no match → explicit absence outcome.</p>
+<ol>
+<li><strong>Scope and match:</strong> identify the collection or source searched and the rule that selects a match.</li>
+<li><strong>Result:</strong> specify whether the operation returns one, the first or all matches; include ordering, identity and freshness when callers depend on them.</li>
+<li><strong>Absence and rejection:</strong> state the no-match outcome. If invalid inputs are checked, distinguish their outcome from absence; otherwise identify the input restrictions as caller preconditions.</li>
+</ol>
+<p><strong>Structural check.</strong> Can a reviewer predict inclusion and exclusion, the number and order of results, and the no-match outcome? Naming a ‘relevant’ item without the selection rule fails this check.</p>
+<p><strong>Example mapping.</strong> <a href="#queries-1">HostedContribution.call</a> searches this handle’s exported operations by function identity. A permitted function or correctly bound method selects the retained CallBinding; an unexported function or wrong receiver raises ValueError.</p>
+</div>
+<article id="queries-1">
 <h3><a href="../packages/provider-core/src/provider_core/scientific.py" title="Line 702">HostedContribution.call</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Select an exported method of this receiver without string dispatch.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return the existing CallBinding for an exported method without invoking it.
 
@@ -148,22 +183,27 @@ receiver is not this contribution’s instance.
     facts from arbitrary exception attributes, properties and mutable notes.
     &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return retained process-decoder evidence, or None when it is absent or unsupported.
 
-The exception must have an exact type recognized by the decoder, and the
-stored record must have exact type _DecodedErrorEvidence. Return that record
-itself. Callers must redact the record’s contents before public disclosure.
+Supported exact exception types are RemoteScienceError, BaseExceptionGroup,
+ExceptionGroup, CallRejected, ScientificRejection, StartDeadlineExpired,
+TypeError, ValueError, OSError, RuntimeError, TimeoutError and PermissionError.
+Their _process_error_evidence attribute must have exact type
+_DecodedErrorEvidence. Return that record itself; otherwise return None.
+Callers must redact the record’s contents before public disclosure.
 &quot;&quot;&quot;</code></pre></div></div>
-<p class="workshop-issue"><strong>Issue.</strong> An auditor suggested omitting the private record type as an implementation detail, but that exact type determines whether the helper returns evidence or None.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> Judge a detail by its effect on the caller, not by whether its name is private. Keep the type condition, retained-object behavior and caller-owned redaction duty.</p>
+<p class="workshop-issue"><strong>Issue.</strong> An auditor suggested omitting the private record type as an implementation detail, but that exact type determines whether the helper returns evidence or None. “Recognized by the decoder” still left the supported exception types undefined.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Judge a detail by its effect on the caller, not by whether its name is private. Keep the type condition, retained-object behavior and caller-owned redaction duty. A query needs a decidable matching rule. Name the supported types when no caller-facing definition supplies that set; an internal mapping name alone still requires reading the implementation.</p>
 <p class="test-case"><strong>Example test.</strong> A decoded supported exception returns the retained record by identity. A plain exception, an unsupported subclass and a supported exception with a wrong-type evidence attribute each return None.</p>
 
 <!-- Panel review queries-2: R1: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Adopted language reviewer suggestion to name record contents in redaction obligation. Evidence: process_wire.decoded_error_evidence exact types and diagnostics consumers. Final wording awaits integrated review. -->
 </article><article id="queries-3">
 <h3><a href="../operations/docker/image_retirement.py" title="Line 158">select_images</a></h3>
-<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return obsolete SDK image IDs in inventory order, without contacting Docker.
+<div class="comparison"><div role="group" aria-label="Current docstring"><p class="absent">No docstring.</p></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Return a list of obsolete SDK image IDs in inventory order, or [] if none qualify.
+
+This function does not contact Docker.
 
 current is (current_checker, current_recipe, current_bootstrap). Read ownership
-labels under org.nmr-provider-tools.; each required hash must be 64 lowercase
-hexadecimal digits. Only these roles qualify:
+labels under org.nmr-provider-tools.; each required recorded hash must be 64
+lowercase hexadecimal digits. Only these roles qualify:
 - checker or no role: inputs differs from current_checker; the permitted tag
   is checker:&lt;inputs&gt;.
 - checker-bootstrap: inputs differs from current_bootstrap; the permitted tag
@@ -178,22 +218,33 @@ Malformed inspection records raise RetirementRefused; missing or invalid
 ownership hashes exclude the image. Before removal, the caller must recheck
 live references and current build identities.
 &quot;&quot;&quot;</code></pre></div></div>
-<p class="workshop-issue"><strong>Issue.</strong> An early draft said ownership labels and tags “agree” and referred to the “relevant build hash”. It hid the role-specific rules and the missing-role checker case.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> Keep each role’s hash comparison beside its allowed tags. Describe the resulting policy rather than every defensive branch: the role/hash/tag rules already exclude current tags, so repeating that exclusion is unnecessary.</p>
+<p class="workshop-issue"><strong>Issue.</strong> An early draft said ownership labels and tags “agree” and referred to the “relevant build hash”. It hid the role-specific rules and the missing-role checker case. The category review also exposed an unstated empty result and ambiguous scope for hash validation.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Keep each role’s hash comparison beside its allowed tags. Describe the resulting policy rather than every defensive branch: the role/hash/tag rules already exclude current tags, so repeating that exclusion is unnecessary. State the no-match result explicitly and distinguish validation of recorded ownership hashes from comparison with supplied current identities.</p>
 <p class="test-case"><strong>Example test.</strong> Use an obsolete checker input hash with no role label and assert selection. A checker-bootstrap image compares its inputs with the bootstrap hash; a delivery image compares its recipe, not its inputs, with the current delivery recipe. Then separately add a protected ID, repository digest, foreign tag, second tag or current build tag and assert exclusion. Malformed inspection structure raises RetirementRefused.</p>
 
 <!-- Panel review queries-3: R1: truth FAIL; C1=10,C2=6,C3=6,C4=8,C5=9. Missing role/hash/tag policy and absent-role checker exception were consequential. R2: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=9. Added explicit policy and inspection-error distinction; removed repeated tag-count exclusion per language reviewer. Evidence: select_images, inspected_image_fields and retire caller. Final wording awaits integrated review. -->
 </article></section>
-<section id="conversion"><h2>4. Conversions and derivations</h2><p>Describe the input-to-output transformation and its representation, ordering or validation rules.</p><article id="conversion-1">
+<section id="conversion"><h2>4. Conversions and derivations</h2><p>Describe the input-to-output transformation and its representation, ordering or validation rules.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> input → output relationship, including preserved and changed information.</p>
+<ol>
+<li><strong>Relationship:</strong> define how the output is derived from the input, not merely the destination type.</li>
+<li><strong>Representation:</strong> state consequential encoding, ordering, normalization, precision or information-loss rules.</li>
+<li><strong>Failure:</strong> state the supported input domain and any rejection or propagation rule the operation actually promises. Errors may propagate from a named conversion or constructor; do not invent additional validation.</li>
+</ol>
+<p><strong>Structural check.</strong> For a specified input, can a reviewer derive the expected output or its permitted properties and identify what information may change or disappear? A type name alone fails this check.</p>
+<p><strong>Example mapping.</strong> <a href="#conversion-1">parse_resource_requirements</a> constructs a record from each keyword mapping and returns a frozenset: equal records collapse and input order disappears; expansion and constructor errors propagate.</p>
+</div>
+<article id="conversion-1">
 <h3><a href="../packages/provider-core/src/provider_core/execution_setup.py" title="Line 31">parse_resource_requirements</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Project the resource-only field for full startup or direct binding callers.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Convert requirement mappings into a frozenset of ResourceRequirement records.
 
 Each mapping supplies keyword arguments to the record constructor. Equal
-records collapse and input order is lost. Errors while expanding mappings
-or constructing records propagate.
+records collapse and input order is lost. Errors while iterating requirements,
+expanding mappings or constructing records propagate.
 &quot;&quot;&quot;</code></pre></div></div>
-<p class="workshop-issue"><strong>Issue.</strong> The draft used generic Returns and Raises sections, and “mapping errors” did not say which operation could fail.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> Describe the mapping-to-record conversion, equality-based duplicate removal and lost ordering. Name keyword expansion and record construction as the sources of propagated errors; do not imply collection-wide validation.</p>
+<p class="workshop-issue"><strong>Issue.</strong> The draft used generic Returns and Raises sections, and “mapping errors” did not say which operation could fail. The later category review found that iteration failures were omitted from the propagation rule.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Describe the mapping-to-record conversion, equality-based duplicate removal and lost ordering. Name keyword expansion and record construction as the sources of propagated errors; do not imply collection-wide validation. Include iteration when consuming an iterable; a conversion can fail before it reaches an element’s constructor.</p>
 <p class="test-case"><strong>Example test.</strong> An empty iterable produces frozenset(). Repeating one valid mapping produces one record; reordering valid mappings produces an equal set.</p>
 
 <!-- Panel review conversion-1: R1: truth PASS; C1=10,C2=10,C3=10,C4=9,C5=10. Adopted wording naming mapping expansion and record construction errors. Evidence: execution_setup.parse_resource_requirements and ResourceRequirement constructor; no cross-record validation promised. Final wording awaits integrated review. -->
@@ -224,7 +275,19 @@ body exceeds MAX_FRAME_BYTES; packing and JSON serialization errors propagate.
 
 <!-- Panel review conversion-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: process_wire.frame pack, ASCII JSON encoding, body-only limit and unsigned network-order prefix; no send occurs. -->
 </article></section>
-<section id="construction"><h2>5. Construction and declaration</h2><p>State what is created or attached, when work starts and who takes ownership.</p><article id="construction-1">
+<section id="construction"><h2>5. Construction and declaration</h2><p>State what is created or attached, when work starts and who takes ownership.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> construction or declaration → object and immediate effects; later activation → separate trigger.</p>
+<ol>
+<li><strong>Immediate result:</strong> name the object or declaration produced and any state changed during this call. State new-versus-retained identity when callers depend on it.</li>
+<li><strong>Phases:</strong> distinguish checks and work performed now from those deferred to decoration, registration, startup or later use. An annotation does not establish that a runtime check occurs.</li>
+<li><strong>Defaults and overrides:</strong> state omission-versus-explicit-value behavior that the signature does not make clear.</li>
+<li><strong>Resources, when involved:</strong> identify the ownership-transfer point and who retains ownership if construction fails.</li>
+</ol>
+<p><strong>Structural check.</strong> Can a reviewer distinguish construction from activation and determine the caller-visible result, state and ownership of any resources involved after success or consequential failure? ‘Creates a ready object’ fails if readiness actually requires a later step.</p>
+<p><strong>Example mapping.</strong> <a href="#construction-2">operation(...)</a> returns a decorator; applying it attaches a declaration and returns the same function; HostedContribution later validates the hosted signature and codecs. Decoration does not execute the method.</p>
+</div>
+<article id="construction-1">
 <h3><a href="../packages/provider-core/src/provider_core/execution_setup.py" title="Line 202">ExecutionSettings.create_host</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Construct only; the caller immediately enters the returned host lifetime.
 
@@ -262,11 +325,11 @@ its lifetime.
 On decoration:
 Attach a declaration and return the same function without
 calling it. A non-function raises TypeError; a repeated declaration raises
-ValueError. HostedContribution checks the signature and codecs later, when
-it constructs the binding.
+ValueError. HostedContribution checks the signature, declaration relationships
+and codecs when it constructs the binding.
 
 When hosted:
-- Use a synchronous method that does not yield; no parameter may have a default.
+- Use a synchronous, non-generator method; no parameter may have a default.
 - Annotate the return and all parameters after self; those parameters must be
   keyword-only.
 - Allow at most one payload, one analysis-session and one control parameter.
@@ -283,13 +346,19 @@ must match the corresponding annotated type.
 requirements=None inherits the contribution’s call requirements; an explicit
 empty set declares no call resource requirements.
 
+Concurrency:
+concurrency declares the required serialization scope: one instance
+(INSTANCE_SERIAL, the default), the entire process (PROCESS_SERIAL), or no
+serialization requirement (PARALLEL). The selected host must support it.
+Decoration adds no synchronization to direct calls.
+
 Retry eligibility:
-retryable_failures names exact exception classes for which repeating the entire calculation is
-scientifically permitted; a subclass qualifies only if listed itself.
+retryable_failures names exact exception classes for which repeating the
+entire calculation is scientifically permitted; a subclass qualifies only if listed itself.
 Deployment policy still decides whether to retry.
 &quot;&quot;&quot;</code></pre></div></div>
-<p class="workshop-issue"><strong>Issue.</strong> The first proposal explained decoration but omitted constraints checked later during hosted binding, so an apparently valid declaration could fail when hosted.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> Separate declaration-time effects from hosted validation. Make required signatures and control/state/codec relationships explicit. Group the longer contract by phase, and distinguish scientific retry eligibility from deployment policy actually choosing a retry.</p>
+<p class="workshop-issue"><strong>Issue.</strong> The first proposal explained decoration but omitted constraints checked later during hosted binding, so an apparently valid declaration could fail when hosted. The phase summary named signature and codec checks but left declaration relationships implicit. The integrated review also found that concurrency requirements were unexplained.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Separate declaration-time effects from hosted validation. Make required signatures and control/state/codec relationships explicit. Group the longer contract by phase, and distinguish scientific retry eligibility from deployment policy actually choosing a retry. The activation summary must cover the deferred relationships described below it. Describe concurrency as a host requirement; attaching a declaration does not synchronize direct calls.</p>
 <p class="test-case"><strong>Example test.</strong> Decorate a synchronous method and assert the returned function is the same object and its body has not run. A second declaration raises ValueError. Separately, decoration of an async method succeeds but HostedContribution construction rejects it. Exercise state_outputs with and without ScientificReturn[Result], and progress with and without ScientificControl, to verify the hosted signature requirements.</p>
 
 <!-- Panel review construction-2: R1: truth FAIL; C1=10,C2=5,C3=6,C4=9,C5=10. Omitted deferred signature validation, control/state-output couplings and default-codec dataclass boundary. R2: truth PASS; C1=10,C2=10,C3=10,C4=8,C5=9. Clarified no parameter defaults per language review while retaining source receiver rule. Evidence: scientific.operation, HostedContribution, _compile_method, _codec and ErrorPolicy exact retry classification. Final wording awaits integrated review. -->
@@ -308,7 +377,19 @@ or granting permission to execute or replay work.
 
 <!-- Panel review construction-3: R1: truth PASS; C1=C2=C3=C4=C5=10. Evidence: acknowledge_start, AcknowledgedAttempt constructor and production caller after admission; local historical record is not execution authority. -->
 </article></section>
-<section id="effects"><h2>6. State changes and external effects</h2><p>Name what changes, which record or resource is affected and what happens on failure.</p><article id="effects-1">
+<section id="effects"><h2>6. State changes and external effects</h2><p>Name what changes, which record or resource is affected and what happens on failure.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> initial state + trigger + matching condition → resulting state and return; failure → remaining state and exception.</p>
+<ol>
+<li><strong>Target and condition:</strong> identify exactly which state or resource may change and what permits the change.</li>
+<li><strong>Success transition:</strong> state the changed fields or effects and any returned result. Identify preserved state when callers rely on it, such as unrelated queue rows.</li>
+<li><strong>Failure transition:</strong> pair each consequential failure with both its exception and the state left behind; scope atomicity claims to what is actually guaranteed.</li>
+<li><strong>Repeated action, when supported or consequential:</strong> state whether another call repeats the effect, replaces data, does nothing or fails. Separate caller duties from checks performed here.</li>
+</ol>
+<p><strong>Structural check.</strong> Can a reviewer compare before and after state for success and a failed condition, plus repetition when supported or consequential, without assuming every exception implies rollback?</p>
+<p><strong>Example mapping.</strong> <a href="#effects-1">DeliveryQueue.hold</a> changes the exact matching row’s state and reason; a second hold replaces the reason. With no exact match it raises DeliveryConflict and leaves the queue unchanged. Reviewing the reason is the caller’s duty.</p>
+</div>
+<article id="effects-1">
 <h3><a href="../packages/provider-core/src/provider_core/delivery_store.py" title="Line 587">DeliveryQueue.hold</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Retain a reviewed operator explanation, never raw remote response text.&quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Mark the exact queued request as held and store the operator’s explanation.
 
@@ -355,7 +436,19 @@ the API received the outcome.
 <p class="workshop-learning"><strong>Concrete learning.</strong> State the governing failure condition—no matching held row—then give examples. Keep operator disposal of retained bytes separate from evidence that the API received an outcome.</p>
 <p class="test-case"><strong>Example test.</strong> A matching held row is removed. A pending row with the same identity, or a held row with another digest, causes DeliveryConflict and remains stored.</p>
 </article></section>
-<section id="waiting"><h2>7. Observation and waiting</h2><p>State what ends the wait and what is returned or raised. Explain cancellation and timeouts.</p><article id="waiting-1">
+<section id="waiting"><h2>7. Observation and waiting</h2><p>State what ends the wait and what is returned or raised. Explain cancellation and timeouts.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> observed state → continue waiting, return or raise; applicable interruption → effects on waiter and observed work.</p>
+<ol>
+<li><strong>Observed work:</strong> identify what is being watched and whether the call starts it or observes existing work.</li>
+<li><strong>Decision rule:</strong> define the conditions for continued waiting, successful return and failure, including precedence when several conditions hold.</li>
+<li><strong>Time and interruption, when they affect outcomes or recovery:</strong> state deadline ownership and distinguish cancellation of the waiter from cancellation of the work.</li>
+<li><strong>Re-entry, when supported or consequential:</strong> state whether another call observes the same work or starts a new attempt.</li>
+</ol>
+<p><strong>Structural check.</strong> Can a reviewer assign continue, return or raise to each relevant observed state? When interruption affects the outcome or recovery, can they identify what remains active? An elapsed-time example cannot substitute for the decision rule.</p>
+<p><strong>Example mapping.</strong> <a href="#waiting-2">observe_cleanup</a> keeps waiting while unsettled and failure-free, returns a settled failure-free observation, and raises reported failures even before settlement. An overdue flag alone does not end the wait; observer cancellation does not cancel cleanup.</p>
+</div>
+<article id="waiting-1">
 <h3><a href="../packages/provider-core/src/provider_core/hosting.py" title="Line 548">observe_completion</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Wait on an existing operation without submitting or stopping work.
 
@@ -419,26 +512,39 @@ cancellation.
 <p class="workshop-learning"><strong>Concrete learning.</strong> Cover observer cancellation, task cancellation and their combination. Explain shielding and deferred propagation separately. Do not promise original cancellation-object identity unless that identity is actually preserved.</p>
 <p class="test-case"><strong>Example test.</strong> Block the owned task on an event, cancel its observer, and assert the task remains live and the join remains pending. Release the event and verify observer cancellation is then propagated. Separately cancel only the owned task and assert CancelledError reaches the observer. Finally cancel the owned task after an observer interruption and assert both cancellations are retained in the raised group.</p>
 </article></section>
-<section id="lifetime"><h2>8. Resource lifetimes and orchestration</h2><p>Describe the ordered work and ownership handoff: what starts, what is returned or yielded, and who handles cleanup.</p><article id="lifetime-1">
+<section id="lifetime"><h2>8. Resource lifetimes and orchestration</h2><p>Describe the ordered work and ownership handoff: what starts, what is returned or yielded, and who handles cleanup.</p>
+<div class="contract-structure">
+<p><strong>Contract form.</strong> acquisition → owner and permitted use → release trigger → confirmed cleanup; consequential exit → remaining ownership.</p>
+<ol>
+<li><strong>Acquisition and transfer:</strong> identify each resource, its owner and the event that transfers or lends control.</li>
+<li><strong>Use interval:</strong> state which resources must remain available while work or readers depend on them.</li>
+<li><strong>Release:</strong> name who requests cleanup and what observation confirms it has finished.</li>
+<li><strong>Consequential exits:</strong> for success and failures or cancellation that affect a resource, state what remains owned or pending and what the caller must do next. Include failed transfer when it matters who retains the resource.</li>
+</ol>
+<p><strong>Structural check.</strong> At each consequential exit involving acquired, borrowed or transferred resources, can a reviewer identify the surviving owner, remaining resource state and signal that permits release? “Cleanup runs” alone fails this check.</p>
+<p><strong>Example mapping.</strong> <a href="#lifetime-3">UploadTransfer.acquire_file</a> borrows directory_fd through acquisition or failed-file cleanup. Success transfers file access and deletion to the caller; pending failure keeps cleanup with the transfer, with store retirement required before settle_file confirms cleanup.</p>
+</div>
+<article id="lifetime-1">
 <h3><a href="../packages/provider-core/src/provider_core/execution_setup.py" title="Line 117">ExecutionSettings.open_contribution</a></h3>
 <div class="comparison"><div role="group" aria-label="Current docstring"><pre><code>&quot;&quot;&quot;Own host startup and retirement for one configured contribution.
 
         Injected process sessions transfer custody on successful host construction,
         just as with create_host(). Earlier configuration failures leave them with
         the caller. Both backends initialize science before yielding.
-        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;Initialize a contribution and yield (execution_host, contribution) within the host’s lifetime.
+        &quot;&quot;&quot;</code></pre></div><div role="group" aria-label="Suggested docstring"><pre><code>&quot;&quot;&quot;On async context entry, create and enter the host, initialize the contribution,
+then yield (execution_host, contribution).
 
-Create the host using create_host(), including its option and session rules.
+Host creation follows create_host()’s option and session rules.
 Successful process-host construction transfers session ownership; earlier
 failure leaves it with the caller.
 
 Initialization failure, body failure and cancellation all exit the host context
 and invoke its retirement handling. Cleanup failures propagate, grouped with
-a body or initialization failure when both occur; context exit does not by
+a distinct body or initialization failure when both occur; context exit does not by
 itself prove that retirement succeeded.
 &quot;&quot;&quot;</code></pre></div></div>
-<p class="workshop-issue"><strong>Issue.</strong> “Retire the host on exit” could be read as a guarantee of successful cleanup, and the proposal repeated the initialization-before-yield rule.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> Describe retirement handling and its failure outcomes separately from successful retirement. Locate session transfer at host construction; initialization failure still enters cleanup without yielding a usable handle.</p>
+<p class="workshop-issue"><strong>Issue.</strong> “Retire the host on exit” could be read as a guarantee of successful cleanup, and the proposal repeated the initialization-before-yield rule. The category review found that the opening hid context entry as the activation event and that “both failures” included the same exception object twice.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> Describe retirement handling and its failure outcomes separately from successful retirement. Locate session transfer at host construction; initialization failure still enters cleanup without yielding a usable handle. Name the event that starts work. Distinguish two failure causes from one cause observed again during cleanup.</p>
 <p class="test-case"><strong>Example test.</strong> Record initialize, yield/body and host-exit events; assert their order. Force initialization failure and assert host exit occurs without yielding. Also exercise body failure.</p>
 </article><article id="lifetime-2">
 <h3><a href="../packages/provider-core/src/provider_core/hosting.py" title="Line 771">ResultConsumption.consume</a></h3>
@@ -491,14 +597,15 @@ receipt. After success this transfer no longer uses directory_fd. The caller
 owns subsequent file access and deletion, and must wait for readers before
 deleting the file.
 
-Argument checks may fail before a file owner exists. Once it exists, failures
-retain transfer and cleanup evidence. If file_cleanup_pending remains true,
-retire the exact store exchange before calling settle_file(), and keep the
+Initial argument checks precede allocation of file-cleanup resources. Failures
+during or after file creation retain failure evidence. If file_cleanup_pending
+remains true, this transfer still owns the unfinished cleanup: retire the exact
+store exchange before calling settle_file(), and keep the
 directory open until cleanup is confirmed. An uncertain close can require
 process retirement. Cancellation does not establish that cleanup has finished.
 &quot;&quot;&quot;</code></pre></div></div>
-<p class="workshop-issue"><strong>Issue.</strong> The review exposed two different lifetimes: the transfer’s loan of directory_fd and the caller’s ownership of the successful file. “Private directory” also omitted concrete preparation requirements.</p>
-<p class="workshop-learning"><strong>Concrete learning.</strong> State the effective-user ownership and 0700 mode requirements. The transfer stops using the descriptor on success, but the caller still owns file access and deletion. Pending failed-file cleanup requires retiring the store exchange first; it is a different path from successful handoff.</p>
+<p class="workshop-issue"><strong>Issue.</strong> The review exposed two different lifetimes: the transfer’s loan of directory_fd and the caller’s ownership of the successful file. “Private directory” also omitted concrete preparation requirements. “Before a file owner exists” did not tell the reader whether it meant a bookkeeping object or the physical file.</p>
+<p class="workshop-learning"><strong>Concrete learning.</strong> State the effective-user ownership and 0700 mode requirements. The transfer stops using the descriptor on success, but the caller still owns file access and deletion. Pending failed-file cleanup requires retiring the store exchange first; it is a different path from successful handoff. Separate allocation of cleanup resources from file creation: creation itself can fail after cleanup responsibility begins.</p>
 <p class="test-case"><strong>Example test.</strong> An unretired store is refused before a grant request or file creation. For matching bytes, assert the returned file’s length and digest and that the writer descriptor is closed. A digest mismatch returns no receipt; drive cleanup to confirmation before closing the directory.</p>
 </article></section>
 
@@ -510,7 +617,7 @@ process retirement. Cancellation does not establish that cleanup has finished.
 <p>Ask of every clause: what setup and observation would demonstrate that this claim is false?</p>
 </footer>
 
-<!-- Final workshop record, 2026-11-27.
+<!-- Earlier workshop record, 2026-11-27, before the category-structure reassessment.
 Scope: revised Suggested docstrings and illustrative examples only; Current source quotations preserved.
 All 24 passed final independent truth/sufficiency review; C2 and C3 scored 10 each.
 Final language C1=10 throughout. C4/C5 exceptions: queries-3 9/9;
@@ -532,5 +639,45 @@ facts: they control caller-visible behavior. Reorganized long selector and decor
 contracts; the selector now states equivalent resultant rules instead of duplicated guards.
 HTML structure, all 24 docstring literals, local links and unchanged Current quotations
 were checked. Illustrative examples are specifications, not claimed execution receipts.
+-->
+
+<!-- Category-structure reassessment, 2026-11-27.
+This later round applies the eight category forms to all 24 proposals.
+Category-form reviewers: contract structure 10/10; reader structure 10/10.
+R1 contract C2/C3, in article order within each category:
+guards 10/10,10/10,10/10; predicates 9/9,9/9,9/9;
+queries 10/10,7/7,8/8; conversion 9/9,10/10,10/10;
+construction 9/10,9/9,10/10; effects 10/10,10/10,10/10;
+waiting 10/10,10/10,10/10; lifetime 9/9,10/10,10/10.
+R1 language C1/C4/C5:
+guards 9/10/9,10/10/10,10/10/10; predicates all 10/10/10;
+queries 10/10/10,9/9/9,10/9/9; conversion all 10/10/10;
+construction 9/9/9,9/8/7,9/9/9; effects 9/9/9,9/9/9,9/8/8;
+waiting 9/9/9,9/9/9,9/8/8; lifetime 7/8/8,9/8/7,9/7/8.
+Accepted findings: query matching set and no-match result; recorded-hash scope;
+iteration-error propagation; deferred declaration checks; async entry and failure
+identity in lifetime handling; cleanup-resource allocation before physical creation.
+Rejected guard-1 deletion: allowed alphabet and required first letter constrain
+different positions. Retained consequential lifetime detail despite density scores.
+R2 query-2 private mapping reference remained incomplete: C2/C3 8/8,
+language 9/8/9. Replaced it with the actual finite type set; R3 gate PASS,
+all five criteria 10. Query-3 C2/C3 now 10/10, language 10/9/9;
+reviewer withdrew its C3 scan-density deduction as a language concern.
+Conversion-1 now all five criteria 10. Construction-2 C2/C3 10/10,
+language 9/8/8; lifetime-1 final C2/C3 10/10, language 9/9/9;
+lifetime-3 C2/C3 9/9, language 9/8/9.
+Final small changes make host enter-before-initialize ordering explicit,
+name synchronous non-generator methods directly, and explicitly include failures
+during physical file creation. Final lifetime-3 wording separates failure evidence
+from unfinished cleanup still owned by this transfer. Fresh integrated review
+requested an explicit Unicode whitespace predicate; guards-2 now names str.isspace()
+and includes a nonbreaking-space example. Integrated gate was initially incomplete,
+category fit 9/10: also missing the operation concurrency contract. Added its
+serialization scope, default, host support requirement and unchanged direct calls.
+Fresh reviewer reassessment: truth/sufficiency gate PASS; category fit 9/10;
+no further actionable finding. NBSP exercises Unicode rejection but fails both
+printability and whitespace rules; the existing ASCII-space example isolates
+whitespace rejection. HTML, local links, all 24 proposal literals and eight
+category structures pass validation. All source quotations remain unchanged.
 -->
 </main></body></html>
