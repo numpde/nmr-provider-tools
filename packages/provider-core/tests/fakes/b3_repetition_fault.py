@@ -57,6 +57,8 @@ async def _settled_peer_handlers(peer):
 
 async def scenario(marker, report, seed):
     from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAnalysis
+    from provider_core.payload import EncodedPayload
+    from tests.fakes.outcomes import BytesCodec, FailureCode
     from provider_core.attempt_record import ProtectedEvidence, StartPending
     from provider_core.validation.upstream.nmr.v1.attempt_request import read_complete_body, read_fail_body
     from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
@@ -212,9 +214,9 @@ async def scenario(marker, report, seed):
                 self.failure = failure
 
                 outcome = AnalysisFailure(
-                    "interpreter_failed",
-                    "The prose-interpretation HTTPS request exceeded its original deadline.",
-                    ProtectedEvidence("fixture.interpreter.failure.v1", b"original timeout retained by session"),
+                    code=FailureCode.INTERPRETER_FAILED,
+                    message="The prose-interpretation HTTPS request exceeded its original deadline.",
+                    evidence=ProtectedEvidence("fixture.interpreter.failure.v1", b"original timeout retained by session"),
                 )
             else:
                 outcome = prepared.value
@@ -231,9 +233,11 @@ async def scenario(marker, report, seed):
             self.handle = None
 
             return AnalysisSuccess(
-                "fixture.counted_science.v1",
-                json.dumps(worker_snapshot).encode(),
-                ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution")
+                result=EncodedPayload(
+                    codec=BytesCodec(format="fixture.counted_science.v1"),
+                    value=json.dumps(worker_snapshot).encode(),
+                ),
+                evidence=ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution"),
             )
 
         async def retire(self):

@@ -11,9 +11,13 @@ from provider_core.container_guard import require_container
 require_container()
 
 from dataclasses import dataclass, field
+from enum import auto
 from typing import Protocol
 
 from provider_core.attempt_record import AcknowledgedAttempt, ProtectedEvidence
+from provider_core.contribution_errors import ErrorCode
+from provider_core.payload import EncodedPayload
+from provider_core.validation.upstream.nmr.v1.attempt_request import require_failure_code
 from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
 from provider_core.runner_session import RunnerSession
 from provider_core.type_requirements import require_instance, require_type
@@ -42,20 +46,34 @@ class AnalysisOutcomeUnresolved(RuntimeError):
     """
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class AnalysisSuccess:
-    result_schema_id: str
-    content: bytes = field(repr=False)
+    """Publish one codec-produced payload, retaining its exact encoded bytes."""
+
+    result: EncodedPayload = field(repr=False)
     evidence: ProtectedEvidence = field(repr=False)
 
+    def __post_init__(self):
+        require_type(self.result, EncodedPayload)
+        require_type(self.evidence, ProtectedEvidence)
 
-@dataclass(frozen=True, slots=True)
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class AnalysisFailure:
-    """A binding-classified public failure, not a catch-all for runtime exceptions."""
+    """A public failure whose producer declares its code through ErrorCode.
 
-    code: str
+    Providers own their vocabularies. Only terminal serialization converts the
+    selected member to its wire string; arbitrary runtime exceptions stay separate.
+    """
+
+    code: ErrorCode
     message: str = field(repr=False)
     evidence: ProtectedEvidence = field(repr=False)
+
+    def __post_init__(self):
+        require_instance(self.code, ErrorCode)
+        require_failure_code(self.code.value)
+        require_type(self.evidence, ProtectedEvidence)
 
 
 class ObservedWorkerCrash(RuntimeError):
@@ -65,6 +83,9 @@ class ObservedWorkerCrash(RuntimeError):
     Attempt, phase and owner before selecting a report. Cause and evidence are
     protected diagnostics; public wording uses only the phase and exit status.
     """
+
+    class Code(ErrorCode):
+        WORKER_CRASHED = auto()
 
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
         require_type(acknowledged, AcknowledgedAttempt)
@@ -110,9 +131,9 @@ class ObservedWorkerCrash(RuntimeError):
             reason = f"Worker exited unexpectedly during {phase = } with {return_code = }. No verified outcome was returned."
 
         return AnalysisFailure(
-            "worker_crashed",
-            reason,
-            self.evidence,
+            code=self.Code.WORKER_CRASHED,
+            message=reason,
+            evidence=self.evidence,
         )
 
 

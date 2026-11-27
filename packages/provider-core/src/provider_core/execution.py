@@ -1281,10 +1281,10 @@ class AttemptExecutor:
         reference = self._record.admission.execution_attempt_ref
 
         if type(self._outcome) is AnalysisSuccess:
-            body = complete_body(reference, self._outcome.result_schema_id, self._outcome.content)
+            body = complete_body(reference, self._outcome.result.format, self._outcome.result.content)
             operation = TerminalOperation.COMPLETE
         elif type(self._outcome) is AnalysisFailure:
-            body = fail_body(reference, self._outcome.code, self._outcome.message)
+            body = fail_body(reference, self._outcome.code.value, self._outcome.message)
             operation = TerminalOperation.FAIL
         else:
             require_type(self._outcome, (AnalysisSuccess, AnalysisFailure))

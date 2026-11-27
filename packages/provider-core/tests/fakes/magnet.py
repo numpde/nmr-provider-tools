@@ -20,6 +20,8 @@ import json
 from hashlib import sha256
 
 from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.attempt_record import ProtectedEvidence
 
 RESULT_SCHEMA_ID = "magnet.g01.prediction_observation.v1"
@@ -99,9 +101,11 @@ class MagnetSession:
         prediction_fields = await self.worker(model_input)
 
         return AnalysisSuccess(
-            RESULT_SCHEMA_ID,
-            self._encode_prediction_report(key, model_input, prediction_fields),
-            ProtectedEvidence("fixture.magnet.evidence.v1", b"scripted async product result"),
+            result=EncodedPayload(
+                codec=BytesCodec(format=RESULT_SCHEMA_ID),
+                value=self._encode_prediction_report(key, model_input, prediction_fields),
+            ),
+            evidence=ProtectedEvidence("fixture.magnet.evidence.v1", b"scripted async product result"),
         )
 
     async def retire(self):

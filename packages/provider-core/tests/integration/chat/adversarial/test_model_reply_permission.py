@@ -9,6 +9,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.attempt_record import ProtectedEvidence, StartPending
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
 from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
@@ -92,7 +94,13 @@ class CountingScience:
 
         self.executions += 1
 
-        return AnalysisSuccess("fixture.result.v1", b"one execution", ProtectedEvidence("fixture.result.v1", b"evidence"))
+        return AnalysisSuccess(
+            result=EncodedPayload(
+                codec=BytesCodec(format="fixture.result.v1"),
+                value=b"one execution",
+            ),
+            evidence=ProtectedEvidence("fixture.result.v1", b"evidence"),
+        )
 
     async def retire(self):
         if (self.pending is not None) and (self.retired_handle is None):

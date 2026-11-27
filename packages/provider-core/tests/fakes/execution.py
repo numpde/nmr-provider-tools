@@ -3,6 +3,8 @@
 import asyncio
 
 from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.attempt_record import ProtectedEvidence, acknowledge_start
 from provider_core.ownership import AttemptClaims
 from tests.fakes.attempt_store import admission, record, scope
@@ -110,7 +112,13 @@ class Session:
         self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", b"scripted candidate"))
         self.events = []
         self.preparation = self.handle
-        self.outcome = AnalysisSuccess("result.v1", b"result bytes", ProtectedEvidence("evidence.v1", b"private evidence"))
+        self.outcome = AnalysisSuccess(
+            result=EncodedPayload(
+                codec=BytesCodec(format="result.v1"),
+                value=b"result bytes",
+            ),
+            evidence=ProtectedEvidence("evidence.v1", b"private evidence"),
+        )
         self.retirement_failure = None
 
     # Match the required session port; this recording fixture emits no conditions.

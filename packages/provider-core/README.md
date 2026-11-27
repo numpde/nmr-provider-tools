@@ -665,6 +665,19 @@ accepting another Job. This operation does not terminate hung cleanup.
 
 ## Crashes and recovery
 
+Return `AnalysisFailure(code=ApplicationCode.INVALID_INPUT, message=message,
+evidence=evidence)` with a member of a producer-owned `ErrorCode` enum. The SDK
+rejects raw strings, including an enum's `.value`, at outcome construction and
+converts the selected code to text only when encoding the API failure request.
+Different providers can declare different vocabularies without changing the SDK.
+
+For success, construct `result = EncodedPayload(codec=report_codec, value=report)`
+and return `AnalysisSuccess(result=result, evidence=evidence)`. The codec supplies
+the format and encodes the value once. Evidence digests must use `result.content`;
+delivery and retries retain that same format and immutable byte sequence. JSON
+and custom binary codecs use the same interface. Schema identifiers and content
+are no longer independent `AnalysisSuccess` constructor arguments.
+
 `work_settled` confirms that original work, I/O and required native cleanup have
 stopped. It does not permit losing an unacknowledged report. Use every owned
 controller's `shutdown_ready`, together with the provider's other resource owners,

@@ -8,6 +8,8 @@ import os
 from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import ProtectedEvidence, acknowledge_start
 from provider_core.analysis import AnalysisSuccess
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.delivery_worker import DeliveryWorkerFailed
 from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.deployment_binding import BindingDefinitionRejected
@@ -451,7 +453,13 @@ class CoreFailureProjectionTests(unittest.TestCase):
         self.assertNotIn("local_phase", details)
 
     def _execution_with_outcome(self, active):
-        candidate = AnalysisSuccess("result.v1", b"PRIVATE_RESULT", ProtectedEvidence("evidence.v1", b"PRIVATE_EVIDENCE"))
+        candidate = AnalysisSuccess(
+            result=EncodedPayload(
+                codec=BytesCodec(format="result.v1"),
+                value=b"PRIVATE_RESULT",
+            ),
+            evidence=ProtectedEvidence("evidence.v1", b"PRIVATE_EVIDENCE"),
+        )
 
         return ExecutionFailed(
             cause=OSError(),

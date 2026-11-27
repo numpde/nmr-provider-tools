@@ -130,7 +130,7 @@ def _require_outcome_text(outcome_text, field_name):
         raise ValueError(f"{field_name=}; {outcome_text=} should not contain NUL or surrogate code points")
 
 
-def _failure_code(failure_code):
+def require_failure_code(failure_code):
     """Require 1–128 ASCII characters, starting with a lowercase letter.
 
     Allow lowercase letters and digits, with single underscores between segments.
@@ -172,7 +172,7 @@ def require_fail_inputs(execution_attempt_ref, failure_code, failure_message):
     material before this call; text-shape validation is not secret detection.
     """
     require_attempt_ref(execution_attempt_ref)
-    _failure_code(failure_code)
+    require_failure_code(failure_code)
     _require_outcome_text(failure_message, "failure message")
 
 
@@ -239,7 +239,7 @@ def read_fail_body(body, *, execution_attempt_ref):
     """Admit exact public failure facts; do not normalize their text."""
     failure_request = _outcome_document(body, "fail", 16384, execution_attempt_ref, ("failure_code", "failure_message"))
 
-    _failure_code(failure_request["failure_code"])
+    require_failure_code(failure_request["failure_code"])
     _require_outcome_text(failure_request["failure_message"], "failure message")
 
     return (failure_request["failure_code"], failure_request["failure_message"])

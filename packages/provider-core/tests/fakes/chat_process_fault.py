@@ -208,6 +208,8 @@ def _failure_types(error):
 
 async def scenario(marker, report):
     from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAnalysis
+    from provider_core.payload import EncodedPayload
+    from tests.fakes.outcomes import BytesCodec, FailureCode
     from provider_core.api_config import https_trust
     from provider_core.attempt_record import ProtectedEvidence, StartPending
     from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
@@ -317,9 +319,9 @@ async def scenario(marker, report):
                 self.failure = failure
 
                 failed = AnalysisFailure(
-                    "interpreter_failed",
-                    "The model request did not complete within its time allowance.",
-                    ProtectedEvidence("fixture.interpreter.failure.v1", b"original failure retained by session"),
+                    code=FailureCode.INTERPRETER_FAILED,
+                    message="The model request did not complete within its time allowance.",
+                    evidence=ProtectedEvidence("fixture.interpreter.failure.v1", b"original failure retained by session"),
                 )
             except ConversationRetirementFailed as failure:
                 self.failure = failure
@@ -340,9 +342,11 @@ async def scenario(marker, report):
             self.handle = None
 
             return AnalysisSuccess(
-                "fixture.result.v1",
-                json.dumps(worker_snapshot).encode(),
-                ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution")
+                result=EncodedPayload(
+                    codec=BytesCodec(format="fixture.result.v1"),
+                    value=json.dumps(worker_snapshot).encode(),
+                ),
+                evidence=ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution"),
             )
 
         async def retire(self):

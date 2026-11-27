@@ -16,6 +16,8 @@ import pathlib
 from contextlib import suppress
 
 from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec, FailureCode
 from provider_core.attempt_record import ProtectedEvidence
 
 
@@ -103,7 +105,11 @@ class ChildSession:
         evidence = ProtectedEvidence("fixture.child.evidence.v1", b"scripted preparation, not chemical validation")
 
         if preparation_reply == {"state": "rejected"}:
-            return AnalysisFailure("input_rejected", "The scripted peer rejected preparation before generation.", evidence)
+            return AnalysisFailure(
+                code=FailureCode.INPUT_REJECTED,
+                message="The scripted peer rejected preparation before generation.",
+                evidence=evidence,
+            )
 
         if preparation_reply != (expected_preparation_reply := {"state": "prepared", "source_fingerprint": fingerprint}):
             raise ValueError(f"{preparation_reply=} should match {expected_preparation_reply=}")
@@ -131,9 +137,11 @@ class ChildSession:
         generation_reply = await self.child.receive()
 
         return AnalysisSuccess(
-            "fixture.child.result.v1",
-            json.dumps(generation_reply).encode(),
-            ProtectedEvidence("fixture.child.evidence.v1", b"one scripted generation"),
+            result=EncodedPayload(
+                codec=BytesCodec(format="fixture.child.result.v1"),
+                value=json.dumps(generation_reply).encode(),
+            ),
+            evidence=ProtectedEvidence("fixture.child.evidence.v1", b"one scripted generation"),
         )
 
     async def retire(self):

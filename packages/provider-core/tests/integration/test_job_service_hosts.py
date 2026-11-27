@@ -18,6 +18,8 @@ import time
 import unittest
 
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.attempt_record import ProtectedEvidence
 from provider_core.controller import ControllerFailed
 from provider_core.hosting import OperationPolicy
@@ -98,7 +100,13 @@ class Session:
 
         content = json.dumps(asdict(result)).encode()
 
-        return AnalysisSuccess("test.result.v1", content, ProtectedEvidence("test.result.v1", content))
+        return AnalysisSuccess(
+            result=EncodedPayload(
+                codec=BytesCodec(format="test.result.v1"),
+                value=content,
+            ),
+            evidence=ProtectedEvidence("test.result.v1", content),
+        )
 
     async def retire(self):
         pass

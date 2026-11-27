@@ -129,7 +129,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([], delivery.delivery_outcomes)
         self.assertIsNone(executor._delivery_outcome)
-        self.assertEqual(session.content, executor._outcome.content)
+        self.assertEqual(session.content, executor._outcome.result.content)
         self.assertTrue(executor.retirement_confirmed)
 
     async def test_delivery_ack_frees_report_capacity_while_native_cleanup_is_pending(self):

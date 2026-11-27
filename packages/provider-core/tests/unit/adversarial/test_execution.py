@@ -7,6 +7,8 @@ from tests.fakes.execution import live_controller, live_executor
 from tests.fakes.execution import LiveAttemptProbe
 import asyncio
 import unittest
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from dataclasses import replace
 from unittest.mock import patch
 
@@ -310,7 +312,13 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_unencodable_result_is_preserved_and_retired_without_reexecution(self):
         (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
-        session.outcome = replace(session.outcome, content=b"x" * 786433)
+        session.outcome = replace(
+            session.outcome,
+            result=EncodedPayload(
+                codec=BytesCodec(format=session.outcome.result.format),
+                value=b"x" * 786433,
+            ),
+        )
 
         executor = live_executor(
             api(normal_transport(), store.scope.api_origin),

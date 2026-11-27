@@ -3,6 +3,8 @@
 import asyncio
 
 from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.attempt_record import ProtectedEvidence
 
 
@@ -29,7 +31,13 @@ class LiveSession:
         if not (prepared is self.handle):
             raise AssertionError("Foreign scientific handle")
 
-        return AnalysisSuccess("result.v1", self.content, ProtectedEvidence("fixture.outcome.v1", b"evidence"))
+        return AnalysisSuccess(
+            result=EncodedPayload(
+                codec=BytesCodec(format="result.v1"),
+                value=self.content,
+            ),
+            evidence=ProtectedEvidence("fixture.outcome.v1", b"evidence"),
+        )
 
     async def retire(self):
         self.retiring.set()

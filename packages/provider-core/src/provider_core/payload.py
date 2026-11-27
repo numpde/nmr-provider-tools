@@ -13,7 +13,7 @@ require_container()
 import json
 import reprlib
 from collections.abc import Mapping
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from enum import auto
 from functools import cache
 
@@ -60,6 +60,29 @@ class PayloadCodec[T](Protocol):
     def decode(self, payload: bytes) -> T: ...
 
     def encode(self, value: T) -> bytes: ...
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class EncodedPayload:
+    """Freeze one codec's format and encoded bytes for evidence and delivery.
+
+    Encode at construction, before the caller releases its result or resources.
+    Retried publication reads these same bytes without consulting the codec again.
+    """
+
+    format: str
+    content: bytes = field(repr=False)
+
+    def __init__[T](self, *, codec: PayloadCodec[T], value: T) -> None:
+        require_instance(codec, PayloadCodec)
+        payload_format = codec.format
+
+        _require_format(payload_format)
+        content = codec.encode(value)
+
+        require_type(content, bytes)
+        object.__setattr__(self, "format", payload_format)
+        object.__setattr__(self, "content", content)
 
 
 @runtime_checkable

@@ -15,6 +15,8 @@ from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.execution import ObservationRecovery
 from provider_core.delivery_store import DeliveryFull
 from provider_core.analysis import AnalysisFailure, AnalysisSuccess
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec, FailureCode
 from provider_core.attempt_record import ProtectedEvidence
 from tests.fakes.api import Transport, api, reply
 from tests.fakes.attempt_store import record, scope
@@ -213,8 +215,18 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         evidence = ProtectedEvidence("fixture.outcome.v1", b"original scientific outcome")
 
         for (outcome, expected) in (
-            (AnalysisSuccess("result.v1", b"result", evidence), TerminalOperation.COMPLETE),
-            (AnalysisFailure("input_rejected", "Input was rejected", evidence), TerminalOperation.FAIL),
+            (AnalysisSuccess(
+                result=EncodedPayload(
+                    codec=BytesCodec(format="result.v1"),
+                    value=b"result",
+                ),
+                evidence=evidence,
+            ), TerminalOperation.COMPLETE),
+            (AnalysisFailure(
+                code=FailureCode.INPUT_REJECTED,
+                message="Input was rejected",
+                evidence=evidence,
+            ), TerminalOperation.FAIL),
         ):
             with self.subTest(operation=expected):
                 delivery = RecordingDelivery()

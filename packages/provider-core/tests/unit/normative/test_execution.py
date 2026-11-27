@@ -7,6 +7,7 @@ from tests.fakes.execution import live_executor
 import unittest
 
 from provider_core.analysis import AnalysisFailure
+from tests.fakes.outcomes import FailureCode
 from provider_core.attempt_record import ProtectedEvidence, TerminalOperation
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import observation, progress_response
@@ -61,9 +62,9 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
         session = Session(store)
 
         session.preparation = AnalysisFailure(
-            "input_rejected",
-            "Supply a geometry.",
-            ProtectedEvidence("evidence.v1", b"reason")
+            code=FailureCode.INPUT_REJECTED,
+            message="Supply a geometry.",
+            evidence=ProtectedEvidence("evidence.v1", b"reason"),
         )
 
         terminal = await live_executor(

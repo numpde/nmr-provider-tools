@@ -5,6 +5,7 @@ import asyncio
 import unittest
 
 from provider_core.analysis import AnalysisFailure
+from tests.fakes.outcomes import FailureCode
 from provider_core.attempt_record import ProtectedEvidence, SuppressionReason
 from provider_core.producer_checkpoint import AcknowledgedCheckpoint, encode_checkpoint
 from provider_core.execution import ExecutionFailed, ExecutionStopped
@@ -122,7 +123,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(retained.reason, SuppressionReason.CALLER_CANCELLED)
         self.assertIsInstance(executor.last_failure.cause, asyncio.CancelledError)
         self.assertIsNone(executor.last_failure.outcome)
-        self.assertNotIn(session.outcome.content, encode_checkpoint(retained))
+        self.assertNotIn(session.outcome.result.content, encode_checkpoint(retained))
         self.assertNotIn(session.outcome.evidence.content, encode_checkpoint(retained))
         self.assertEqual(executor.delivery.delivery_outcomes, [])
         self.assertEqual(len(transport.calls), 7)
@@ -131,7 +132,11 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
     async def test_classified_preparation_failure_can_be_retained_after_stop_without_execution(self):
         (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
-        session.preparation = AnalysisFailure("invalid_input", "Supply coordinates.", ProtectedEvidence("evidence.v1", b"reason"))
+        session.preparation = AnalysisFailure(
+            code=FailureCode.INVALID_INPUT,
+            message="Supply coordinates.",
+            evidence=ProtectedEvidence("evidence.v1", b"reason"),
+        )
 
         transport = Transport(
             reply(observation()),

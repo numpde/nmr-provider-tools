@@ -19,6 +19,8 @@ import unittest
 from unittest.mock import Mock
 
 from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
+from provider_core.payload import EncodedPayload
+from tests.fakes.outcomes import BytesCodec
 from provider_core.attempt_record import ProtectedEvidence
 from provider_core.chat import ChatFailed
 from provider_core.execution_setup import ExecutionSettings
@@ -149,7 +151,13 @@ class Session:
             self.failure = cause
             raise
         content = str(result.process_id).encode()
-        return AnalysisSuccess("fixture.result.v1", content, ProtectedEvidence("fixture.result.v1", content))
+        return AnalysisSuccess(
+            result=EncodedPayload(
+                codec=BytesCodec(format="fixture.result.v1"),
+                value=content,
+            ),
+            evidence=ProtectedEvidence("fixture.result.v1", content),
+        )
 
     async def retire(self):
         self.retire_calls += 1
