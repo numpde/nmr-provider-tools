@@ -776,6 +776,7 @@ class JobUploads:
         self._received_bytes = 0
         self._inspected_membership = None
         self._active = False
+        self._retiring = False
         self._grant_issued = False
 
         self._transfer_owner = UploadTransfer(
@@ -844,6 +845,9 @@ class JobUploads:
 
     @asynccontextmanager
     async def _operation(self):
+        if self._retiring:
+            raise UploadFailed("Cannot start acquisition after retirement has begun")
+
         if self._active:
             raise UploadFailed(f"{self._active=} should be False before another acquisition operation")
 
@@ -1253,6 +1257,35 @@ class JobUploads:
             raise UploadFailed(f"{self._active=} should be False before file settlement")
 
         return await self._transfer_owner.settle_file()
+
+    async def retire(self):
+        """Retire borrowed transports and settle file I/O after operations finish.
+
+        This does not release successful files or stop scientific readers.
+        Their enclosing workspace owns that lifetime.
+        """
+
+        self._retiring = True
+
+        if self._active:
+            raise UploadFailed("Cannot retire acquisition while an operation is still active")
+
+        failures = []
+
+        for operation in (self._api.retire, lambda: self._store.retire(owner=self)):
+            try:
+                await operation()
+            except (Exception, BaseExceptionGroup) as cause:
+                failures.append(cause)
+
+        if self._transfer_owner.file_cleanup_pending:
+            try:
+                await self.settle_file()
+            except (Exception, BaseExceptionGroup) as cause:
+                failures.append(cause)
+
+        if failures:
+            raise BaseExceptionGroup("Upload acquisition retirement remains unconfirmed", failures)
 
     def _account_bytes(self, chunk_bytes):
         # Count the offending chunk too: bytes already consumed cannot be refunded.

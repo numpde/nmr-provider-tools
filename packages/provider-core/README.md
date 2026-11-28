@@ -951,6 +951,30 @@ which lasts until the next source operation.
 `UploadRecoveryExhausted` identifies a retryable outage whose bounded recovery
 ended after its original resources retired; its cause retains the current outage.
 
+`provider_core.upload_workspace.UploadWorkspace` retains successful files around
+a supplied `JobUploads`. Supply a fresh directory under a caller-private parent,
+`retirement_seconds`, and an async `retire_readers` operation. Call `open()`, then
+`await acquire(upload_ref)` after inspecting membership through `JobUploads`.
+The read-only `receipts` view and `directory` provide the scientific handoff.
+Selection and cached-receipt reuse remain application decisions.
+
+Before `await workspace.retire()`, stop admitting readers and finish direct
+operations on the supplied `JobUploads`. Retirement waits for workspace transfers,
+awaits `retire_readers`, and retires acquisition I/O before deleting files.
+The reader operation must join every reader or raise; a returned boolean is not
+interpreted as proof. Failed retirement retains the directory for retry. An
+uncertain descriptor close requires enclosing-process retirement before external
+cleanup. Existing directories are refused on open, never silently removed.
+
+Scientific workers can call `provider_core.upload_file.read_upload_files` with a
+receipt dictionary, expected `job_ref`, borrowed `directory_fd`, `maximum_bytes`
+per source and `maximum_total_bytes` across the collection. It checks every
+declared identity and size before opening sources, then returns a dictionary of
+`VerifiedUpload` snapshots only if all reads succeed. Parse each snapshot's
+immutable `.data`; retain ownership of the directory descriptor in the worker.
+The total bound covers returned source bytes, not parser expansion or process
+RSS, and is independent of the acquisition budget for received network bytes.
+
 `deployment_route` continues to support isolated fixture and other private routes.
 Joint provider deployment instead borrows the one host-owned API proxy grant.
 
