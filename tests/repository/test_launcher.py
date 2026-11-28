@@ -21,6 +21,26 @@ from tests.repository.quality.sources import ROOT
 
 
 class LauncherTests(unittest.TestCase):
+    def test_sdk_unit_cpu_budget_follows_parallel_workers(self):
+        pool = tempfile.TemporaryDirectory()
+        self.addCleanup(pool.cleanup)
+        environment = os.environ | {
+            "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/test.sock",
+            "WHEELHOUSE_INPUT_ORIGIN": "command line",
+            "WHEELHOUSE_INPUT": pool.name,
+        }
+        for workers, cpus in (("1", "2"), ("2", "2"), ("3", "3"), ("4", "4")):
+            with self.subTest(workers=workers):
+                completed = subprocess.run(
+                    ["bash", "packages/provider-core/sdk_build/provider_core.sh", "--print", "unit"],
+                    cwd=ROOT, env=environment | {"TEST_WORKERS_INPUT": workers},
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                arguments = shlex.split(completed.stdout)
+                self.assertEqual(arguments[arguments.index("--cpus") + 1], cpus)
+                self.assertIn("PROVIDER_CORE_TEST_WORKERS=" + workers, arguments)
+
     def test_quality_filter_selects_a_test_and_rejects_invalid_selection(self):
         environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/test.sock"}
         command = ["bash", "tests/repository/run.sh", "--print", "tests/repository/quality"]
@@ -304,7 +324,7 @@ class LauncherTests(unittest.TestCase):
             privacy_switch.write_bytes((ROOT / "operations/testing/privacy.sh").read_bytes())
 
             for (target, message) in (
-                ("tests/repository", "operations/checker/image_identity.sh"),
+                ("tests/repository", "operations/checker/source_selection.sh"),
                 ("unreviewed", "unknown target"),
             ):
                 completed_process = subprocess.run(

@@ -12,6 +12,10 @@ case "$test_workers" in 1|2|3|4) ;; *) printf '%s\n' 'TEST_WORKERS must be 1 thr
 case "$action" in download|check|unit|native|contract|integration|integration/delivery|fuzz|build|package) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
+worker_cpus=2
+if [[ $action == unit || $action == package ]] && (( test_workers > worker_cpus )); then
+    worker_cpus=$test_workers
+fi
 # Only an explicit single test filename may narrow the installed suites.
 selected_pattern='test*.py'
 if [[ -v TEST_PATTERN_INPUT_ORIGIN && $TEST_PATTERN_INPUT_ORIGIN == 'command line' ]]; then
@@ -51,7 +55,7 @@ fi
 worker_identity=()
 if [[ $action != download ]]; then worker_identity=(--user "$uid:$gid"); fi
 worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --security-opt no-new-privileges:true
-    --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128
+    --cpus "$worker_cpus" --memory 1g --memory-swap 1g --pids-limit 128
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
     --env "PRIVACY_TESTS=$privacy_tests"

@@ -130,6 +130,8 @@ previous selection until they update their pinned page URL and SDK version.
 
 SDK unit tests can run by module with `TEST_WORKERS=2` (accepted range 1–4,
 default 1) on `tests/unit/provider-core`, `tests/package`, or `publish/prepare`.
+These test containers receive at least two CPUs, rising to one CPU per worker
+for three- or four-worker runs.
 This ports hello-world's module-level process isolation while retaining this
 SDK's installed-package and asyncio-error checks in every worker. Module fixtures
 stay together; complete module logs and timings are reported on completion.
