@@ -88,6 +88,54 @@ class VerifiedUploadFile:
     name: str = field(repr=False)
 
 
+def read_upload_files(receipts, *, job_ref, directory_fd, maximum_bytes, maximum_total_bytes):
+    """Return verified snapshots keyed by Upload, or fail the whole collection.
+
+    Check every declared identity and size before opening any source. The total
+    bound limits returned source bytes, not parser expansion or process RSS.
+    The caller owns the directory descriptor and keeps sources alive through
+    reader retirement, just as for read_upload_file.
+    """
+
+    require_type(receipts, dict, error_factory=UploadFileReadFailed)
+    require_type(job_ref, str, error_factory=UploadFileReadFailed)
+    require_type(maximum_bytes, int, error_factory=UploadFileReadFailed)
+    require_type(maximum_total_bytes, int, error_factory=UploadFileReadFailed)
+
+    if maximum_bytes <= 0 or maximum_total_bytes <= 0:
+        raise UploadFileReadFailed("Collection reads require positive per-file and total byte limits")
+
+    total_bytes = 0
+
+    for upload_ref, receipt in receipts.items():
+        require_type(upload_ref, str, error_factory=UploadFileReadFailed)
+        require_type(receipt, VerifiedUploadFile, error_factory=UploadFileReadFailed)
+        require_type(receipt.job_ref, str, error_factory=UploadFileReadFailed)
+        require_type(receipt.upload_ref, str, error_factory=UploadFileReadFailed)
+
+        if receipt.job_ref != job_ref or receipt.upload_ref != upload_ref:
+            raise UploadFileReadFailed("Collection receipt identity differs from its Job or Upload key")
+
+        require_type(receipt.byte_length, int, error_factory=UploadFileReadFailed)
+
+        if not 0 <= receipt.byte_length <= maximum_bytes:
+            raise UploadFileReadFailed(
+                f"Collection receipt has {receipt.byte_length=}; each source must fit {maximum_bytes=}"
+            )
+
+        total_bytes += receipt.byte_length
+
+    if total_bytes > maximum_total_bytes:
+        raise UploadFileReadFailed(
+            f"Collection requires {total_bytes=} but only {maximum_total_bytes=} are permitted"
+        )
+
+    return {
+        upload_ref: read_upload_file(receipt, directory_fd=directory_fd, maximum_bytes=maximum_bytes)
+        for upload_ref, receipt in receipts.items()
+    }
+
+
 def read_upload_file(receipt, *, directory_fd, maximum_bytes):
     """Verify immutable source bytes inside an already supervised reader worker.
 
