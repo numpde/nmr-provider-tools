@@ -1,12 +1,12 @@
 """Generated outbox histories preserve the exact outstanding handoff across restart."""
 
 import random
+import ssl
 import tempfile
 import unittest
 import pathlib
-from unittest.mock import Mock
 
-from provider_core.api_config import api_settings_with_material
+from provider_core.api_config import api_settings_with_material, https_trust
 from provider_core.delivery_handoff import DeliveryHandoff
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull, DeliveryQueue, QueueLimits
 from tests.fakes.credential import document, encoded
@@ -14,6 +14,13 @@ from tests.fakes.delivery import outcome
 
 
 class DeliveryFaultSequenceTests(unittest.TestCase):
+    def setUp(self):
+        # Histories test retained publication identity, not system-root loading.
+        # Keep real CA admission while avoiding a full root-store load per read.
+        trust = https_trust(None, label="Delivery history fixture")
+        certificate = trust.get_ca_certs(binary_form=True)[0]
+        self.ca_bytes = ssl.DER_cert_to_PEM_cert(certificate).encode("ascii")
+
     def material(self, provider):
         fields = {
             "origin": "https://api.example",
@@ -22,10 +29,18 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
             "provider_ref": provider,
             "exchange_seconds": 10,
             "retirement_seconds": 5,
-            "credential_file": "/synthetic/credential"
+            "credential_file": "/synthetic/credential",
+            "ca_file": "/synthetic/ca"
         }
 
-        (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
+        inputs = {
+            "/synthetic/credential": encoded(document(principal_ref=provider)),
+            "/synthetic/ca": self.ca_bytes,
+        }
+        def read_file(path, **limits):
+            return inputs[path]
+
+        (_, _, material) = api_settings_with_material(fields, read_file)
 
         return material
 
