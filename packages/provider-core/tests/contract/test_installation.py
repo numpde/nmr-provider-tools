@@ -241,6 +241,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/nmr/v1/topology.py",
                 "provider_core/uploads.py",
                 "provider_core/upload_file.py",
+                "provider_core/upload_workspace.py",
             },
         )
 
