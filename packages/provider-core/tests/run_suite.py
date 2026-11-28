@@ -6,10 +6,17 @@ require_container()
 
 import importlib.metadata
 import logging
+import os
+import signal
+import subprocess
 import sys
+import tempfile
+import threading
+import time
 import traceback
 import unittest
 import pathlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import provider_core
 
@@ -240,6 +247,86 @@ def _print_failure_summary(suite_result, selection, stream):
     print("=== END PROVIDER-CORE FAILURE SUMMARY ===", file=stream)
 
 
+def _modules(suite):
+    """Keep module fixtures together; each module belongs to exactly one worker."""
+
+    modules = {}
+    for test in suite:
+        if isinstance(test, unittest.TestSuite):
+            for module, identities in _modules(test).items():
+                modules.setdefault(module, []).extend(identities)
+        else:
+            modules.setdefault(type(test).__module__, []).append(test.id())
+    return modules
+
+
+def _run_module(module, identities, selection, stopping):
+    """Run the existing installed-package reporter in an isolated process group."""
+
+    started = time.monotonic()
+    if stopping.is_set():
+        return module, 1, 0, "Module cancelled before launch\n"
+    with tempfile.TemporaryFile(mode="w+t") as output:
+        process = subprocess.Popen(
+            [sys.executable, "-I", "-B", __file__, selection, "--module", module, *identities],
+            stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+        )
+        try:
+            status = 1
+            while not stopping.is_set():
+                if time.monotonic() - started >= 300:
+                    print(f"Module {module} exceeded its 300-second budget", file=output)
+                    break
+                try:
+                    status = process.wait(timeout=0.2)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        finally:
+            # Also retire descendants left after a worker exits. Module tests
+            # retain their own resource cleanup; this bounds the runner's group.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+        output.seek(0)
+        return module, status, time.monotonic() - started, output.read()
+
+
+def _run_parallel(suite, selection, workers):
+    modules = _modules(suite)
+    print(f"Running {suite.countTestCases()} tests in {len(modules)} modules with {workers} workers", flush=True)
+    failed = []
+    stopping = threading.Event()
+    pool = ThreadPoolExecutor(max_workers=workers)
+    previous_term = signal.getsignal(signal.SIGTERM)
+
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt("Parallel test runner interrupted")
+
+    signal.signal(signal.SIGTERM, interrupt)
+    try:
+        pending = [pool.submit(_run_module, module, identities, selection, stopping)
+                   for module, identities in sorted(modules.items())]
+        for completed in as_completed(pending):
+            module, status, elapsed, report = completed.result()
+            print(report, end="", flush=True)
+            print(f"MODULE_RESULT {module} status={status} seconds={elapsed:.3f}", flush=True)
+            if status:
+                failed.append(module)
+    finally:
+        stopping.set()
+        pool.shutdown(wait=True, cancel_futures=True)
+        signal.signal(signal.SIGTERM, previous_term)
+    if failed:
+        print("=== PROVIDER-CORE FAILURE SUMMARY (parallel modules) ===", file=sys.stderr)
+        for module in sorted(failed):
+            print(f"  FAIL {module}; full worker report above", file=sys.stderr)
+        print("=== END PROVIDER-CORE FAILURE SUMMARY ===", file=sys.stderr)
+    return 1 if failed else 0
+
+
 def main():
     installed_environment = pathlib.Path(sys.prefix).resolve()
     imported_package_path = pathlib.Path(provider_core.__file__).resolve()
@@ -274,8 +361,17 @@ def main():
     suite = unittest.TestSuite()
     patterns = sys.argv[2:]
 
-    if not (patterns):
-        raise ValueError("Provider-core discovery requires at least one explicit pattern from its maintained test launcher.")
+    if patterns[:1] == ["--module"]:
+        if len(patterns) < 3 or not patterns[1].startswith("tests." + selection.replace("/", ".") + "."):
+            raise ValueError("Module worker must select one module within its suite")
+        if any(not identity.startswith(patterns[1] + ".") for identity in patterns[2:]):
+            raise ValueError("Module worker test identities must belong to its module")
+        sys.path.insert(0, str(root.parent))
+        suite = unittest.defaultTestLoader.loadTestsFromNames(patterns[2:])
+        patterns = []
+    else:
+        if not patterns:
+            raise ValueError("Provider-core discovery requires an explicit test pattern")
 
     for pattern in patterns:
         selected = unittest.defaultTestLoader.discover(str(root / selection), pattern=pattern, top_level_dir=str(root.parent))
@@ -284,6 +380,15 @@ def main():
             raise RuntimeError(f"Selected provider-core pattern contains no tests: {pattern}")
 
         suite.addTests(selected)
+
+    if suite.countTestCases() == 0:
+        raise RuntimeError("Selected provider-core suite contains no tests")
+
+    workers = os.environ.get("PROVIDER_CORE_TEST_WORKERS", "1")
+    if workers not in {"1", "2", "3", "4"}:
+        raise ValueError("PROVIDER_CORE_TEST_WORKERS must be 1 through 4")
+    if patterns and selection == "unit" and workers != "1" and not unittest.defaultTestLoader.errors:
+        return _run_parallel(suite, selection, int(workers))
 
     suite_result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
 

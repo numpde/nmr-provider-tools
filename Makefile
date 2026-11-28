@@ -92,6 +92,18 @@ override PRIVACY_TESTS_INPUT := $(value PRIVACY_TESTS)
 export PRIVACY_TESTS_INPUT
 endif
 
+unexport TEST_WORKERS PROVIDER_CORE_TEST_WORKERS
+override export TEST_WORKERS_INPUT := 1
+ifeq ($(origin TEST_WORKERS),command line)
+override TEST_WORKERS_INPUT := $(value TEST_WORKERS)
+ifneq ($(words $(MAKECMDGOALS)),1)
+$(error TEST_WORKERS requires exactly one SDK unit, package-test or release-preparation target)
+endif
+ifeq ($(filter $(MAKECMDGOALS),tests/unit/provider-core tests/package publish/prepare),)
+$(error TEST_WORKERS applies only to tests/unit/provider-core, tests/package or publish/prepare)
+endif
+endif
+
 unexport TEST_PATTERN
 unexport TEST_PATTERN_INPUT
 unexport TEST_PATTERN_INPUT_ORIGIN

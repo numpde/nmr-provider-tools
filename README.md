@@ -128,6 +128,14 @@ release, and the sidecar stays beside its wheel in GitHub Releases. Publishing
 the next release replaces the working-tree listing; consumers retain their
 previous selection until they update their pinned page URL and SDK version.
 
+SDK unit tests can run by module with `TEST_WORKERS=2` (accepted range 1–4,
+default 1) on `tests/unit/provider-core`, `tests/package`, or `publish/prepare`.
+This ports hello-world's module-level process isolation while retaining this
+SDK's installed-package and asyncio-error checks in every worker. Module fixtures
+stay together; complete module logs and timings are reported on completion.
+Each module has a 300-second budget. Contract, integration and native suites
+remain serial. No additional test dependency or image is required.
+
 Installed SDK test failures end with a **PROVIDER-CORE FAILURE SUMMARY**:
 test and subtest names, source locations and short causes, with full unittest
 tracebacks preserved above it. An unowned asyncio ERROR (including SSL handshake

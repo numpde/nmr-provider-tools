@@ -7,6 +7,8 @@ printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
 action=$1
+test_workers=${TEST_WORKERS_INPUT-1}
+case "$test_workers" in 1|2|3|4) ;; *) printf '%s\n' 'TEST_WORKERS must be 1 through 4.' >&2; exit 2 ;; esac
 case "$action" in download|check|unit|native|contract|integration|integration/delivery|fuzz|build|package) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
@@ -53,6 +55,7 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
     --env "PRIVACY_TESTS=$privacy_tests"
+    --env "PROVIDER_CORE_TEST_WORKERS=$test_workers"
     --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
     --mount "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly"
