@@ -48,11 +48,12 @@ native() {
     return "$status"
 }
 nested() {
-    local operation=$1 status=0
+    local operation=$1 status=0 started=$SECONDS
     shift
     controller_native "$operation" untimed stdio "$@" || status=$?
+    if ! "$inference_retirement_confirmed" && [[ $status == 0 ]]; then status=2; fi
+    printf 'PHASE_TIME %s status=%s seconds=%s\n' "$operation" "$status" "$((SECONDS - started))"
     if ! "$inference_retirement_confirmed"; then
-        if [[ $status == 0 ]]; then status=2; fi
         exit "$status"
     fi
     return "$status"

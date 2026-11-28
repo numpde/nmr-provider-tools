@@ -19,6 +19,8 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
+from contextlib import contextmanager
 import tomllib
 import zipfile
 import pathlib
@@ -402,16 +404,30 @@ def check_package_listing(wheel, version):
             raise ValueError(f"Cannot check package listing: {listing_artifact=} does not describe the exact released {wheel=}")
 
 
+@contextmanager
+def timed_phase(name):
+    """Report wall time even when a release phase fails or is interrupted."""
+    started = time.monotonic()
+    status = "failed"
+    print(f"PHASE_START {name}", flush=True)
+    try:
+        yield
+        status = "passed"
+    finally:
+        print(f"PHASE_TIME {name} status={status} seconds={time.monotonic() - started:.3f}", flush=True)
+
+
 def qualify_installed(wheel, lock, source, pool, root, suites):
     # The wheel and runtime-install lock remain exactly as issued.
     # Behavioral tests get the source archive's own test lock; contract/native proofs do not.
-    runtime_python = install_environment(
-        root / "runtime",
-        lock,
-        pool,
-        extra_pools=(wheel.parent,),
-        required_files={wheel.name: wheel},
-    )
+    with timed_phase(f"{root.name}/install-runtime"):
+        runtime_python = install_environment(
+            root / "runtime",
+            lock,
+            pool,
+            extra_pools=(wheel.parent,),
+            required_files={wheel.name: wheel},
+        )
 
     behavioral_python = None
 
@@ -422,13 +438,14 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
             root / "behavioral-install.lock",
         )
 
-        behavioral_python = install_environment(
-            root / "behavioral",
-            behavioral_lock,
-            pool,
-            extra_pools=(wheel.parent,),
-            required_files={wheel.name: wheel},
-        )
+        with timed_phase(f"{root.name}/install-test-environment"):
+            behavioral_python = install_environment(
+                root / "behavioral",
+                behavioral_lock,
+                pool,
+                extra_pools=(wheel.parent,),
+                required_files={wheel.name: wheel},
+            )
 
     test_root = root / "run"
 
@@ -446,17 +463,18 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
             "test*.py",  # Run the full suite without a filename filter
         ]
 
-        test_process = subprocess.run(
-            test_command,  # Run the installed SDK qualification suite
-            cwd=test_root,  # Resolve fixtures relative to the staged suite
-        )
-
-        if test_process.returncode:
-            raise SystemExit(
-                f"Cannot qualify installed provider-core: {suite=}, {test_process.returncode=}. "
-                f"See the suite diagnostic above "
-                f"and the retained release-test.log."
+        with timed_phase(f"{root.name}/suite/{suite}"):
+            test_process = subprocess.run(
+                test_command,  # Run the installed SDK qualification suite
+                cwd=test_root,  # Resolve fixtures relative to the staged suite
             )
+
+            if test_process.returncode:
+                raise SystemExit(
+                    f"Cannot qualify installed provider-core: {suite=}, {test_process.returncode=}. "
+                    f"See the suite diagnostic above "
+                    f"and the retained release-test.log."
+                )
 
 
 def check(artifacts, revision):
@@ -651,13 +669,14 @@ def check(artifacts, revision):
 
         rebuild_output.mkdir()
 
-        (rebuilt_wheel, rebuilt_lock, rebuilt_dependency_inputs) = build_candidate(
-            extracted_source,
-            pathlib.Path("/core-runtime.lock"),
-            pathlib.Path("/core-build.lock"),
-            pathlib.Path("/wheelhouse"),
-            rebuild_output,
-        )
+        with timed_phase("source-rebuild"):
+            (rebuilt_wheel, rebuilt_lock, rebuilt_dependency_inputs) = build_candidate(
+                extracted_source,
+                pathlib.Path("/core-runtime.lock"),
+                pathlib.Path("/core-build.lock"),
+                pathlib.Path("/wheelhouse"),
+                rebuild_output,
+            )
 
         if rebuilt_dependency_inputs != release_record["dependency_inputs"]:
             raise ValueError(
@@ -740,4 +759,5 @@ if __name__ == "__main__":
     parser.add_argument("--revision", required=True)
     args = parser.parse_args()
 
-    check(args.artifacts, args.revision)
+    with timed_phase("qualification-total"):
+        check(args.artifacts, args.revision)

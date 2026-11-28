@@ -69,6 +69,8 @@ class Cases(unittest.TestCase):
         self.assertEqual(result.stdout.count("MODULE_TEARDOWN_WITNESS"), 1)
         self.assertIn("Ran 2 tests", result.stdout)
         self.assertIn("MODULE_RESULT tests.unit.test_fixture status=0", result.stdout)
+        self.assertIn("SUITE_TIME unit mode=parallel workers=2 seconds=", result.stdout)
+        self.assertIn("SUITE_TIME unit mode=serial seconds=", result.stdout)
 
     def test_worker_failure_and_asyncio_error_keep_nonzero_status(self):
         for statement, evidence in (

@@ -295,6 +295,7 @@ def _run_module(module, identities, selection, stopping):
 
 
 def _run_parallel(suite, selection, workers):
+    started = time.monotonic()
     modules = _modules(suite)
     print(f"Running {suite.countTestCases()} tests in {len(modules)} modules with {workers} workers", flush=True)
     failed = []
@@ -319,6 +320,7 @@ def _run_parallel(suite, selection, workers):
         stopping.set()
         pool.shutdown(wait=True, cancel_futures=True)
         signal.signal(signal.SIGTERM, previous_term)
+        print(f"SUITE_TIME {selection} mode=parallel workers={workers} seconds={time.monotonic() - started:.3f}", flush=True)
     if failed:
         print("=== PROVIDER-CORE FAILURE SUMMARY (parallel modules) ===", file=sys.stderr)
         for module in sorted(failed):
@@ -390,7 +392,11 @@ def main():
     if patterns and selection == "unit" and workers != "1" and not unittest.defaultTestLoader.errors:
         return _run_parallel(suite, selection, int(workers))
 
-    suite_result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
+    started = time.monotonic()
+    try:
+        suite_result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
+    finally:
+        print(f"SUITE_TIME {selection} mode=serial seconds={time.monotonic() - started:.3f}", flush=True)
 
     _print_failure_summary(suite_result, selection, sys.stderr)
 

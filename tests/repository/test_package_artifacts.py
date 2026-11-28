@@ -21,6 +21,7 @@ from unittest.mock import call, patch
 
 from operations.release.qualify import (
     artifact_names,
+    timed_phase,
     check,
     qualify_acquisition_bundle,
     check_package_listing,
@@ -36,6 +37,16 @@ from tests.repository.quality.sources import ROOT, source_files
 
 
 class PackageArtifactTests(unittest.TestCase):
+    def test_phase_timer_reports_failure_without_replacing_it(self):
+        failure = RuntimeError("phase failed")
+        output = io.StringIO()
+        with redirect_stdout(output), patch("operations.release.qualify.time.monotonic", side_effect=[10.0, 12.5]):
+            with self.assertRaises(RuntimeError) as caught:
+                with timed_phase("fixture"):
+                    raise failure
+        self.assertIs(caught.exception, failure)
+        self.assertIn("PHASE_TIME fixture status=failed seconds=2.500", output.getvalue())
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
 
